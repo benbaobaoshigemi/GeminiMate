@@ -162,12 +162,24 @@ async function fetchImageWithFallback(url: string): Promise<Response> {
   return fetch(url, { credentials: 'omit', redirect: 'follow' });
 }
 
-function arrayBufferToBase64(buffer: ArrayBuffer): string {
+async function blobToBase64(blob: Blob): Promise<string> {
+  if (typeof FileReader !== 'undefined') {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        const dataUrl = reader.result as string;
+        resolve(dataUrl.substring(dataUrl.indexOf(',') + 1));
+      };
+      reader.onerror = () => reject(new Error('FileReader failed'));
+      reader.readAsDataURL(blob);
+    });
+  }
+  const buffer = await blob.arrayBuffer();
   let binary = '';
   const bytes = new Uint8Array(buffer);
-  const length = bytes.byteLength;
-  for (let i = 0; i < length; i++) {
-    binary += String.fromCharCode(bytes[i]);
+  const chunkSize = 8192;
+  for (let i = 0; i < bytes.length; i += chunkSize) {
+    binary += String.fromCharCode.apply(null, Array.from(bytes.subarray(i, i + chunkSize)));
   }
   return btoa(binary);
 }
@@ -186,7 +198,7 @@ chrome.runtime.onMessage.addListener((message: unknown, _sender, sendResponse) =
           throw new Error(`HTTP ${response.status}`);
         }
         const blob = await response.blob();
-        const base64 = arrayBufferToBase64(await blob.arrayBuffer());
+        const base64 = await blobToBase64(blob);
         const contentType = blob.type || 'image/png';
         sendResponse({
           ok: true,

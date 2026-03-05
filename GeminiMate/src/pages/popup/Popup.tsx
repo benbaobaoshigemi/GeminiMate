@@ -101,33 +101,44 @@ const Slider = ({
   onChange,
   disabled = false,
   icon: Icon,
-}: SliderProps) => (
-  <div className={`p-3 rounded-xl bg-white/5 border border-white/5 transition-all ${disabled ? 'opacity-60' : ''}`}>
-    <div className="flex items-center gap-3 mb-2">
-      <div className={`p-2 rounded-lg ${!disabled ? 'bg-blue-500/20 text-blue-400' : 'bg-white/10 text-white/70'}`}>
-        <Icon size={16} />
+}: SliderProps) => {
+  const percentage = ((value - min) / (max - min)) * 100;
+  return (
+    <div className={`p-3 rounded-xl bg-white/5 border border-white/5 transition-all ${disabled ? 'opacity-60' : ''}`}>
+      <div className="flex items-center gap-3 mb-2">
+        <div className={`p-2 rounded-lg ${!disabled ? 'bg-blue-500/20 text-blue-400' : 'bg-white/10 text-white/70'}`}>
+          <Icon size={16} />
+        </div>
+        <div>
+          <p className="text-sm font-medium text-white/90">{title}</p>
+          <p className="text-xs text-white/50">{description}</p>
+        </div>
+        <div className="ml-auto text-xs font-bold text-blue-400 bg-blue-500/10 px-2 py-1 rounded-md">{value}px</div>
       </div>
-      <div>
-        <p className="text-sm font-medium text-white/90">{title}</p>
-        <p className="text-xs text-white/50">{description}</p>
+      <div className="relative mt-3 mb-1">
+        <div className="absolute top-1/2 -translate-y-1/2 left-0 h-1.5 w-full bg-white/10 rounded-full overflow-hidden pointer-events-none">
+          <div className="h-full bg-gradient-to-r from-blue-500 to-indigo-400 rounded-full" style={{ width: `${percentage}%` }} />
+        </div>
+        <input
+          type="range"
+          min={min}
+          max={max}
+          step={step}
+          value={value}
+          onChange={(e) => !disabled && onChange(Number(e.target.value))}
+          disabled={disabled}
+          className={`relative z-10 w-full h-1.5 appearance-none bg-transparent cursor-pointer outline-none focus:outline-none 
+        [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-4 [&::-webkit-slider-thumb]:h-4
+        [&::-webkit-slider-thumb]:bg-white [&::-webkit-slider-thumb]:border-2 [&::-webkit-slider-thumb]:border-blue-500 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:shadow-[0_0_10px_rgba(59,130,246,0.5)]
+        [&::-webkit-slider-thumb]:transition-transform [&::-webkit-slider-thumb]:duration-150 [&::-webkit-slider-thumb]:hover:scale-110
+        [&::-moz-range-thumb]:w-4 [&::-moz-range-thumb]:h-4 [&::-moz-range-thumb]:border-2 [&::-moz-range-thumb]:border-blue-500 [&::-moz-range-thumb]:rounded-full
+        [&::-moz-range-thumb]:bg-white [&::-moz-range-thumb]:transition-transform [&::-moz-range-thumb]:duration-150 [&::-moz-range-thumb]:hover:scale-110
+        ${disabled ? 'opacity-50 cursor-not-allowed' : ''}`}
+        />
       </div>
-      <div className="ml-auto text-xs font-bold text-blue-400">{value}px</div>
     </div>
-    <input
-      type="range"
-      min={min}
-      max={max}
-      step={step}
-      value={value}
-      onChange={(e) => !disabled && onChange(Number(e.target.value))}
-      disabled={disabled}
-      className={`w-full h-1.5 bg-white/20 rounded-lg appearance-none cursor-pointer mt-2
-      [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-4 [&::-webkit-slider-thumb]:h-4
-      [&::-webkit-slider-thumb]:bg-blue-400 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:shadow-lg
-      ${disabled ? 'opacity-50 cursor-not-allowed' : ''}`}
-    />
-  </div>
-);
+  )
+};
 
 const SectionHeader = ({ icon: Icon, title }: { icon: React.ElementType; title: string }) => (
   <div className="flex items-center gap-2 mb-3 mt-6 first:mt-2 px-1">
@@ -138,7 +149,7 @@ const SectionHeader = ({ icon: Icon, title }: { icon: React.ElementType; title: 
 );
 
 export default function Popup() {
-  const BUILD_MARK = 'build-20260305-13-watermark-quote';
+  const BUILD_MARK = 'build-20260306-18-timeline-overlap-cleanup';
 
   const [latexEnabled, setLatexEnabled] = useState(true);
   const [markdownEnabled, setMarkdownEnabled] = useState(true);
@@ -148,12 +159,20 @@ export default function Popup() {
   const [formulaCopyFormat, setFormulaCopyFormat] = useState<FormulaCopyFormat>('latex');
   const [watermarkRemoverEnabled, setWatermarkRemoverEnabled] = useState(true);
   const [quoteReplyEnabled, setQuoteReplyEnabled] = useState(true);
+  const [bottomCleanupEnabled, setBottomCleanupEnabled] = useState(false);
   const [debugMode, setDebugMode] = useState(false);
 
   const [timelineEnabled, setTimelineEnabled] = useState(true);
   const [timelineWidth, setTimelineWidth] = useState(24);
   const [timelineScrollMode, setTimelineScrollMode] = useState('flow');
   const [timelineHideContainer, setTimelineHideContainer] = useState(false);
+  const [timelineAutoHide, setTimelineAutoHide] = useState(false);
+
+  // Layout features
+  const [chatWidth, setChatWidth] = useState(70);
+  const [editInputWidth, setEditInputWidth] = useState(60);
+  const [sidebarWidth, setSidebarWidth] = useState(312);
+  const [sidebarAutoHide, setSidebarAutoHide] = useState(false);
 
   useEffect(() => {
     void debugService.init('popup');
@@ -181,10 +200,16 @@ export default function Popup() {
         StorageKeys.DEBUG_MODE,
         StorageKeys.WATERMARK_REMOVER_ENABLED,
         StorageKeys.QUOTE_REPLY_ENABLED,
+        StorageKeys.BOTTOM_CLEANUP_ENABLED,
         StorageKeys.TIMELINE_ENABLED,
         'geminiTimelineScrollMode',
         'geminiTimelineHideContainer',
         StorageKeys.TIMELINE_WIDTH,
+        StorageKeys.TIMELINE_AUTO_HIDE,
+        StorageKeys.GEMINI_CHAT_WIDTH,
+        StorageKeys.GEMINI_EDIT_INPUT_WIDTH,
+        StorageKeys.GEMINI_SIDEBAR_WIDTH,
+        StorageKeys.GEMINI_SIDEBAR_AUTO_HIDE,
       ],
       (result) => {
         setLatexEnabled(result[StorageKeys.LATEX_FIXER_ENABLED] ?? true);
@@ -200,11 +225,18 @@ export default function Popup() {
         setDebugMode(result[StorageKeys.DEBUG_MODE] === true);
         setWatermarkRemoverEnabled(result[StorageKeys.WATERMARK_REMOVER_ENABLED] ?? true);
         setQuoteReplyEnabled(result[StorageKeys.QUOTE_REPLY_ENABLED] ?? true);
+        setBottomCleanupEnabled(result[StorageKeys.BOTTOM_CLEANUP_ENABLED] === true);
 
         setTimelineEnabled(result[StorageKeys.TIMELINE_ENABLED] ?? true);
         setTimelineWidth(result[StorageKeys.TIMELINE_WIDTH] ?? 24);
         setTimelineScrollMode(result.geminiTimelineScrollMode ?? 'flow');
         setTimelineHideContainer(result.geminiTimelineHideContainer ?? false);
+        setTimelineAutoHide(result[StorageKeys.TIMELINE_AUTO_HIDE] ?? false);
+
+        setChatWidth(result[StorageKeys.GEMINI_CHAT_WIDTH] ?? 70);
+        setEditInputWidth(result[StorageKeys.GEMINI_EDIT_INPUT_WIDTH] ?? 60);
+        setSidebarWidth(result[StorageKeys.GEMINI_SIDEBAR_WIDTH] ?? 312);
+        setSidebarAutoHide(result[StorageKeys.GEMINI_SIDEBAR_AUTO_HIDE] ?? false);
       },
     );
 
@@ -282,55 +314,111 @@ export default function Popup() {
           </div>
 
           <SectionHeader icon={Layout} title="UI增强类" />
-          <div className="space-y-2">
+          <div className="space-y-4">
+            <Slider
+              icon={Layout}
+              title="对话区域宽度"
+              description="限制聊天气泡在此宽度内 (窄 <--> 宽)"
+              value={chatWidth}
+              min={30}
+              max={100}
+              step={1}
+              onChange={(v) => {
+                setChatWidth(v);
+                chrome.storage.local.set({ [StorageKeys.GEMINI_CHAT_WIDTH]: v });
+              }}
+            />
+            <Slider
+              icon={Layout}
+              title="编辑输入框宽度"
+              description="对话修改框的水平伸缩比例 (窄 <--> 宽)"
+              value={editInputWidth}
+              min={30}
+              max={100}
+              step={1}
+              onChange={(v) => {
+                setEditInputWidth(v);
+                chrome.storage.local.set({ [StorageKeys.GEMINI_EDIT_INPUT_WIDTH]: v });
+              }}
+            />
+            <Slider
+              icon={Layout}
+              title="侧边栏宽度"
+              description="原生菜单导航列的像素宽度"
+              value={sidebarWidth}
+              min={180}
+              max={540}
+              step={10}
+              onChange={(v) => {
+                setSidebarWidth(v);
+                chrome.storage.local.set({ [StorageKeys.GEMINI_SIDEBAR_WIDTH]: v });
+              }}
+            />
             <SettingRow
               icon={Layout}
-              title="Layout 布局优化"
-              description="调整聊天、编辑、侧栏宽度"
-              checked={false}
-              onChange={() => {}}
-              disabled={true}
-              badge="Coming Soon"
+              title="侧栏自动收起"
+              description="鼠标离开时自动收起侧边栏，鼠标进入时展开"
+              checked={sidebarAutoHide}
+              onChange={(v) => updateSetting(StorageKeys.GEMINI_SIDEBAR_AUTO_HIDE, v, setSidebarAutoHide)}
+            />
+            <SettingRow
+              icon={Layout}
+              title="去除底部垃圾"
+              description="隐藏底部免责声明并去除输入区阴影"
+              checked={bottomCleanupEnabled}
+              onChange={(v) =>
+                updateSetting(StorageKeys.BOTTOM_CLEANUP_ENABLED, v, setBottomCleanupEnabled)
+              }
             />
           </div>
 
           <SectionHeader icon={Zap} title="功能增强类" />
           <div className="space-y-2">
-            <SettingRow
-              icon={Zap}
-              title="公式点击复制"
-              description="支持 LaTeX/MathML/纯文本"
-              checked={formulaCopyEnabled}
-              onChange={(v) => updateSetting(StorageKeys.FORMULA_COPY_ENABLED, v, setFormulaCopyEnabled)}
-            />
-            <div className={`p-3 rounded-xl bg-white/5 border border-white/5 transition-all ${!formulaCopyEnabled ? 'opacity-60' : ''}`}>
-              <p className="text-sm font-medium text-white/90">公式复制格式</p>
-              <p className="text-xs text-white/50 mt-1 mb-3">选择点击公式时复制的格式</p>
-              <div className="space-y-2">
-                {[
-                  { value: 'latex' as const, title: 'LaTeX', desc: '自动按行内/块级补全 $ 符号' },
-                  { value: 'unicodemath' as const, title: 'MathML (Word)', desc: '适合 Word 粘贴，保留公式结构' },
-                  { value: 'no-dollar' as const, title: '纯文本 LaTeX', desc: '仅复制公式文本，不加定界符' },
-                ].map((option) => {
-                  const active = formulaCopyFormat === option.value;
-                  return (
-                    <button
-                      key={option.value}
-                      type="button"
-                      disabled={!formulaCopyEnabled}
-                      onClick={() => updateFormulaCopyFormat(option.value)}
-                      className={`w-full text-left p-2.5 rounded-lg border transition-all ${
-                        active ? 'border-blue-400/60 bg-blue-500/15' : 'border-white/10 bg-white/5 hover:bg-white/10'
-                      } ${!formulaCopyEnabled ? 'cursor-not-allowed' : ''}`}
-                    >
-                      <div className="flex items-center justify-between">
-                        <p className="text-sm text-white/90 font-medium">{option.title}</p>
-                        {active ? <span className="text-blue-300 text-xs font-bold">已选中</span> : null}
-                      </div>
-                      <p className="text-xs text-white/50 mt-1">{option.desc}</p>
-                    </button>
-                  );
-                })}
+            <div className="p-3 rounded-xl bg-white/5 border border-white/5 transition-all">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className={`p-2 rounded-lg ${formulaCopyEnabled ? 'bg-blue-500/20 text-blue-400' : 'bg-white/10 text-white/70'}`}>
+                    <Zap size={16} />
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium text-white/90">公式点击复制</p>
+                    <p className="text-xs text-white/50">支持 LaTeX/MathML/纯文本</p>
+                  </div>
+                </div>
+                <Toggle
+                  checked={formulaCopyEnabled}
+                  onChange={(v) => updateSetting(StorageKeys.FORMULA_COPY_ENABLED, v, setFormulaCopyEnabled)}
+                />
+              </div>
+
+              <div className={`mt-3 pt-3 border-t border-white/10 ${!formulaCopyEnabled ? 'opacity-60' : ''}`}>
+                <p className="text-sm font-medium text-white/90">公式复制格式</p>
+                <p className="text-xs text-white/50 mt-1 mb-3">选择点击公式时复制的格式</p>
+                <div className="space-y-2">
+                  {[
+                    { value: 'latex' as const, title: 'LaTeX', desc: '自动按行内/块级补全 $ 符号' },
+                    { value: 'unicodemath' as const, title: 'MathML (Word)', desc: '适合 Word 粘贴，保留公式结构' },
+                    { value: 'no-dollar' as const, title: '纯文本 LaTeX', desc: '仅复制公式文本，不加定界符' },
+                  ].map((option) => {
+                    const active = formulaCopyFormat === option.value;
+                    return (
+                      <button
+                        key={option.value}
+                        type="button"
+                        disabled={!formulaCopyEnabled}
+                        onClick={() => updateFormulaCopyFormat(option.value)}
+                        className={`w-full text-left p-2.5 rounded-lg border transition-all ${active ? 'border-blue-400/60 bg-blue-500/15' : 'border-white/10 bg-white/5 hover:bg-white/10'
+                          } ${!formulaCopyEnabled ? 'cursor-not-allowed' : ''}`}
+                      >
+                        <div className="flex items-center justify-between">
+                          <p className="text-sm text-white/90 font-medium">{option.title}</p>
+                          {active ? <span className="text-blue-300 text-xs font-bold">已选中</span> : null}
+                        </div>
+                        <p className="text-xs text-white/50 mt-1">{option.desc}</p>
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
             </div>
 
@@ -353,7 +441,7 @@ export default function Popup() {
               title="高级文件夹功能"
               description="树形目录管理对话"
               checked={false}
-              onChange={() => {}}
+              onChange={() => { }}
               disabled={true}
             />
           </div>
@@ -384,6 +472,13 @@ export default function Popup() {
               description="防闪跳机制（适合长对话）"
               checked={timelineHideContainer}
               onChange={(v) => updateSetting('geminiTimelineHideContainer', v, setTimelineHideContainer)}
+            />
+            <SettingRow
+              icon={Layout}
+              title="侧栏自动隐藏"
+              description="平时贴边缩小，悬浮时展开"
+              checked={timelineAutoHide}
+              onChange={(v) => updateSetting(StorageKeys.TIMELINE_AUTO_HIDE, v, setTimelineAutoHide)}
             />
             <Slider
               icon={Layout}
@@ -417,11 +512,10 @@ export default function Popup() {
                 void debugService.clearLogs();
                 debugService.log('popup', 'debug-logs-cleared');
               }}
-              className={`w-full text-left p-3 rounded-xl border transition-all ${
-                debugMode
-                  ? 'border-blue-400/30 bg-blue-500/10 hover:bg-blue-500/20 text-blue-200'
-                  : 'border-white/10 bg-white/5 text-white/40 cursor-not-allowed'
-              }`}
+              className={`w-full text-left p-3 rounded-xl border transition-all ${debugMode
+                ? 'border-blue-400/30 bg-blue-500/10 hover:bg-blue-500/20 text-blue-200'
+                : 'border-white/10 bg-white/5 text-white/40 cursor-not-allowed'
+                }`}
             >
               清空本地调试日志
             </button>
@@ -430,7 +524,7 @@ export default function Popup() {
               title="Word 一键导出"
               description="保留公式排版（开发中）"
               checked={false}
-              onChange={() => {}}
+              onChange={() => { }}
               disabled={true}
               badge="WIP"
             />

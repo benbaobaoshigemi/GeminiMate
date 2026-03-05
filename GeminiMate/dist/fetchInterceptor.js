@@ -1,3 +1,4 @@
+/* global window, document, console, Response, Request, MutationObserver, fetch, FileReader, setTimeout */
 /**
  * Fetch Interceptor - Injected into MAIN world
  *

@@ -29,6 +29,7 @@ export class TimelinePreviewPanel {
   private onStorageChanged:
     | ((changes: Record<string, browser.Storage.StorageChange>, areaName: string) => void)
     | null = null;
+  private hostVisible = true;
 
   constructor(private readonly anchorElement: HTMLElement) { }
 
@@ -84,6 +85,9 @@ export class TimelinePreviewPanel {
     this.positionPanel();
     this.panelEl.classList.add('visible');
     this.toggleBtn?.classList.add('active');
+    if (this.toggleBtn) {
+      this.toggleBtn.style.display = 'none';
+    }
     this.scrollActiveIntoView();
   }
 
@@ -92,6 +96,9 @@ export class TimelinePreviewPanel {
     this._isOpen = false;
     this.panelEl.classList.remove('visible');
     this.toggleBtn?.classList.remove('active');
+    if (this.toggleBtn) {
+      this.toggleBtn.style.display = this.hostVisible ? '' : 'none';
+    }
     if (this.searchInput) {
       this.searchInput.value = '';
       this.searchQuery = '';
@@ -132,6 +139,19 @@ export class TimelinePreviewPanel {
     this.onSearchChange = null;
     this.markers = [];
     this.filteredMarkers = [];
+  }
+
+  setHostVisibility(visible: boolean): void {
+    this.hostVisible = visible;
+    if (!visible) {
+      this.close();
+    }
+    if (this.toggleBtn) {
+      this.toggleBtn.style.display = visible && !this._isOpen ? '' : 'none';
+    }
+    if (this.panelEl) {
+      this.panelEl.style.display = visible ? '' : 'none';
+    }
   }
 
   private createDOM(): void {
@@ -253,10 +273,10 @@ export class TimelinePreviewPanel {
     if (!this.toggleBtn) return;
     const barRect = this.anchorElement.getBoundingClientRect();
     const btnSize = 24;
-    const gap = 4;
+    const gap = 8;
     const minLeft = 8;
     const maxLeft = Math.max(minLeft, window.innerWidth - btnSize - 8);
-    const leftPx = Math.max(minLeft, Math.min(Math.round(barRect.left - btnSize - gap), maxLeft));
+    const leftPx = Math.max(minLeft, Math.min(Math.round(barRect.right + gap), maxLeft));
     this.toggleBtn.style.left = `${leftPx}px`;
     this.toggleBtn.style.top = `${Math.round(barRect.top + barRect.height / 2 - btnSize / 2)}px`;
   }
@@ -264,26 +284,22 @@ export class TimelinePreviewPanel {
   private positionPanel(): void {
     if (!this.panelEl) return;
     const barRect = this.anchorElement.getBoundingClientRect();
-    const panelWidth = 320;
     const gap = 12;
+    const minPanelWidth = 220;
+    const maxPanelWidth = 320;
+    const availableRight = Math.max(120, window.innerWidth - (barRect.right + gap) - 8);
+    const panelWidth = Math.max(minPanelWidth, Math.min(maxPanelWidth, availableRight));
     const maxHeight = Math.min(500, window.innerHeight * 0.7);
     const barCenterY = barRect.top + barRect.height / 2;
-    const isRTL = this.isRTLContext();
 
-    let left: number;
-    if (isRTL) {
-      // In RTL, bar is on the left — place panel to its right
-      left = barRect.right + gap;
-      if (left + panelWidth > window.innerWidth - 8) {
-        left = window.innerWidth - panelWidth - 8;
-      }
-    } else {
-      // In LTR, bar is on the right — place panel to its left
-      left = barRect.left - panelWidth - gap;
-      if (left < 8) left = 8;
-    }
+    const minNonOverlapLeft = barRect.right + gap;
+    const left = Math.max(
+      minNonOverlapLeft,
+      Math.min(window.innerWidth - panelWidth - 8, minNonOverlapLeft),
+    );
 
     this.panelEl.style.maxHeight = `${Math.round(maxHeight)}px`;
+    this.panelEl.style.width = `${Math.round(panelWidth)}px`;
     this.panelEl.style.left = `${Math.round(left)}px`;
 
     // Measure actual rendered height to center properly (works for both few and many items)

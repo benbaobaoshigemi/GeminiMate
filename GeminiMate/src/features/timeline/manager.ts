@@ -27,7 +27,7 @@ const INJECTED_UI_SELECTOR = '.gv-fork-btn, .gv-fork-confirm, .gv-fork-indicator
 type ExtGlobal = typeof globalThis & {
   chrome?: {
     storage?: {
-      sync?: {
+      local?: {
         get(k: Record<string, unknown>, cb: (items: Record<string, unknown>) => void): void;
         set?(items: Record<string, unknown>): void;
       };
@@ -41,7 +41,7 @@ type ExtGlobal = typeof globalThis & {
   };
   browser?: {
     storage?: {
-      sync?: {
+      local?: {
         get(k: Record<string, unknown>): Promise<Record<string, unknown>>;
         set?(items: Record<string, unknown>): void;
       };
@@ -100,6 +100,7 @@ export class TimelineManager {
   private tooltipHideTimer: number | null = null;
   private timelineEnabled: boolean = true;
   private timelineWidth: number = 24;
+  private autoHide: boolean = false;
   private measureEl: HTMLElement | null = null;
   private measureCanvas: HTMLCanvasElement | null = null;
   private measureCtx: CanvasRenderingContext2D | null = null;
@@ -170,6 +171,15 @@ export class TimelineManager {
   private onSliderEnter: (() => void) | null = null;
   private onSliderLeave: (() => void) | null = null;
   private timelineWidthVal: number = 24;
+  private readonly lockTimelineToReferenceAnchors = true;
+  private readonly timelineXAxisAnchorSelector =
+    '#app-root > main > div > bard-mode-switcher > a > bard-logo > div > span';
+  private readonly timelineBottomBoundaryAnchorSelector =
+    '#app-root > main > side-navigation-v2 > bard-sidenav-container > bard-sidenav-content > div.content-wrapper > div > div.content-container > chat-window > div > input-container > fieldset > input-area-v2 > div > div';
+  private readonly sidebarExpansionHostSelector =
+    '#app-root > main > side-navigation-v2 > mat-sidenav-container > mat-sidenav > div > side-navigation-content > div';
+  private sidebarVisibilityObserver: MutationObserver | null = null;
+  private sidebarVisibilityRafId: number | null = null;
   private barDragging = false;
   private barStartPos = { x: 0, y: 0 };
   private barStartOffset = { x: 0, y: 0 };
@@ -190,6 +200,7 @@ export class TimelineManager {
     this.injectTimelineUI();
     this.setupEventListeners();
     this.setupObservers();
+    this.setupSidebarVisibilityObserver();
     this.conversationId = this.computeConversationId();
     await this.loadStars();
     await this.syncStarredFromService();
@@ -207,6 +218,7 @@ export class TimelineManager {
         geminiTimelineScrollMode: 'flow',
         geminiTimelineHideContainer: false,
         geminimate_timeline_enabled: true,
+        [StorageKeys.TIMELINE_AUTO_HIDE]: false,
         [StorageKeys.TIMELINE_WIDTH]: 24,
         geminiTimelinePosition: null,
         [StorageKeys.LANGUAGE]: null,
@@ -245,46 +257,52 @@ export class TimelineManager {
       this.applyTimelineVisibility();
       this.timelineWidth = Number(res?.[StorageKeys.TIMELINE_WIDTH]) || 24;
       this.applyTimelineThickness();
+      this.autoHide = !!res?.[StorageKeys.TIMELINE_AUTO_HIDE];
+      this.applyAutoHide();
       this.rtl = applyRTLClass(res?.[StorageKeys.LANGUAGE] as string | null | undefined);
 
-      // Load position with auto-migration from v1 to v2
-      const position = res?.geminiTimelinePosition as
-        | {
-          version?: number;
-          topPercent?: number;
-          leftPercent?: number;
-          top?: number;
-          left?: number;
-        }
-        | undefined;
-      if (position) {
-        const viewportWidth = window.innerWidth;
-        const viewportHeight = window.innerHeight;
+      if (this.lockTimelineToReferenceAnchors) {
+        this.applyReferenceAnchoredPosition();
+      } else {
+        // Load position with auto-migration from v1 to v2
+        const position = res?.geminiTimelinePosition as
+          | {
+            version?: number;
+            topPercent?: number;
+            leftPercent?: number;
+            top?: number;
+            left?: number;
+          }
+          | undefined;
+        if (position) {
+          const viewportWidth = window.innerWidth;
+          const viewportHeight = window.innerHeight;
 
-        // v2 format: use percentage (responsive)
-        if (
-          position.version === 2 &&
-          position.topPercent !== undefined &&
-          position.leftPercent !== undefined
-        ) {
-          const top = (position.topPercent / 100) * viewportHeight;
-          const left = (position.leftPercent / 100) * viewportWidth;
-          this.applyPosition(top, left);
-        }
-        // v1 format: migrate to v2 (auto-upgrade)
-        else if (position.top !== undefined && position.left !== undefined) {
-          // Apply old position first
-          this.applyPosition(position.top, position.left);
+          // v2 format: use percentage (responsive)
+          if (
+            position.version === 2 &&
+            position.topPercent !== undefined &&
+            position.leftPercent !== undefined
+          ) {
+            const top = (position.topPercent / 100) * viewportHeight;
+            const left = (position.leftPercent / 100) * viewportWidth;
+            this.applyPosition(top, left);
+          }
+          // v1 format: migrate to v2 (auto-upgrade)
+          else if (position.top !== undefined && position.left !== undefined) {
+            // Apply old position first
+            this.applyPosition(position.top, position.left);
 
-          // Migrate to v2 format (percentage-based)
-          const migratedPosition = {
-            version: 2,
-            topPercent: (position.top / viewportHeight) * 100,
-            leftPercent: (position.left / viewportWidth) * 100,
-          };
-          (g.chrome?.storage?.local || g.browser?.storage?.local)?.set?.({
-            geminiTimelinePosition: migratedPosition,
-          });
+            // Migrate to v2 format (percentage-based)
+            const migratedPosition = {
+              version: 2,
+              topPercent: (position.top / viewportHeight) * 100,
+              leftPercent: (position.left / viewportWidth) * 100,
+            };
+            (g.chrome?.storage?.local || g.browser?.storage?.local)?.set?.({
+              geminiTimelinePosition: migratedPosition,
+            });
+          }
         }
       }
       this.previewPanel?.reposition();
@@ -311,8 +329,14 @@ export class TimelineManager {
               this.timelineWidth = Number(changes[StorageKeys.TIMELINE_WIDTH].newValue) || 24;
               this.applyTimelineThickness();
             }
+            if (changes?.[StorageKeys.TIMELINE_AUTO_HIDE]) {
+              this.autoHide = !!changes[StorageKeys.TIMELINE_AUTO_HIDE].newValue;
+              this.applyAutoHide();
+            }
             if (changes?.geminiTimelinePosition && !changes.geminiTimelinePosition.newValue) {
-              if (this.ui.timelineBar) {
+              if (this.lockTimelineToReferenceAnchors) {
+                this.applyReferenceAnchoredPosition();
+              } else if (this.ui.timelineBar) {
                 this.ui.timelineBar.style.top = '';
                 this.ui.timelineBar.style.left = '';
               }
@@ -369,9 +393,47 @@ export class TimelineManager {
     this.ui.timelineBar.classList.toggle('timeline-no-container', !!this.hideContainer);
   }
 
+  private isSidebarExpandedBlockingTimeline(): boolean {
+    const host = document.querySelector(this.sidebarExpansionHostSelector) as HTMLElement | null;
+    if (!host) return false;
+    const className = host.className || '';
+    const expanded = className.includes('expanded');
+    const collapsed = className.includes('collapsed');
+    return expanded && !collapsed;
+  }
+
+  private setupSidebarVisibilityObserver(): void {
+    if (this.sidebarVisibilityObserver) return;
+
+    this.sidebarVisibilityObserver = new MutationObserver(() => {
+      if (this.sidebarVisibilityRafId !== null) return;
+      this.sidebarVisibilityRafId = requestAnimationFrame(() => {
+        this.sidebarVisibilityRafId = null;
+        this.applyTimelineVisibility();
+      });
+    });
+
+    this.sidebarVisibilityObserver.observe(document.body, {
+      childList: true,
+      subtree: true,
+      attributes: true,
+      attributeFilter: ['class'],
+    });
+  }
+
   private applyTimelineVisibility(): void {
     if (!this.ui.timelineBar) return;
-    this.ui.timelineBar.style.display = this.timelineEnabled ? 'flex' : 'none';
+    const visible = this.timelineEnabled && !this.isSidebarExpandedBlockingTimeline();
+    this.ui.timelineBar.style.display = visible ? 'flex' : 'none';
+    if (this.ui.slider) {
+      this.ui.slider.style.display = visible ? '' : 'none';
+    }
+    this.previewPanel?.setHostVisibility(visible);
+    if (!visible) {
+      this.hideContextMenu();
+    } else if (this.lockTimelineToReferenceAnchors) {
+      this.applyReferenceAnchoredPosition();
+    }
   }
 
   private applyTimelineThickness(): void {
@@ -384,6 +446,14 @@ export class TimelineManager {
     this.ui.timelineBar.style.setProperty('--timeline-hit-size', `${Math.max(16, this.timelineWidth + 6)}px`);
     // Ensure the track also adapts its internal flex/alignment
     if (this.ui.track) this.ui.track.style.width = '100%';
+    if (this.lockTimelineToReferenceAnchors) {
+      this.applyReferenceAnchoredPosition();
+    }
+  }
+
+  private applyAutoHide(): void {
+    if (!this.ui.timelineBar) return;
+    this.ui.timelineBar.classList.toggle('timeline-auto-hide', !!this.autoHide);
   }
 
   private computeConversationId(): string {
@@ -1404,8 +1474,12 @@ export class TimelineManager {
       this.updateTimelineGeometry();
       this.syncTimelineTrackToMain();
       this.updateVirtualRangeAndRender();
-      // Reapply position for responsive design (v2 format only)
-      this.reapplyPosition();
+      if (this.lockTimelineToReferenceAnchors) {
+        this.applyReferenceAnchoredPosition();
+      } else {
+        // Reapply position for responsive design (v2 format only)
+        this.reapplyPosition();
+      }
     };
     window.addEventListener('resize', this.onWindowResize);
     if (window.visualViewport) {
@@ -1413,8 +1487,12 @@ export class TimelineManager {
         this.updateTimelineGeometry();
         this.syncTimelineTrackToMain();
         this.updateVirtualRangeAndRender();
-        // Reapply position for responsive design (v2 format only)
-        this.reapplyPosition();
+        if (this.lockTimelineToReferenceAnchors) {
+          this.applyReferenceAnchoredPosition();
+        } else {
+          // Reapply position for responsive design (v2 format only)
+          this.reapplyPosition();
+        }
       };
       window.visualViewport.addEventListener('resize', this.onVisualViewportResize);
     }
@@ -1446,6 +1524,9 @@ export class TimelineManager {
     this.ui.slider?.addEventListener('pointerleave', this.onSliderLeave);
 
     this.onBarPointerDown = (ev: PointerEvent) => {
+      if (this.lockTimelineToReferenceAnchors) {
+        return;
+      }
       if ((ev.target as HTMLElement).closest('.timeline-dot, .timeline-thumb')) {
         return;
       }
@@ -2209,6 +2290,7 @@ export class TimelineManager {
   }
 
   private savePosition(): void {
+    if (this.lockTimelineToReferenceAnchors) return;
     if (!this.ui.timelineBar) return;
     const rect = this.ui.timelineBar.getBoundingClientRect();
     const viewportWidth = window.innerWidth;
@@ -2229,6 +2311,55 @@ export class TimelineManager {
     }
   }
 
+  private getReferenceAnchoredRect():
+    | { top: number; left: number; height: number } {
+    const viewportWidth = window.innerWidth;
+    const viewportHeight = window.innerHeight;
+    const barWidth = this.ui.timelineBar?.offsetWidth || this.timelineWidth || 24;
+
+    const xAnchor = document.querySelector(this.timelineXAxisAnchorSelector) as HTMLElement | null;
+    const bottomAnchor = document.querySelector(
+      this.timelineBottomBoundaryAnchorSelector,
+    ) as HTMLElement | null;
+
+    const xCenter = xAnchor
+      ? xAnchor.getBoundingClientRect().left + xAnchor.getBoundingClientRect().width / 2
+      : 12 + barWidth / 2;
+    const targetBottom = bottomAnchor
+      ? bottomAnchor.getBoundingClientRect().top + bottomAnchor.getBoundingClientRect().height / 2
+      : viewportHeight - 80;
+
+    const viewportCenterY = viewportHeight / 2;
+    const halfSpan = Math.max(70, Math.abs(targetBottom - viewportCenterY));
+    const desiredHeight = Math.min(viewportHeight - 20, Math.max(120, halfSpan * 2));
+    const desiredTop = viewportCenterY - desiredHeight / 2;
+    const desiredLeft = xCenter - barWidth / 2;
+
+    const padding = 10;
+    const clampedTop = Math.max(
+      padding,
+      Math.min(desiredTop, viewportHeight - desiredHeight - padding),
+    );
+    const clampedLeft = Math.max(
+      padding,
+      Math.min(desiredLeft, viewportWidth - barWidth - padding),
+    );
+
+    return {
+      top: clampedTop,
+      left: clampedLeft,
+      height: desiredHeight,
+    };
+  }
+
+  private applyReferenceAnchoredPosition(): void {
+    if (!this.ui.timelineBar) return;
+
+    const anchoredRect = this.getReferenceAnchoredRect();
+    this.ui.timelineBar.style.height = `${Math.round(anchoredRect.height)}px`;
+    this.applyPosition(anchoredRect.top, anchoredRect.left);
+  }
+
   /**
    * Apply position with boundary checks to keep timeline visible
    */
@@ -2236,8 +2367,10 @@ export class TimelineManager {
     const wasRTL = this.rtl;
     this.rtl = applyRTLClass(language);
     if (wasRTL !== this.rtl) {
-      // Reset inline position so the CSS default for the new direction takes effect
-      if (this.ui.timelineBar) {
+      if (this.lockTimelineToReferenceAnchors) {
+        this.applyReferenceAnchoredPosition();
+      } else if (this.ui.timelineBar) {
+        // Reset inline position so the CSS default for the new direction takes effect
         this.ui.timelineBar.style.top = '';
         this.ui.timelineBar.style.left = '';
       }
@@ -2261,6 +2394,8 @@ export class TimelineManager {
 
     this.ui.timelineBar.style.top = `${clampedTop}px`;
     this.ui.timelineBar.style.left = `${clampedLeft}px`;
+    this.ui.timelineBar.style.right = 'auto';
+    this.ui.timelineBar.style.bottom = 'auto';
     this.previewPanel?.reposition();
   }
 
@@ -2269,6 +2404,10 @@ export class TimelineManager {
    */
   private async reapplyPosition(): Promise<void> {
     if (!this.ui.timelineBar) return;
+    if (this.lockTimelineToReferenceAnchors) {
+      this.applyReferenceAnchoredPosition();
+      return;
+    }
 
     const g = globalThis as ExtGlobal;
     if (!g.chrome?.storage?.sync && !g.browser?.storage?.sync) return;
@@ -2759,12 +2898,18 @@ export class TimelineManager {
     this.contextMenu = menu;
     const menuWidth = menu.offsetWidth;
     const menuHeight = menu.offsetHeight;
+    const barRect = this.ui.timelineBar?.getBoundingClientRect();
+    const minNonOverlapLeft = barRect ? barRect.right + 12 : x;
 
-    let left = x;
-    let top = y;
-
+    let left = Math.max(minNonOverlapLeft, x);
     if (left + menuWidth > vw - 10) {
       left = vw - menuWidth - 10;
+    }
+    left = Math.max(10, left);
+
+    let top = y - menuHeight / 2;
+    if (top < 10) {
+      top = 10;
     }
     if (top + menuHeight > vh - 10) {
       top = vh - menuHeight - 10;
@@ -2772,9 +2917,6 @@ export class TimelineManager {
 
     menu.style.left = `${left}px`;
     menu.style.top = `${top}px`;
-
-    document.body.appendChild(menu);
-    this.contextMenu = menu;
   }
 
   private hideContextMenu(): void {
@@ -3175,6 +3317,16 @@ export class TimelineManager {
     try {
       this.intersectionObserver?.disconnect();
     } catch { }
+    try {
+      this.sidebarVisibilityObserver?.disconnect();
+    } catch { }
+    this.sidebarVisibilityObserver = null;
+    if (this.sidebarVisibilityRafId !== null) {
+      try {
+        cancelAnimationFrame(this.sidebarVisibilityRafId);
+      } catch { }
+      this.sidebarVisibilityRafId = null;
+    }
     this.visibleUserTurns.clear();
     if (this.ui.timelineBar && this.onTimelineBarClick) {
       try {

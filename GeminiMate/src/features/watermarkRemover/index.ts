@@ -1,44 +1,27 @@
 ﻿import { debugService } from '@/core/services/DebugService';
 
-import { DOWNLOAD_ICON_SELECTOR, findNativeDownloadButton } from './downloadButton';
 import { type StatusToastManager, createStatusToastManager } from './statusToast';
 import { WatermarkEngine } from './watermarkEngine';
 
 const BRIDGE_ID = 'gv-watermark-bridge';
-const PROCESSING_TIMEOUT_MS = 30000;
-const LARGE_WARNING_AUTO_DISMISS_MS = 8000;
-const PROCESSING_FALLBACK_AUTO_DISMISS_MS = 35000;
+const STYLE_ID = 'gm-watermark-remover-style';
+const BUTTON_CLASS = 'gm-watermark-download-btn';
+const ORIGINAL_SRC_KEY = 'gmOriginalSrc';
+const PROCESSED_FLAG = 'watermarkProcessed';
+const PROCESSED_URL_KEY = 'processedUrl';
 
 const STATUS_TEXT = {
-  downloading: '正在下载原始图片',
-  downloadingLarge: '正在下载原始图片（大文件）',
-  warningLarge: '大文件下载可能较慢',
-  processing: '正在移除水印',
-  success: '下载已开始',
-  errorPrefix: '下载失败',
+  preparing: '正在准备去水印下载',
+  success: '下载已开始（去水印）',
+  failPrefix: '去水印下载失败',
 } as const;
-
-type DownloadToastSequence = {
-  id: number;
-  downloadToastId: string | null;
-  warningToastId: string | null;
-  processingToastId: string | null;
-  processingTimer: ReturnType<typeof setTimeout> | null;
-};
 
 let running = false;
 let engine: WatermarkEngine | null = null;
 let statusToastManager: StatusToastManager | null = null;
-let activeSequence: DownloadToastSequence | null = null;
-let lastImmediateToastAt = 0;
-let sequenceCounter = 0;
-
-const processingQueue = new Set<HTMLImageElement>();
 let mutationObserver: MutationObserver | null = null;
-let bridgeRequestObserver: MutationObserver | null = null;
-let bridgeStatusObserver: MutationObserver | null = null;
-let downloadPointerHandler: ((event: Event) => void) | null = null;
-let downloadClickHandler: ((event: Event) => void) | null = null;
+const processingQueue = new Set<HTMLImageElement>();
+const processedBlobUrls = new Set<string>();
 
 const debounce = <T extends (...args: unknown[]) => void>(func: T, wait: number): T => {
   let timeout: ReturnType<typeof setTimeout> | null = null;
@@ -47,6 +30,42 @@ const debounce = <T extends (...args: unknown[]) => void>(func: T, wait: number)
     timeout = setTimeout(() => func(...args), wait);
   }) as T;
 };
+
+function injectStyles(): void {
+  if (document.getElementById(STYLE_ID)) return;
+
+  const style = document.createElement('style');
+  style.id = STYLE_ID;
+  style.textContent = `
+.${BUTTON_CLASS} {
+  position: absolute;
+  right: 10px;
+  bottom: 10px;
+  width: 32px;
+  height: 32px;
+  border-radius: 9999px;
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  background: rgba(12, 18, 32, 0.84);
+  color: #ffe08a;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  z-index: 20;
+  transition: transform 120ms ease, background-color 120ms ease, box-shadow 120ms ease;
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.35);
+}
+.${BUTTON_CLASS}:hover {
+  transform: translateY(-1px) scale(1.03);
+  background: rgba(20, 30, 48, 0.92);
+  box-shadow: 0 6px 14px rgba(0, 0, 0, 0.4);
+}
+.${BUTTON_CLASS}:active {
+  transform: translateY(0) scale(0.98);
+}
+`;
+  document.head.appendChild(style);
+}
 
 function getBridgeElement(): HTMLElement {
   let bridge = document.getElementById(BRIDGE_ID);
@@ -74,9 +93,6 @@ const canvasToBlob = (canvas: HTMLCanvasElement, type = 'image/png'): Promise<Bl
       }
     }, type);
   });
-
-const canvasToDataURL = (canvas: HTMLCanvasElement, type = 'image/png'): string =>
-  canvas.toDataURL(type);
 
 const fetchImageViaBackground = async (url: string): Promise<HTMLImageElement> => {
   return new Promise((resolve, reject) => {
@@ -107,153 +123,6 @@ const fetchImageViaBackground = async (url: string): Promise<HTMLImageElement> =
   });
 };
 
-const isValidGeminiImage = (img: HTMLImageElement): boolean =>
-  img.closest('generated-image,.generated-image-container') !== null;
-
-const findGeminiImages = (): HTMLImageElement[] =>
-  [...document.querySelectorAll<HTMLImageElement>('img[src*="googleusercontent.com"], img[src*="ggpht.com"]')].filter(
-    (img) => isValidGeminiImage(img) && img.dataset.watermarkProcessed !== 'true',
-  );
-
-const replaceWithNormalSize = (src: string): string => src.replace(/=s\d+[^?#]*/, '=s0');
-
-function addDownloadIndicator(imgElement: HTMLImageElement): void {
-  const container = imgElement.closest('generated-image,.generated-image-container');
-  if (!container) return;
-
-  const nativeDownloadIcon = container.querySelector(DOWNLOAD_ICON_SELECTOR);
-  const nativeButton = nativeDownloadIcon?.closest('button');
-  if (!nativeButton) return;
-
-  if (container.querySelector('.nanobanana-indicator')) return;
-
-  const indicator = document.createElement('span');
-  indicator.className = 'nanobanana-indicator';
-  indicator.textContent = '🍌';
-  indicator.title = 'NanoBanana: Downloads will have watermark removed';
-
-  Object.assign(indicator.style, {
-    position: 'absolute',
-    top: '-4px',
-    right: '-4px',
-    fontSize: '12px',
-    pointerEvents: 'none',
-    zIndex: '10',
-    filter: 'drop-shadow(0 1px 2px rgba(0,0,0,0.3))',
-  });
-
-  const buttonContainer = nativeButton.parentElement;
-  if (buttonContainer) {
-    const currentPosition = getComputedStyle(buttonContainer).position;
-    if (currentPosition === 'static') {
-      (buttonContainer as HTMLElement).style.position = 'relative';
-    }
-    buttonContainer.appendChild(indicator);
-  }
-}
-
-async function processImage(imgElement: HTMLImageElement): Promise<void> {
-  if (!running || !engine || processingQueue.has(imgElement)) return;
-
-  processingQueue.add(imgElement);
-  imgElement.dataset.watermarkProcessed = 'processing';
-
-  try {
-    const normalSizeSrc = replaceWithNormalSize(imgElement.src);
-    const normalSizeImage = await fetchImageViaBackground(normalSizeSrc);
-    if (!running || !engine) return;
-
-    const processedCanvas = await engine.removeWatermarkFromImage(normalSizeImage);
-    const processedBlob = await canvasToBlob(processedCanvas);
-    const processedUrl = URL.createObjectURL(processedBlob);
-
-    imgElement.src = processedUrl;
-    imgElement.dataset.watermarkProcessed = 'true';
-    imgElement.dataset.processedUrl = processedUrl;
-
-    addDownloadIndicator(imgElement);
-  } catch (error) {
-    debugService.log('watermark-remover', 'preview-process-failed', { error: String(error) });
-    imgElement.dataset.watermarkProcessed = 'failed';
-  } finally {
-    processingQueue.delete(imgElement);
-  }
-}
-
-function processAllImages(): void {
-  const images = findGeminiImages();
-  images.forEach((img) => {
-    void processImage(img);
-  });
-
-  const processedImages = document.querySelectorAll<HTMLImageElement>('img[data-watermark-processed="true"]');
-  processedImages.forEach(addDownloadIndicator);
-}
-
-function setupMutationObserver(): void {
-  if (mutationObserver) return;
-  const debouncedProcess = debounce(processAllImages, 120);
-  mutationObserver = new MutationObserver(() => debouncedProcess());
-  mutationObserver.observe(document.body, {
-    childList: true,
-    subtree: true,
-    attributes: true,
-    attributeFilter: ['class', 'src'],
-  });
-}
-
-async function processImageRequest(
-  requestId: string,
-  base64: string,
-  bridge: HTMLElement,
-): Promise<void> {
-  if (!engine) {
-    bridge.dataset.response = JSON.stringify({ requestId, error: 'Watermark engine not initialized' });
-    return;
-  }
-
-  try {
-    const img = new Image();
-    await new Promise<void>((resolve, reject) => {
-      img.onload = () => resolve();
-      img.onerror = () => reject(new Error('Failed to load image'));
-      img.crossOrigin = 'anonymous';
-      img.src = base64;
-    });
-
-    const processedCanvas = await engine.removeWatermarkFromImage(img);
-    const processedDataUrl = canvasToDataURL(processedCanvas);
-    bridge.dataset.response = JSON.stringify({ requestId, base64: processedDataUrl });
-  } catch (error) {
-    bridge.dataset.response = JSON.stringify({ requestId, error: String(error) });
-  }
-}
-
-function setupFetchInterceptorBridge(): void {
-  if (bridgeRequestObserver) return;
-
-  const bridge = getBridgeElement();
-  bridgeRequestObserver = new MutationObserver(() => {
-    const requestData = bridge.dataset.request;
-    if (!requestData) return;
-
-    bridge.removeAttribute('data-request');
-    try {
-      const parsed = JSON.parse(requestData) as { requestId?: unknown; base64?: unknown };
-      if (typeof parsed.requestId !== 'string' || typeof parsed.base64 !== 'string') {
-        return;
-      }
-      void processImageRequest(parsed.requestId, parsed.base64, bridge);
-    } catch (error) {
-      debugService.log('watermark-remover', 'bridge-request-parse-failed', {
-        error: String(error),
-      });
-    }
-  });
-
-  bridgeRequestObserver.observe(bridge, { attributes: true, attributeFilter: ['data-request'] });
-}
-
 const getStatusToastManager = (): StatusToastManager => {
   if (!statusToastManager) {
     statusToastManager = createStatusToastManager({ maxToasts: 4, anchorTtlMs: 30000 });
@@ -261,206 +130,235 @@ const getStatusToastManager = (): StatusToastManager => {
   return statusToastManager;
 };
 
-function finalizeSequence(level: 'success' | 'error', message: string): void {
-  const manager = getStatusToastManager();
+const replaceWithNormalSize = (src: string): string => src.replace(/=s\d+[^?#]*/, '=s0');
 
-  if (activeSequence?.processingTimer) {
-    clearTimeout(activeSequence.processingTimer);
-    activeSequence.processingTimer = null;
-  }
-  if (activeSequence?.warningToastId) {
-    manager.removeToast(activeSequence.warningToastId);
-    activeSequence.warningToastId = null;
-  }
-  if (activeSequence?.downloadToastId) {
-    manager.removeToast(activeSequence.downloadToastId);
-    activeSequence.downloadToastId = null;
+function isCandidateImage(img: HTMLImageElement): boolean {
+  if (!img.closest('generated-image,.generated-image-container')) return false;
+  const src = img.currentSrc || img.src || '';
+  if (!src) return false;
+  if (src.startsWith('data:image/svg')) return false;
+  if (img.naturalWidth > 0 && img.naturalWidth < 80) return false;
+
+  return (
+    src.includes('googleusercontent.com') ||
+    src.includes('ggpht.com') ||
+    src.startsWith('blob:') ||
+    img.dataset[PROCESSED_FLAG] === 'true'
+  );
+}
+
+function findGeminiImages(): HTMLImageElement[] {
+  const images = document.querySelectorAll<HTMLImageElement>(
+    'generated-image img, .generated-image-container img',
+  );
+  return [...images].filter(isCandidateImage);
+}
+
+function buildDownloadFileName(source: string): string {
+  const sanitized = source.split('?')[0].split('#')[0];
+  const extensionMatch = sanitized.match(/\.([a-zA-Z0-9]{3,4})$/);
+  const extension = extensionMatch ? extensionMatch[1].toLowerCase() : 'png';
+  return `geminimate-nowatermark-${Date.now()}.${extension}`;
+}
+
+function triggerBlobDownload(blob: Blob, filename: string): void {
+  const objectUrl = URL.createObjectURL(blob);
+  const anchor = document.createElement('a');
+  anchor.href = objectUrl;
+  anchor.download = filename;
+  document.body.appendChild(anchor);
+  anchor.click();
+  anchor.remove();
+
+  setTimeout(() => {
+    URL.revokeObjectURL(objectUrl);
+  }, 5000);
+}
+
+async function processSourceUrlToBlob(sourceUrl: string): Promise<Blob> {
+  if (!engine) {
+    throw new Error('Watermark engine is not initialized');
   }
 
-  if (
-    activeSequence?.processingToastId &&
-    manager.updateToast(activeSequence.processingToastId, message, level, {
-      autoDismissMs: level === 'success' ? 2500 : 4000,
-      markFinal: true,
-    })
-  ) {
-    return;
+  const normalSizeSrc = replaceWithNormalSize(sourceUrl);
+  const normalSizeImage = await fetchImageViaBackground(normalSizeSrc);
+  const processedCanvas = await engine.removeWatermarkFromImage(normalSizeImage);
+  return canvasToBlob(processedCanvas);
+}
+
+async function processImagePreview(imgElement: HTMLImageElement): Promise<void> {
+  if (!running || !engine || processingQueue.has(imgElement)) return;
+  if (imgElement.dataset[PROCESSED_FLAG] === 'true') return;
+
+  processingQueue.add(imgElement);
+
+  try {
+    const currentSrc = imgElement.currentSrc || imgElement.src;
+    if (!currentSrc) return;
+
+    if (!imgElement.dataset[ORIGINAL_SRC_KEY] && /^https?:\/\//i.test(currentSrc)) {
+      imgElement.dataset[ORIGINAL_SRC_KEY] = currentSrc;
+    }
+
+    const source = imgElement.dataset[ORIGINAL_SRC_KEY] || currentSrc;
+    const processedBlob = await processSourceUrlToBlob(source);
+    const processedUrl = URL.createObjectURL(processedBlob);
+    processedBlobUrls.add(processedUrl);
+
+    imgElement.src = processedUrl;
+    imgElement.dataset[PROCESSED_FLAG] = 'true';
+    imgElement.dataset[PROCESSED_URL_KEY] = processedUrl;
+  } catch (error) {
+    debugService.log('watermark-remover', 'preview-process-failed', { error: String(error) });
+  } finally {
+    processingQueue.delete(imgElement);
+  }
+}
+
+async function getProcessedBlobForDownload(imgElement: HTMLImageElement): Promise<Blob> {
+  const processedUrl = imgElement.dataset[PROCESSED_URL_KEY];
+  if (processedUrl && processedUrl.startsWith('blob:')) {
+    const response = await fetch(processedUrl);
+    if (response.ok) {
+      return response.blob();
+    }
   }
 
-  if (
-    !manager.updateLatestPending(message, level, {
-      autoDismissMs: level === 'success' ? 2500 : 4000,
-      markFinal: true,
-    })
-  ) {
-    manager.addToast(message, level, {
-      autoDismissMs: level === 'success' ? 2500 : 4000,
+  if (imgElement.dataset[PROCESSED_FLAG] === 'true' && imgElement.src.startsWith('blob:')) {
+    const response = await fetch(imgElement.src);
+    if (response.ok) {
+      return response.blob();
+    }
+  }
+
+  const source = imgElement.dataset[ORIGINAL_SRC_KEY] || imgElement.currentSrc || imgElement.src;
+  if (!source) {
+    throw new Error('Image source is unavailable');
+  }
+
+  return processSourceUrlToBlob(source);
+}
+
+function ensureContainerPosition(container: HTMLElement): void {
+  const currentPosition = getComputedStyle(container).position;
+  if (currentPosition === 'static') {
+    container.style.position = 'relative';
+  }
+}
+
+function ensureBananaDownloadButton(imgElement: HTMLImageElement): void {
+  const container = imgElement.closest('generated-image,.generated-image-container') as HTMLElement | null;
+  if (!container) return;
+
+  ensureContainerPosition(container);
+
+  let button = container.querySelector(`.${BUTTON_CLASS}`) as HTMLButtonElement | null;
+  if (!button) {
+    button = document.createElement('button');
+    button.type = 'button';
+    button.className = BUTTON_CLASS;
+    button.textContent = '🍌';
+    button.title = '下载去水印的图片';
+    button.setAttribute('aria-label', '下载去水印的图片');
+    container.appendChild(button);
+  }
+
+  button.onclick = (event: MouseEvent) => {
+    event.preventDefault();
+    event.stopPropagation();
+
+    if (!running || !engine) {
+      return;
+    }
+
+    const manager = getStatusToastManager();
+    manager.setAnchorElement(button);
+
+    const toastId = manager.addToast(STATUS_TEXT.preparing, 'info', {
+      pending: true,
+      autoDismissMs: 15000,
     });
-  }
-}
 
-function showImmediateDownloadToast(button: HTMLButtonElement): void {
-  const now = Date.now();
-  if (now - lastImmediateToastAt < 300) return;
-  lastImmediateToastAt = now;
-
-  const manager = getStatusToastManager();
-  manager.setAnchorElement(button);
-
-  if (activeSequence?.processingTimer) {
-    clearTimeout(activeSequence.processingTimer);
-  }
-
-  const sequenceId = ++sequenceCounter;
-  const downloadToastId = manager.addToast(STATUS_TEXT.downloading, 'info', { autoDismissMs: 3000 });
-
-  const processingTimer = setTimeout(() => {
-    if (!activeSequence || activeSequence.id !== sequenceId) return;
-    if (activeSequence.downloadToastId) {
-      manager.removeToast(activeSequence.downloadToastId);
-      activeSequence.downloadToastId = null;
-    }
-    if (!activeSequence.processingToastId) {
-      activeSequence.processingToastId = manager.addToast(STATUS_TEXT.processing, 'info', {
-        pending: true,
-        autoDismissMs: PROCESSING_FALLBACK_AUTO_DISMISS_MS,
-      });
-    }
-  }, 3000);
-
-  activeSequence = {
-    id: sequenceId,
-    downloadToastId,
-    warningToastId: null,
-    processingToastId: null,
-    processingTimer,
-  };
-}
-
-function setupDownloadButtonTracking(): void {
-  if (downloadPointerHandler || downloadClickHandler) return;
-
-  downloadPointerHandler = (event: Event): void => {
-    const button = findNativeDownloadButton(event.target);
-    if (!button) return;
-    showImmediateDownloadToast(button);
-  };
-
-  downloadClickHandler = (event: Event): void => {
-    const button = findNativeDownloadButton(event.target);
-    if (!button) return;
-    showImmediateDownloadToast(button);
-  };
-
-  document.addEventListener('pointerdown', downloadPointerHandler, true);
-  document.addEventListener('click', downloadClickHandler, true);
-}
-
-function setupStatusListener(): void {
-  if (bridgeStatusObserver) return;
-
-  const bridge = getBridgeElement();
-  const manager = getStatusToastManager();
-
-  const handleStatus = (statusData: string): void => {
-    try {
-      const parsed = JSON.parse(statusData) as { type?: unknown; message?: unknown };
-      if (typeof parsed.type !== 'string') return;
-      bridge.removeAttribute('data-status');
-
-      switch (parsed.type) {
-        case 'DOWNLOADING':
-          if (activeSequence?.warningToastId) {
-            manager.removeToast(activeSequence.warningToastId);
-            activeSequence.warningToastId = null;
-          }
-          if (activeSequence && !activeSequence.downloadToastId) {
-            activeSequence.downloadToastId = manager.addToast(STATUS_TEXT.downloading, 'info', {
-              autoDismissMs: 3000,
-            });
-          }
-          break;
-
-        case 'DOWNLOADING_LARGE':
-          if (activeSequence) {
-            if (!activeSequence.downloadToastId) {
-              activeSequence.downloadToastId = manager.addToast(STATUS_TEXT.downloadingLarge, 'info', {
-                autoDismissMs: 3000,
-              });
-            } else {
-              manager.updateToast(activeSequence.downloadToastId, STATUS_TEXT.downloadingLarge, 'info');
-            }
-
-            if (!activeSequence.warningToastId) {
-              activeSequence.warningToastId = manager.addToast(STATUS_TEXT.warningLarge, 'warning', {
-                autoDismissMs: LARGE_WARNING_AUTO_DISMISS_MS,
-              });
-            }
-          }
-          break;
-
-        case 'PROCESSING':
-          if (activeSequence?.processingToastId) {
-            manager.updateToast(activeSequence.processingToastId, STATUS_TEXT.processing, 'info');
-            break;
-          }
-          if (!activeSequence?.processingTimer) {
-            const processingToastId = manager.addToast(STATUS_TEXT.processing, 'info', {
-              pending: true,
-              autoDismissMs: PROCESSING_FALLBACK_AUTO_DISMISS_MS,
-            });
-            if (activeSequence) {
-              activeSequence.processingToastId = processingToastId;
-            }
-          }
-          break;
-
-        case 'SUCCESS':
-          finalizeSequence('success', STATUS_TEXT.success);
-          break;
-
-        case 'ERROR': {
-          const message = typeof parsed.message === 'string' ? parsed.message : 'Unknown error';
-          finalizeSequence('error', `${STATUS_TEXT.errorPrefix}: ${message}`);
-          break;
+    void (async () => {
+      try {
+        if (imgElement.dataset[PROCESSED_FLAG] !== 'true') {
+          await processImagePreview(imgElement);
         }
-      }
-    } catch (error) {
-      debugService.log('watermark-remover', 'status-parse-failed', { error: String(error) });
-    }
-  };
 
-  bridgeStatusObserver = new MutationObserver(() => {
-    const statusData = bridge.dataset.status;
-    if (!statusData) return;
-    handleStatus(statusData);
+        const processedBlob = await getProcessedBlobForDownload(imgElement);
+        const source = imgElement.dataset[ORIGINAL_SRC_KEY] || imgElement.currentSrc || imgElement.src;
+        const filename = buildDownloadFileName(source);
+        triggerBlobDownload(processedBlob, filename);
+
+        manager.updateToast(toastId, STATUS_TEXT.success, 'success', {
+          markFinal: true,
+          autoDismissMs: 2400,
+        });
+      } catch (error) {
+        manager.updateToast(toastId, `${STATUS_TEXT.failPrefix}: ${String(error)}`, 'error', {
+          markFinal: true,
+          autoDismissMs: 4200,
+        });
+        debugService.log('watermark-remover', 'download-process-failed', {
+          error: String(error),
+        });
+      }
+    })();
+  };
+}
+
+function processAllImages(): void {
+  const images = findGeminiImages();
+
+  images.forEach((img) => {
+    ensureBananaDownloadButton(img);
+
+    const src = img.currentSrc || img.src || '';
+    const shouldProcessPreview =
+      img.dataset[PROCESSED_FLAG] !== 'true' &&
+      (src.includes('googleusercontent.com') || src.includes('ggpht.com'));
+
+    if (shouldProcessPreview) {
+      void processImagePreview(img);
+    }
+  });
+}
+
+function setupMutationObserver(): void {
+  if (mutationObserver) return;
+
+  const debouncedProcess = debounce(processAllImages, 120);
+  mutationObserver = new MutationObserver(() => {
+    debouncedProcess();
   });
 
-  bridgeStatusObserver.observe(bridge, { attributes: true, attributeFilter: ['data-status'] });
-
-  if (bridge.dataset.status) {
-    handleStatus(bridge.dataset.status);
-  }
+  mutationObserver.observe(document.body, {
+    childList: true,
+    subtree: true,
+    attributes: true,
+    attributeFilter: ['src', 'class'],
+  });
 }
 
 export async function startWatermarkRemover(): Promise<void> {
   if (running) return;
+
   running = true;
-  notifyFetchInterceptor(true);
-  setupStatusListener();
-  setupDownloadButtonTracking();
+  injectStyles();
+
+  // Disable Voyager-style native download interception path.
+  notifyFetchInterceptor(false);
 
   try {
     engine = await WatermarkEngine.create();
     if (!running) return;
 
-    setupFetchInterceptorBridge();
     processAllImages();
     setupMutationObserver();
     debugService.log('watermark-remover', 'started');
   } catch (error) {
     running = false;
-    notifyFetchInterceptor(false);
+    engine = null;
     debugService.log('watermark-remover', 'start-failed', {
       error: String(error),
     });
@@ -469,90 +367,34 @@ export async function startWatermarkRemover(): Promise<void> {
 
 export function stopWatermarkRemover(): void {
   running = false;
-  notifyFetchInterceptor(false);
   engine = null;
-
   processingQueue.clear();
+
+  notifyFetchInterceptor(false);
 
   if (mutationObserver) {
     mutationObserver.disconnect();
     mutationObserver = null;
   }
 
-  if (bridgeRequestObserver) {
-    bridgeRequestObserver.disconnect();
-    bridgeRequestObserver = null;
-  }
-
-  if (bridgeStatusObserver) {
-    bridgeStatusObserver.disconnect();
-    bridgeStatusObserver = null;
-  }
-
-  if (downloadPointerHandler) {
-    document.removeEventListener('pointerdown', downloadPointerHandler, true);
-    downloadPointerHandler = null;
-  }
-
-  if (downloadClickHandler) {
-    document.removeEventListener('click', downloadClickHandler, true);
-    downloadClickHandler = null;
-  }
-
-  if (activeSequence?.processingTimer) {
-    clearTimeout(activeSequence.processingTimer);
-  }
-  activeSequence = null;
+  document.querySelectorAll(`.${BUTTON_CLASS}`).forEach((button) => {
+    button.remove();
+  });
 
   if (statusToastManager) {
     statusToastManager.destroy();
     statusToastManager = null;
   }
 
+  for (const url of processedBlobUrls) {
+    URL.revokeObjectURL(url);
+  }
+  processedBlobUrls.clear();
+
   const bridge = document.getElementById(BRIDGE_ID);
   if (bridge) {
-    bridge.removeAttribute('data-request');
-    bridge.removeAttribute('data-response');
-    bridge.removeAttribute('data-status');
+    bridge.removeAttribute('data-enabled');
   }
 
   debugService.log('watermark-remover', 'stopped');
-}
-
-export async function processDownloadBlob(blob: Blob): Promise<Blob> {
-  if (!engine) {
-    throw new Error('Watermark engine not initialized');
-  }
-
-  const dataUrl = await new Promise<string>((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => {
-      if (typeof reader.result === 'string') {
-        resolve(reader.result);
-      } else {
-        reject(new Error('Failed to read blob as data URL'));
-      }
-    };
-    reader.onerror = () => reject(new Error('Failed to read blob'));
-    reader.readAsDataURL(blob);
-  });
-
-  const img = new Image();
-  await new Promise<void>((resolve, reject) => {
-    img.onload = () => resolve();
-    img.onerror = () => reject(new Error('Failed to decode image'));
-    img.crossOrigin = 'anonymous';
-    img.src = dataUrl;
-  });
-
-  const processedCanvas = await engine.removeWatermarkFromImage(img);
-  return canvasToBlob(processedCanvas);
-}
-
-export function isWatermarkRemoverRunning(): boolean {
-  return running;
-}
-
-export function getProcessingTimeoutMs(): number {
-  return PROCESSING_TIMEOUT_MS;
 }

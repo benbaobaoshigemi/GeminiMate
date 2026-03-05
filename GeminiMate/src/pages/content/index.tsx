@@ -5,7 +5,14 @@ import { StorageKeys } from '../../core/types/common';
 import { getFormulaCopyService, startFormulaCopy, stopFormulaCopy } from '../../features/formulaCopy';
 import { startQuoteReply } from '../../features/quoteReply';
 import { startTimeline } from '../../features/timeline';
+import { startBottomCleanup, stopBottomCleanup } from '../../features/uiCleanup';
 import { startWatermarkRemover, stopWatermarkRemover } from '../../features/watermarkRemover';
+import {
+  startChatWidthAdjuster,
+  startEditInputWidthAdjuster,
+  startSidebarWidthAdjuster,
+  startSidebarAutoHide
+} from '../../features/layout';
 
 // Import injected styles
 import '../../features/styles/timeline.css';
@@ -16,6 +23,7 @@ let formulaCopyRunning = false;
 let clickLogListenerAttached = false;
 let quoteReplyCleanup: (() => void) | null = null;
 let watermarkEnabled = false;
+let bottomCleanupEnabled = false;
 
 const resolveEnabledValue = (value: unknown): boolean => value !== false;
 
@@ -80,6 +88,20 @@ const syncWatermarkRemoverState = (enabled: boolean): void => {
   debugService.log('watermark-remover', 'toggle-on');
 };
 
+const syncBottomCleanupState = (enabled: boolean): void => {
+  if (enabled === bottomCleanupEnabled) {
+    return;
+  }
+  bottomCleanupEnabled = enabled;
+  if (enabled) {
+    startBottomCleanup();
+    debugService.log('bottom-cleanup', 'toggle-on');
+    return;
+  }
+  stopBottomCleanup();
+  debugService.log('bottom-cleanup', 'toggle-off');
+};
+
 const describeClickTarget = (target: EventTarget | null): Record<string, unknown> => {
   if (!(target instanceof Element)) {
     return { tag: 'unknown' };
@@ -141,6 +163,15 @@ const handleStorageChanged = (
     });
     syncWatermarkRemoverState(enabled);
   }
+
+  const bottomCleanupChange = changes[StorageKeys.BOTTOM_CLEANUP_ENABLED];
+  if (bottomCleanupChange) {
+    const enabled = resolveEnabledValue(bottomCleanupChange.newValue);
+    debugService.log('storage', 'bottom-cleanup-enabled-changed', {
+      enabled,
+    });
+    syncBottomCleanupState(enabled);
+  }
 };
 
 const initExtension = async () => {
@@ -156,13 +187,21 @@ const initExtension = async () => {
       StorageKeys.FORMULA_COPY_ENABLED,
       StorageKeys.QUOTE_REPLY_ENABLED,
       StorageKeys.WATERMARK_REMOVER_ENABLED,
+      StorageKeys.BOTTOM_CLEANUP_ENABLED,
     ]);
     syncFormulaCopyState(resolveEnabledValue(settings[StorageKeys.FORMULA_COPY_ENABLED]));
     syncQuoteReplyState(resolveEnabledValue(settings[StorageKeys.QUOTE_REPLY_ENABLED]));
     syncWatermarkRemoverState(resolveEnabledValue(settings[StorageKeys.WATERMARK_REMOVER_ENABLED]));
+    syncBottomCleanupState(resolveEnabledValue(settings[StorageKeys.BOTTOM_CLEANUP_ENABLED]));
 
     // Initialize Timeline with SPA route handling
     startTimeline();
+
+    // Layout features
+    startChatWidthAdjuster();
+    startEditInputWidthAdjuster();
+    startSidebarWidthAdjuster();
+    startSidebarAutoHide();
 
     chrome.storage.onChanged.addListener(handleStorageChanged);
     window.addEventListener('beforeunload', () => {
@@ -172,6 +211,7 @@ const initExtension = async () => {
         quoteReplyCleanup = null;
       }
       stopWatermarkRemover();
+      stopBottomCleanup();
     });
 
     logger.info('GeminiMate Content Script Initialized');
