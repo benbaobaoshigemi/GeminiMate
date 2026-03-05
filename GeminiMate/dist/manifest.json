@@ -12,7 +12,9 @@
   ],
   "host_permissions": [
     "https://gemini.google.com/*",
-    "https://business.gemini.google/*"
+    "https://business.gemini.google/*",
+    "https://*.googleusercontent.com/*",
+    "https://*.ggpht.com/*"
   ],
   "background": {
     "service_worker": "service-worker-loader.js",
@@ -21,7 +23,7 @@
   "content_scripts": [
     {
       "js": [
-        "assets/index.tsx-loader-BDySagA-.js"
+        "assets/index.tsx-loader-Dqkuakhq.js"
       ],
       "matches": [
         "https://gemini.google.com/*",
@@ -39,7 +41,8 @@
         "<all_urls>"
       ],
       "resources": [
-        "assets/*"
+        "assets/*",
+        "fetchInterceptor.js"
       ],
       "use_dynamic_url": false
     },
@@ -49,10 +52,11 @@
         "https://gemini.google.com/*"
       ],
       "resources": [
-        "assets/DebugService-CNKif1ZD.js",
-        "assets/LoggerService-Ft5-Edxa.js",
+        "assets/bg_96-C2FFcR6-.png",
+        "assets/DebugService-Aw0QR69J.js",
+        "assets/LoggerService-BVxlLrRt.js",
         "assets/_commonjsHelpers-CqkleIqs.js",
-        "assets/index.tsx-Bz1BWLf5.js"
+        "assets/index.tsx-BaRs80Ef.js"
       ],
       "use_dynamic_url": false
     }

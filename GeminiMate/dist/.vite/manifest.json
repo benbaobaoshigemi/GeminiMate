@@ -1,61 +1,68 @@
 {
   "../../../../../@crx/manifest": {
-    "file": "assets/crx-manifest.js-CH5qE8L8.js",
+    "file": "assets/crx-manifest.js-DKZxtLOn.js",
     "name": "crx-manifest.js",
     "src": "../../../../../@crx/manifest",
     "isEntry": true
   },
-  "_DebugService-CNKif1ZD.js": {
-    "file": "assets/DebugService-CNKif1ZD.js",
+  "_DebugService-Aw0QR69J.js": {
+    "file": "assets/DebugService-Aw0QR69J.js",
     "name": "DebugService"
   },
-  "_LoggerService-Ft5-Edxa.js": {
-    "file": "assets/LoggerService-Ft5-Edxa.js",
+  "_LoggerService-BVxlLrRt.js": {
+    "file": "assets/LoggerService-BVxlLrRt.js",
     "name": "LoggerService",
     "imports": [
-      "_DebugService-CNKif1ZD.js"
+      "_DebugService-Aw0QR69J.js"
     ]
   },
   "__commonjsHelpers-CqkleIqs.js": {
     "file": "assets/_commonjsHelpers-CqkleIqs.js",
     "name": "_commonjsHelpers"
   },
-  "_index.tsx-loader-BDySagA-.js": {
-    "file": "assets/index.tsx-loader-BDySagA-.js",
-    "src": "_index.tsx-loader-BDySagA-.js"
+  "_index.tsx-loader-Dqkuakhq.js": {
+    "file": "assets/index.tsx-loader-Dqkuakhq.js",
+    "src": "_index.tsx-loader-Dqkuakhq.js"
+  },
+  "src/features/watermarkRemover/assets/bg_96.png": {
+    "file": "assets/bg_96-C2FFcR6-.png",
+    "src": "src/features/watermarkRemover/assets/bg_96.png"
   },
   "src/pages/background/index.ts": {
-    "file": "assets/index.ts-B-BLCxs-.js",
+    "file": "assets/index.ts-COwUcjqg.js",
     "name": "index.ts",
     "src": "src/pages/background/index.ts",
     "isEntry": true,
     "imports": [
-      "_DebugService-CNKif1ZD.js",
-      "_LoggerService-Ft5-Edxa.js"
+      "_DebugService-Aw0QR69J.js",
+      "_LoggerService-BVxlLrRt.js"
     ]
   },
   "src/pages/content/index.tsx": {
-    "file": "assets/index.tsx-Bz1BWLf5.js",
+    "file": "assets/index.tsx-BaRs80Ef.js",
     "name": "index.tsx",
     "src": "src/pages/content/index.tsx",
     "isEntry": true,
     "imports": [
-      "_DebugService-CNKif1ZD.js",
-      "_LoggerService-Ft5-Edxa.js",
+      "_DebugService-Aw0QR69J.js",
+      "_LoggerService-BVxlLrRt.js",
       "__commonjsHelpers-CqkleIqs.js"
     ],
     "css": [
       "assets/index-FzZDO7DB.css"
+    ],
+    "assets": [
+      "assets/bg_96-C2FFcR6-.png"
     ]
   },
   "src/pages/popup/index.html": {
-    "file": "assets/popup-vwOJfmrf.js",
+    "file": "assets/popup-BQxOV7h_.js",
     "name": "popup",
     "src": "src/pages/popup/index.html",
     "isEntry": true,
     "imports": [
       "__commonjsHelpers-CqkleIqs.js",
-      "_DebugService-CNKif1ZD.js"
+      "_DebugService-Aw0QR69J.js"
     ],
     "css": [
       "assets/popup-DE4PZpcB.css"
