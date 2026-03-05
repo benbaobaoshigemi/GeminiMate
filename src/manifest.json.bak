@@ -1,0 +1,40 @@
+{
+    "manifest_version": 3,
+    "name": "Gemini LaTeX Fixer",
+    "version": "1.0",
+    "description": "修复 Gemini Web 端由于空格等语法引发的 LaTeX 渲染乱码现象 (带可控调试与安全模式)。",
+    "permissions": [
+        "activeTab",
+        "scripting",
+        "storage"
+    ],
+    "action": {
+        "default_popup": "popup.html",
+        "default_title": "Gemini Fixer Panel"
+    },
+    "content_scripts": [
+        {
+            "matches": [
+                "*://gemini.google.com/*"
+            ],
+            "css": [
+                "lib/katex/katex.min.css"
+            ],
+            "js": [
+                "lib/katex/katex.min.js",
+                "content.js"
+            ],
+            "run_at": "document_end"
+        }
+    ],
+    "web_accessible_resources": [
+        {
+            "resources": [
+                "lib/katex/fonts/*"
+            ],
+            "matches": [
+                "*://gemini.google.com/*"
+            ]
+        }
+    ]
+}

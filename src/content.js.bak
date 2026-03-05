@@ -1,0 +1,282 @@
+// content.js - Gemini LaTeX & Markdown Fixer
+// Dual-engine: LaTeX (Sanitize→KaTeX→Repackage) + Markdown (Repair Mode: Hydration & Boundary Fix)
+
+const CONFIG = {
+    LATEX_ENABLED: true,
+    MARKDOWN_ENABLED: true,
+    DEBUG: true,
+    OBSERVER_THROTTLE_MS: 1500,
+    DUMP_SERVER: 'http://localhost:8000/dump'
+};
+
+const logger = {
+    info: (...args) => CONFIG.DEBUG && console.log('%c[GeminiTexFixer INFO]', 'color:#4CAF50;font-weight:bold', ...args),
+    warn: (...args) => CONFIG.DEBUG && console.warn('%c[GeminiTexFixer WARN]', 'color:#FF9800;font-weight:bold', ...args),
+    error: (...args) => console.error('%c[GeminiTexFixer ERROR]', 'color:#f44336;font-weight:bold', ...args),
+    diff: (...args) => CONFIG.DEBUG && console.log('%c[GeminiTexFixer DIFF]', 'color:#2196F3;font-weight:bold', ...args),
+    tick: (...args) => CONFIG.DEBUG && console.log('%c[GeminiTexFixer TICK]', 'color:#9C27B0;font-weight:bold', ...args)
+};
+
+// ============================================================================
+// Diagnostics & Constants
+// ============================================================================
+
+let diagReport = { timestamp: null, latex: {}, markdown: {}, containers: 0 };
+
+function resetDiagReport() {
+    diagReport = {
+        timestamp: new Date().toISOString(),
+        latex: { reverted: 0, rendered: 0, failed: 0 },
+        markdown: { bold_hydrated: 0, bold_trimmed: 0, boundary_fixed: 0 },
+        containers: 0
+    };
+}
+
+const RE_MATH = /(\$\$[\s\S]*?\$\$)|(\$((?:\\\$|[^$])+?)\$)/g;
+const DONE_CLASS = 'gemini-fix-done';
+const MD_FIX_CLASS = 'gemini-md-fixed';
+
+// Trusted Types for Gemini's CSP
+let ttPolicy = null;
+if (window.trustedTypes) {
+    try { ttPolicy = window.trustedTypes.createPolicy('gemini-cleaner-ext', { createHTML: (s) => s }); } catch (e) { }
+}
+
+function safeSetInnerHTML(el, html) {
+    el.innerHTML = ttPolicy ? ttPolicy.createHTML(html) : html;
+}
+
+// ============================================================================
+// LATEX ENGINE: Demolish & Render
+// ============================================================================
+
+function cleanAndRevertMath(container) {
+    if (container.hasAttribute('data-math-reverted')) return;
+    container.querySelectorAll('source-footnote').forEach(f => f.remove());
+
+    let unwrapped = false;
+    container.querySelectorAll('span[class^="citation-"]').forEach(span => {
+        while (span.firstChild) span.parentNode.insertBefore(span.firstChild, span);
+        span.parentNode.removeChild(span);
+        unwrapped = true;
+    });
+
+    container.querySelectorAll('.math-inline:not(.' + DONE_CLASS + ')').forEach(mi => {
+        const math = mi.getAttribute('data-math');
+        if (math) {
+            mi.parentNode.replaceChild(document.createTextNode('$' + math + '$'), mi);
+            diagReport.latex.reverted++;
+            unwrapped = true;
+        }
+    });
+
+    container.querySelectorAll('.math-block:not(.' + DONE_CLASS + ')').forEach(mb => {
+        let math = mb.getAttribute('data-math');
+        if (math === 'block') {
+            const ann = mb.querySelector('annotation[encoding="application/x-tex"]');
+            if (ann) math = ann.textContent;
+        }
+        if (math) {
+            mb.parentNode.replaceChild(document.createTextNode('\n$$' + math + '$$\n'), mb);
+            diagReport.latex.reverted++;
+            unwrapped = true;
+        }
+    });
+
+    if (unwrapped) container.normalize();
+    container.setAttribute('data-math-reverted', 'true');
+}
+
+function sanitizeMathContent(raw) {
+    let cleaned = raw.trim();
+    let prefix = '', suffix = '';
+    const lead = cleaned.match(/^([\u4e00-\u9fff\u3400-\u4dbf\uf900-\ufaff\u3000-\u303f\uff00-\uffef，。、；：！？""''（）【】…—·]+)/);
+    if (lead) { prefix = lead[1]; cleaned = cleaned.slice(prefix.length).trim(); }
+    const trail = cleaned.match(/([\u4e00-\u9fff\u3400-\u4dbf\uf900-\ufaff\u3000-\u303f\uff00-\uffef，。、；：！？""''（）【】…—·]+)$/);
+    if (trail) { suffix = trail[1]; cleaned = cleaned.slice(0, -suffix.length).trim(); }
+    return { prefix, mathSrc: cleaned, suffix };
+}
+
+function createNativeMathNode(mathSrc, displayMode) {
+    if (!mathSrc || typeof katex === 'undefined') return null;
+    try {
+        const html = katex.renderToString(mathSrc, { displayMode, throwOnError: false, strict: false });
+        const el = displayMode ? document.createElement('div') : document.createElement('span');
+        el.className = (displayMode ? 'math-block' : 'math-inline') + ' ' + DONE_CLASS;
+        el.setAttribute('data-math', mathSrc);
+        el.setAttribute('title', 'Fixed by Gemini LaTeX Fixer');
+        if (displayMode) el.style.borderLeft = '2px solid rgba(76, 175, 80, 0.1)';
+        else { el.style.borderBottom = '1px dashed rgba(76, 175, 80, 0.2)'; el.style.padding = '0 2px'; }
+        el.innerHTML = html;
+        diagReport.latex.rendered++;
+        return el;
+    } catch (e) {
+        diagReport.latex.failed++;
+        return null;
+    }
+}
+
+function processTextNodeLatex(textNode) {
+    const text = textNode.nodeValue;
+    if (!text || !text.includes('$')) return;
+    RE_MATH.lastIndex = 0;
+    let lastIndex = 0, match, fragments = [];
+    while ((match = RE_MATH.exec(text)) !== null) {
+        if (match.index > lastIndex) fragments.push(document.createTextNode(text.slice(lastIndex, match.index)));
+        const blockMath = match[1], inlineMath = match[2], inner = match[3];
+        if (blockMath) {
+            const { prefix, mathSrc, suffix } = sanitizeMathContent(blockMath.trim().slice(2, -2));
+            if (prefix) fragments.push(document.createTextNode(prefix));
+            fragments.push(createNativeMathNode(mathSrc, true) || document.createTextNode(blockMath));
+            if (suffix) fragments.push(document.createTextNode(suffix));
+        } else if (inlineMath) {
+            const { prefix, mathSrc, suffix } = sanitizeMathContent(inner);
+            const before = match.index > 0 ? text[match.index - 1] : '';
+            const after = RE_MATH.lastIndex < text.length ? text[RE_MATH.lastIndex] : '';
+            if (before && !/\s/.test(before)) fragments.push(document.createTextNode(' '));
+            if (prefix) fragments.push(document.createTextNode(prefix));
+            if (mathSrc.length > 0) fragments.push(createNativeMathNode(mathSrc, false) || document.createTextNode(inlineMath));
+            if (suffix) fragments.push(document.createTextNode(suffix));
+            if (after && !/\s/.test(after)) fragments.push(document.createTextNode(' '));
+        }
+        lastIndex = RE_MATH.lastIndex;
+    }
+    if (lastIndex === 0) return;
+    if (lastIndex < text.length) fragments.push(document.createTextNode(text.slice(lastIndex)));
+    const parent = textNode.parentNode;
+    if (parent) {
+        fragments.forEach(f => parent.insertBefore(f, textNode));
+        parent.removeChild(textNode);
+    }
+}
+
+function walkLatex(node) {
+    if (node.nodeType === Node.TEXT_NODE && node.nodeValue.trim().length > 0) processTextNodeLatex(node);
+    else if (node.nodeType === Node.ELEMENT_NODE) {
+        const tag = node.tagName.toUpperCase();
+        if (tag === 'CODE' || tag === 'PRE' || tag === 'STYLE' || tag === 'SCRIPT') return;
+        if (node.classList && node.classList.contains(DONE_CLASS)) return;
+        Array.from(node.childNodes).forEach(walkLatex);
+    }
+}
+
+// ============================================================================
+// MARKDOWN ENGINE: Repair Mode (Hydration, Trim, Boundary)
+// ============================================================================
+
+function markdownRepairMode(container) {
+    const blocks = container.querySelectorAll('p, li, blockquote, td, span, div');
+
+    blocks.forEach(block => {
+        if (block.closest('pre, code, .' + DONE_CLASS)) return;
+        if (block.querySelector('table, h1, h2, h3')) return; // Avoid breaking heavy structures
+
+        let originalHTML = block.innerHTML;
+        let fixedHTML = originalHTML;
+
+        // 1. Bold Hydration: **content** -> <b ...>content</b> (#ffab40)
+        fixedHTML = fixedHTML.replace(/\*\*([\s\S]+?)\*\*/g, (match, content) => {
+            if (!content.trim()) return match;
+            const trimmed = content.replace(/^[\s\xa0]+|[\s\xa0]+$/g, '');
+            diagReport.markdown.bold_hydrated++;
+            return `<b class="${MD_FIX_CLASS}" style="border-bottom: 2px dashed #ffab40; font-weight: bold;" title="Markdown Bold Repaired">${trimmed}</b>`;
+        });
+
+        // 2. LaTeX Boundary Repair: text$$ -> text $$ (#b2ff59)
+        // Sticky End
+        fixedHTML = fixedHTML.replace(/([^\s\$])(\${2,})(?!\d)/g, (match, text, del) => {
+            diagReport.markdown.boundary_fixed++;
+            return `${text}<span style="border-bottom: 2px dashed #b2ff59" title="Latex Boundary Fixed"> ${del}</span>`;
+        });
+        // Sticky Start
+        fixedHTML = fixedHTML.replace(/(\${2,})([^\s\$])/g, (match, del, text) => {
+            diagReport.markdown.boundary_fixed++;
+            return `<span style="border-bottom: 2px dashed #b2ff59" title="Latex Boundary Fixed">${del} </span>${text}`;
+        });
+
+        // 3. CJK Sticky Inline: char$ -> char $
+        fixedHTML = fixedHTML.replace(/([^\s-])(\$)([^$]+)(\$)(?!\$)/g, (match, char, d1, mid, d2) => {
+            diagReport.markdown.boundary_fixed++;
+            return `${char} ${d1}${mid}${d2}`;
+        });
+        fixedHTML = fixedHTML.replace(/(?<!\$)(\$)([^$]+)(\$)([^\s-])/g, (match, d1, mid, d2, char) => {
+            diagReport.markdown.boundary_fixed++;
+            return `${d1}${mid}${d2} ${char}`;
+        });
+
+        if (fixedHTML !== originalHTML) {
+            safeSetInnerHTML(block, fixedHTML);
+        }
+    });
+
+    // 4. Surgical Bold Trim: <b> content </b> -> <b>content</b> (#40c4ff)
+    const bolds = container.querySelectorAll('b:not(.' + MD_FIX_CLASS + '), strong:not(.' + MD_FIX_CLASS + ')');
+    bolds.forEach(el => {
+        if (el.children.length > 0) return;
+        const orig = el.textContent;
+        const trimmed = orig.trim();
+        if (trimmed !== orig) {
+            el.textContent = trimmed;
+            el.style.borderBottom = "2px dashed #40c4ff";
+            el.title = "Surgically Trimmed Bold";
+            diagReport.markdown.bold_trimmed++;
+        }
+    });
+}
+
+// ============================================================================
+// Orchestration & Sync
+// ============================================================================
+
+let isMutatingSelf = false;
+function fixAll() {
+    isMutatingSelf = true;
+    resetDiagReport();
+    try {
+        const containers = document.querySelectorAll('.message-content, message-content, [data-test-id="message-content"]');
+        containers.forEach(c => {
+            if (CONFIG.LATEX_ENABLED) { c.removeAttribute('data-math-reverted'); cleanAndRevertMath(c); walkLatex(c); }
+            if (CONFIG.MARKDOWN_ENABLED) markdownRepairMode(c);
+        });
+        diagReport.containers = containers.length;
+        logger.info('Fix Complete. C' + diagReport.containers, '| LaTeX:', diagReport.latex.rendered, '| MD Hydrated:', diagReport.markdown.bold_hydrated);
+        sendDiagReport();
+    } catch (e) {
+        logger.error('Fix failed:', e);
+    } finally {
+        setTimeout(() => { isMutatingSelf = false; }, 100);
+    }
+}
+
+function sendDiagReport() {
+    fetch(CONFIG.DUMP_SERVER, { method: 'POST', body: JSON.stringify(diagReport), headers: { 'Content-Type': 'application/json' }, mode: 'no-cors' }).catch(() => { });
+}
+
+chrome.storage.onChanged.addListener((changes, area) => {
+    if (area !== 'local') return;
+    if (changes.geminiFixerLatexEnabled) { CONFIG.LATEX_ENABLED = changes.geminiFixerLatexEnabled.newValue; if (CONFIG.LATEX_ENABLED) fixAll(); }
+    if (changes.geminiFixerMarkdownEnabled) { CONFIG.MARKDOWN_ENABLED = changes.geminiFixerMarkdownEnabled.newValue; if (CONFIG.MARKDOWN_ENABLED) fixAll(); }
+});
+
+chrome.storage.local.get(['geminiFixerLatexEnabled', 'geminiFixerMarkdownEnabled'], (res) => {
+    if (res.geminiFixerLatexEnabled !== undefined) CONFIG.LATEX_ENABLED = res.geminiFixerLatexEnabled;
+    if (res.geminiFixerMarkdownEnabled !== undefined) CONFIG.MARKDOWN_ENABLED = res.geminiFixerMarkdownEnabled;
+    fixAll();
+});
+
+let streamDebounce = null;
+function setupObserver() {
+    const observer = new MutationObserver((mutations) => {
+        if (isMutatingSelf || (!CONFIG.LATEX_ENABLED && !CONFIG.MARKDOWN_ENABLED)) return;
+        if (mutations.some(m => m.target.closest && (m.target.closest('.message-content') || m.target.closest('message-content')))) {
+            if (streamDebounce) clearTimeout(streamDebounce);
+            streamDebounce = setTimeout(() => { fixAll(); }, CONFIG.OBSERVER_THROTTLE_MS);
+        }
+    });
+    observer.observe(document.body, { childList: true, subtree: true, characterData: true });
+}
+
+window.geminiTexFixAll = fixAll;
+const checkInterval = setInterval(() => {
+    if (typeof katex !== 'undefined') { clearInterval(checkInterval); setupObserver(); fixAll(); }
+}, 200);

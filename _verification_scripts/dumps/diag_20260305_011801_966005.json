@@ -1,0 +1,18 @@
+{
+  "timestamp": "2026-03-04T17:18:01.647Z",
+  "phase1_demolish": {
+    "footnotes_removed": 0,
+    "citations_unwrapped": 0,
+    "math_inline_reverted": 0,
+    "math_block_reverted": 0,
+    "cite_tags_stripped": 0
+  },
+  "phase2_sanitize": [],
+  "phase3_render": [],
+  "phase4_replace": {
+    "text_nodes_processed": 0,
+    "total_fragments_created": 0,
+    "containers_handled": 0
+  },
+  "raw_text_snapshot": []
+}

@@ -1,0 +1,60 @@
+{
+  "manifest_version": 3,
+  "name": "GeminiMate",
+  "description": "Premium Gemini assistant with LaTeX fixing and advanced features.",
+  "version": "1.0.0",
+  "action": {
+    "default_popup": "src/pages/popup/index.html"
+  },
+  "permissions": [
+    "storage",
+    "scripting"
+  ],
+  "host_permissions": [
+    "https://gemini.google.com/*",
+    "https://business.gemini.google/*"
+  ],
+  "background": {
+    "service_worker": "service-worker-loader.js",
+    "type": "module"
+  },
+  "content_scripts": [
+    {
+      "js": [
+        "assets/index.tsx-loader--A50UJB-.js"
+      ],
+      "matches": [
+        "https://gemini.google.com/*",
+        "https://business.gemini.google/*"
+      ],
+      "run_at": "document_start",
+      "css": [
+        "assets/index-FzZDO7DB.css"
+      ]
+    }
+  ],
+  "web_accessible_resources": [
+    {
+      "matches": [
+        "<all_urls>"
+      ],
+      "resources": [
+        "assets/*"
+      ],
+      "use_dynamic_url": false
+    },
+    {
+      "matches": [
+        "https://business.gemini.google/*",
+        "https://gemini.google.com/*"
+      ],
+      "resources": [
+        "assets/DebugService-CNKif1ZD.js",
+        "assets/LoggerService-Ft5-Edxa.js",
+        "assets/_commonjsHelpers-CqkleIqs.js",
+        "assets/index.tsx-DwthUp7L.js"
+      ],
+      "use_dynamic_url": false
+    }
+  ]
+}

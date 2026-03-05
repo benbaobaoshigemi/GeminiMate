@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <meta charset="UTF-8">
+    <title>Gemini Fixer Settings</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            width: 220px;
+            padding: 15px;
+            background: #202124;
+            color: #e8eaed;
+        }
+
+        h3 {
+            margin-top: 0;
+            font-size: 16px;
+            border-bottom: 1px solid #5f6368;
+            padding-bottom: 8px;
+        }
+
+        .option {
+            margin: 12px 0;
+            display: flex;
+            align-items: center;
+            cursor: pointer;
+        }
+
+        input[type="radio"] {
+            margin-right: 10px;
+            accent-color: #8ab4f8;
+        }
+
+        label {
+            cursor: pointer;
+            font-size: 14px;
+        }
+
+        .desc {
+            font-size: 11px;
+            color: #9aa0a6;
+            margin-left: 26px;
+            display: block;
+            margin-top: 2px;
+        }
+
+        .highlight {
+            color: #8ab4f8;
+            font-weight: bold;
+        }
+    </style>
+</head>
+
+<body>
+    <h3>Gemini 修复设置</h3>
+
+    <div class="option">
+        <input type="radio" id="repair" name="mode" value="repair" checked>
+        <div>
+            <label for="repair">修复模式 (Repair)</label>
+            <span class="desc">保留加粗，修复空格和LaTeX</span>
+        </div>
+    </div>
+
+    <div class="option">
+        <input type="radio" id="erase" name="mode" value="erase">
+        <div>
+            <label for="erase">抹除模式 (Erase)</label>
+            <span class="desc">移除所有加粗，只保留纯文本</span>
+        </div>
+    </div>
+
+    <script src="popup.js"></script>
+</body>
+
+</html>

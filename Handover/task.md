@@ -1,0 +1,25 @@
+# GeminiMate Migration Task List
+
+- [x] Initialize Project Structure
+  - [x] Create directory `c:\Users\zhang\Desktop\GeminiMate`
+  - [x] Initialize Vite + React + TypeScript project
+  - [x] Set up `webextension-polyfill` and types
+- [x] Port Core Logic
+  - [x] Port LaTeX Fixer Engine (TS)
+  - [x] Port Markdown Repair Engine (TS)
+  - [x] Set up Content Script Entry point
+- [x] Port UI (GeminiMate Style)
+  - [x] Port Popup UI to React
+  - [x] Create basic component structure
+- [x] Build & Verify
+  - [x] Configure Vite for Chrome Extension build
+  - [x] Verify basic functionality in build output
+- [x] Feature Expansion (Voyager Features)
+  - [ ] Port Watermark Remover
+  - [x] Port Formula Copy
+  - [x] Port Timeline
+    - [x] Add slider for thickness adjustment
+    - [x] Add toggle for smooth scroll
+    - [x] Add toggle for container visibility
+    - [x] Remove draggable and hierarchy features
+  - [ ] Implement Word Export (Heavyweight)
