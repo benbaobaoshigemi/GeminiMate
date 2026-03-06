@@ -2317,14 +2317,13 @@ export class TimelineManager {
     const viewportHeight = window.innerHeight;
     const barWidth = this.ui.timelineBar?.offsetWidth || this.timelineWidth || 24;
 
-    const xAnchor = document.querySelector(this.timelineXAxisAnchorSelector) as HTMLElement | null;
+    // Right-side anchor: pin bar 12px from the right edge
+    const desiredLeft = viewportWidth - barWidth - 12;
+
     const bottomAnchor = document.querySelector(
       this.timelineBottomBoundaryAnchorSelector,
     ) as HTMLElement | null;
 
-    const xCenter = xAnchor
-      ? xAnchor.getBoundingClientRect().left + xAnchor.getBoundingClientRect().width / 2
-      : 12 + barWidth / 2;
     const targetBottom = bottomAnchor
       ? bottomAnchor.getBoundingClientRect().top + bottomAnchor.getBoundingClientRect().height / 2
       : viewportHeight - 80;
@@ -2333,7 +2332,6 @@ export class TimelineManager {
     const halfSpan = Math.max(70, Math.abs(targetBottom - viewportCenterY));
     const desiredHeight = Math.min(viewportHeight - 20, Math.max(120, halfSpan * 2));
     const desiredTop = viewportCenterY - desiredHeight / 2;
-    const desiredLeft = xCenter - barWidth / 2;
 
     const padding = 10;
     const clampedTop = Math.max(

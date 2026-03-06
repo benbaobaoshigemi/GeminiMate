@@ -23,7 +23,7 @@
   "content_scripts": [
     {
       "js": [
-        "assets/index.tsx-loader-B9soBQoY.js"
+        "assets/index.tsx-loader-7IMZYLmX.js"
       ],
       "matches": [
         "https://gemini.google.com/*",
@@ -31,7 +31,7 @@
       ],
       "run_at": "document_start",
       "css": [
-        "assets/index-I8y5OVqA.css"
+        "assets/index-CxvDYXxW.css"
       ]
     }
   ],
@@ -53,10 +53,10 @@
       ],
       "resources": [
         "assets/bg_96-C2FFcR6-.png",
-        "assets/DebugService-B4Hj4U7C.js",
-        "assets/LoggerService-CMckLSEc.js",
+        "assets/common-C_c3W43z.js",
+        "assets/LoggerService-BvK50BHC.js",
         "assets/_commonjsHelpers-CqkleIqs.js",
-        "assets/index.tsx-BQWDzyq6.js"
+        "assets/index.tsx-BNPAspdS.js"
       ],
       "use_dynamic_url": false
     }

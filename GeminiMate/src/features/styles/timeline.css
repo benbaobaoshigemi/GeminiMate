@@ -8,6 +8,14 @@
   --timeline-tooltip-border: #e2e8f0;
   --timeline-tooltip-radius: 12px;
   --timeline-tooltip-shadow: 0 8px 28px rgba(2, 8, 23, 0.16), 0 2px 6px rgba(2, 8, 23, 0.08);
+  --timeline-bar-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+  --timeline-toggle-bg: linear-gradient(145deg, rgba(59, 130, 246, 0.15) 0%, rgba(248, 250, 252, 0.9) 100%);
+  --timeline-toggle-border: rgba(59, 130, 246, 0.25);
+  --timeline-toggle-shadow: 0 2px 8px rgba(0, 0, 0, 0.1), inset 0 1px 0 rgba(255, 255, 255, 0.6);
+  --timeline-toggle-hover-bg: linear-gradient(145deg, rgba(59, 130, 246, 0.25) 0%, rgba(240, 245, 255, 0.96) 100%);
+  --timeline-panel-bg: linear-gradient(160deg, rgba(59, 130, 246, 0.05) 0%, rgba(248, 250, 252, 0.95) 100%);
+  --timeline-panel-border: rgba(59, 130, 246, 0.18);
+  --timeline-panel-shadow: 0 8px 24px rgba(0, 0, 0, 0.12), 0 0 0 1px rgba(59, 130, 246, 0.08);
   --timeline-tooltip-lh: 18px;
   --timeline-tooltip-pad-y: 10px;
   --timeline-tooltip-pad-x: 12px;
@@ -37,6 +45,14 @@
     --timeline-tooltip-text: #e2e8f0;
     --timeline-tooltip-border: #1f2937;
     --timeline-bar-bg: rgba(2, 6, 23, 0.72);
+    --timeline-bar-shadow: none;
+    --timeline-toggle-bg: linear-gradient(145deg, rgba(98, 154, 255, 0.32) 0%, rgba(13, 19, 36, 0.9) 100%);
+    --timeline-toggle-border: rgba(138, 171, 255, 0.35);
+    --timeline-toggle-shadow: none;
+    --timeline-toggle-hover-bg: linear-gradient(145deg, rgba(115, 168, 255, 0.42) 0%, rgba(17, 26, 48, 0.96) 100%);
+    --timeline-panel-bg: linear-gradient(160deg, rgba(109, 161, 255, 0.08) 0%, rgba(8, 12, 24, 0.88) 100%);
+    --timeline-panel-border: rgba(127, 164, 235, 0.28);
+    --timeline-panel-shadow: none;
   }
 }
 
@@ -49,6 +65,14 @@
   --timeline-tooltip-text: #e2e8f0;
   --timeline-tooltip-border: #1f2937;
   --timeline-bar-bg: rgba(2, 6, 23, 0.72);
+  --timeline-bar-shadow: none;
+  --timeline-toggle-bg: linear-gradient(145deg, rgba(98, 154, 255, 0.32) 0%, rgba(13, 19, 36, 0.9) 100%);
+  --timeline-toggle-border: rgba(138, 171, 255, 0.35);
+  --timeline-toggle-shadow: none;
+  --timeline-toggle-hover-bg: linear-gradient(145deg, rgba(115, 168, 255, 0.42) 0%, rgba(17, 26, 48, 0.96) 100%);
+  --timeline-panel-bg: linear-gradient(160deg, rgba(109, 161, 255, 0.08) 0%, rgba(8, 12, 24, 0.88) 100%);
+  --timeline-panel-border: rgba(127, 164, 235, 0.28);
+  --timeline-panel-shadow: none;
 }
 
 .theme-host.light-theme {
@@ -59,6 +83,14 @@
   --timeline-tooltip-text: #0f172a;
   --timeline-tooltip-border: #e2e8f0;
   --timeline-bar-bg: rgba(248, 250, 252, 0.85);
+  --timeline-bar-shadow: none;
+  --timeline-toggle-bg: linear-gradient(145deg, rgba(59, 130, 246, 0.15) 0%, rgba(248, 250, 252, 0.9) 100%);
+  --timeline-toggle-border: rgba(59, 130, 246, 0.25);
+  --timeline-toggle-shadow: none;
+  --timeline-toggle-hover-bg: linear-gradient(145deg, rgba(59, 130, 246, 0.25) 0%, rgba(240, 245, 255, 0.96) 100%);
+  --timeline-panel-bg: linear-gradient(160deg, rgba(59, 130, 246, 0.05) 0%, rgba(248, 250, 252, 0.95) 100%);
+  --timeline-panel-border: rgba(59, 130, 246, 0.18);
+  --timeline-panel-shadow: none;
 }
 
 /* Gemini theme hosts */
@@ -79,8 +111,8 @@
 .gemini-timeline-bar {
   position: fixed;
   top: 60px;
-  left: 12px;
-  right: auto;
+  right: 12px;
+  left: auto;
   width: 24px;
   height: calc(100vh - 100px);
   z-index: 2147483646;
@@ -92,7 +124,7 @@
   background: var(--timeline-bar-bg);
   backdrop-filter: blur(4px);
   -webkit-backdrop-filter: blur(4px);
-  box-shadow: 0 6px 18px rgba(2, 8, 23, 0.2);
+  box-shadow: var(--timeline-bar-shadow);
   transition: background-color 0.3s ease, box-shadow 0.3s ease, border-color 0.3s ease;
   overflow: visible;
   contain: layout;
@@ -105,10 +137,6 @@
 
 .gemini-timeline-bar.timeline-auto-hide:not(:hover):not(:focus-within) {
   opacity: 0.15;
-  transform: translateX(calc(-100% + 6px));
-}
-
-.gv-rtl .gemini-timeline-bar.timeline-auto-hide:not(:hover):not(:focus-within) {
   transform: translateX(calc(100% - 6px));
 }
 
@@ -536,13 +564,9 @@ html.dark .timeline-left-slider::before {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  background:
-    linear-gradient(145deg, rgba(98, 154, 255, 0.32) 0%, rgba(13, 19, 36, 0.9) 100%),
-    var(--timeline-bar-bg);
-  border: 1px solid rgba(138, 171, 255, 0.35);
-  box-shadow:
-    0 6px 16px rgba(3, 7, 18, 0.45),
-    inset 0 1px 0 rgba(255, 255, 255, 0.16);
+  background: var(--timeline-toggle-bg), var(--timeline-bar-bg);
+  border: 1px solid var(--timeline-toggle-border);
+  box-shadow: var(--timeline-toggle-shadow);
   cursor: pointer;
   padding: 0;
   color: var(--timeline-dot-color);
@@ -563,38 +587,29 @@ html.dark .timeline-left-slider::before {
 
 .timeline-preview-toggle:hover {
   color: var(--timeline-dot-active-color);
-  background:
-    linear-gradient(145deg, rgba(115, 168, 255, 0.42) 0%, rgba(17, 26, 48, 0.96) 100%),
-    var(--timeline-tooltip-bg);
+  background: var(--timeline-toggle-hover-bg), var(--timeline-tooltip-bg);
 }
 
 .timeline-preview-toggle.active {
   color: var(--timeline-dot-active-color);
-  background:
-    linear-gradient(145deg, rgba(115, 168, 255, 0.44) 0%, rgba(17, 26, 48, 0.96) 100%),
-    var(--timeline-tooltip-bg);
+  background: var(--timeline-toggle-hover-bg), var(--timeline-tooltip-bg);
 }
 
 .timeline-preview-panel {
   position: fixed;
   width: 320px;
   direction: ltr;
-  background:
-    linear-gradient(160deg, rgba(109, 161, 255, 0.08) 0%, rgba(8, 12, 24, 0.88) 100%),
-    var(--timeline-tooltip-bg);
-  border: 1px solid rgba(127, 164, 235, 0.28);
+  background: var(--timeline-panel-bg), var(--timeline-tooltip-bg);
+  border: 1px solid var(--timeline-panel-border);
   border-radius: var(--timeline-tooltip-radius);
-  box-shadow:
-    0 14px 36px rgba(3, 7, 18, 0.45),
-    0 0 0 1px rgba(90, 145, 255, 0.12),
-    var(--timeline-tooltip-shadow);
+  box-shadow: var(--timeline-panel-shadow);
   backdrop-filter: blur(10px) saturate(125%);
   -webkit-backdrop-filter: blur(10px) saturate(125%);
   z-index: 2147483645;
   display: flex;
   flex-direction: column;
   opacity: 0;
-  transform: scale(0.96) translateX(8px);
+  transform: scale(0.96) translateX(-8px);
   transition:
     opacity var(--timeline-tooltip-anim-in),
     transform var(--timeline-tooltip-anim-in);
@@ -746,4 +761,22 @@ mark.timeline-search-highlight {
   background-color: rgba(255, 255, 255, 0.95);
   backdrop-filter: blur(8px);
   -webkit-backdrop-filter: blur(8px);
+}
+
+/* ── Hide native scrollbars — timeline sidebar replaces the page scroll indicator ── */
+/* Target Gemini's main scroll containers specifically */
+chat-window-content::-webkit-scrollbar,
+.cdk-virtual-scroll-viewport::-webkit-scrollbar,
+mat-sidenav-content > div::-webkit-scrollbar,
+.content-wrapper::-webkit-scrollbar,
+.scroll-container::-webkit-scrollbar {
+  display: none !important;
+}
+
+chat-window-content,
+.cdk-virtual-scroll-viewport,
+mat-sidenav-content > div,
+.content-wrapper,
+.scroll-container {
+  scrollbar-width: none !important;
 }

@@ -11,7 +11,10 @@ import {
   startChatWidthAdjuster,
   startEditInputWidthAdjuster,
   startSidebarWidthAdjuster,
-  startSidebarAutoHide
+  startSidebarAutoHide,
+  startZoomAdjuster,
+  startFontSizeAdjuster,
+  startCustomFontInjector,
 } from '../../features/layout';
 
 // Import injected styles
@@ -202,6 +205,9 @@ const initExtension = async () => {
     startEditInputWidthAdjuster();
     startSidebarWidthAdjuster();
     startSidebarAutoHide();
+    startZoomAdjuster();
+    startFontSizeAdjuster();
+    startCustomFontInjector();
 
     chrome.storage.onChanged.addListener(handleStorageChanged);
     window.addEventListener('beforeunload', () => {

@@ -25,4 +25,9 @@ export const StorageKeys = {
     GEMINI_EDIT_INPUT_WIDTH: 'geminimate_edit_input_width',
     GEMINI_SIDEBAR_WIDTH: 'geminimate_sidebar_width',
     GEMINI_SIDEBAR_AUTO_HIDE: 'geminimate_sidebar_auto_hide',
+    GEMINI_ZOOM_LEVEL: 'geminimate_zoom_level',
+    GEMINI_FONT_SIZE_SCALE: 'geminimate_font_size_scale',
+    GEMINI_FONT_WEIGHT: 'geminimate_font_weight',
+    GEMINI_FONT_FAMILY: 'geminimate_font_family',
+    GEMINI_CUSTOM_FONTS: 'geminimate_custom_fonts',
 } as const;

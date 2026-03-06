@@ -41,7 +41,55 @@ const buildStyleText = (): string => {
   background-image: none !important;
   border-top: none !important;
 }`;
-  return `${disclaimerCss}\n${shadowCss}`;
+
+  /*
+   * Panoramic mode: eliminate the dark areas around the (centered/limited-width) input box.
+   *
+   * Root cause analysis from HTML inspection:
+   * 1. input-container IS the input-gradient Angular component (_nghost-ng-c2403657804).
+   *    Its ::before pseudo-element draws a semi-transparent gradient that overlays the last
+   *    50px of the chat scroll area — removed below.
+   * 2. fieldset.input-area-container has max-width:830px centered inside the full-width
+   *    input-container. The sides of input-container (outside 830px) appear dark because
+   *    they show the parent background. Fix: extend fieldset to fill its container.
+   * 3. chat-window-content (the scroll area) may be clipped short. Removing bottom padding
+   *    lets it use more vertical space.
+   */
+  const gradientMaskCss = `
+/* Remove the gradient fade that obscures bottom of chat content */
+input-gradient::before,
+.input-gradient::before,
+input-container::before,
+input-container::after {
+  content: none !important;
+  display: none !important;
+  background: none !important;
+  opacity: 0 !important;
+}
+
+/* Make input-gradient component itself fully transparent so nothing dark leaks around the input box */
+input-gradient,
+.input-gradient,
+chat-window input-container {
+  background: transparent !important;
+  background-color: transparent !important;
+  background-image: none !important;
+}
+
+/* Extend the inner fieldset to fill the full container width,
+   eliminating the dark patches on left/right of the input box */
+fieldset.input-area-container {
+  max-width: 100% !important;
+  width: 100% !important;
+}
+
+/* Give the chat scroll area more room by removing excess bottom padding */
+chat-window-content,
+.chat-history {
+  padding-bottom: 0 !important;
+}`;
+
+  return `${disclaimerCss}\n${shadowCss}\n${gradientMaskCss}`;
 };
 
 const ensureStyle = (): void => {

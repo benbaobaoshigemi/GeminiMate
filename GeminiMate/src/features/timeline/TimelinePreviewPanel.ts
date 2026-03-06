@@ -267,16 +267,13 @@ export class TimelinePreviewPanel {
     );
   }
 
-  /** Position the toggle button beside the timeline bar, vertically centered.
-   *  Keep it on the bar's left side and clamp within viewport bounds. */
+  /** Position the toggle button to the LEFT of the timeline bar, vertically centered. */
   private positionToggle(): void {
     if (!this.toggleBtn) return;
     const barRect = this.anchorElement.getBoundingClientRect();
     const btnSize = 24;
     const gap = 8;
-    const minLeft = 8;
-    const maxLeft = Math.max(minLeft, window.innerWidth - btnSize - 8);
-    const leftPx = Math.max(minLeft, Math.min(Math.round(barRect.right + gap), maxLeft));
+    const leftPx = Math.max(8, Math.round(barRect.left - gap - btnSize));
     this.toggleBtn.style.left = `${leftPx}px`;
     this.toggleBtn.style.top = `${Math.round(barRect.top + barRect.height / 2 - btnSize / 2)}px`;
   }
@@ -287,22 +284,18 @@ export class TimelinePreviewPanel {
     const gap = 12;
     const minPanelWidth = 220;
     const maxPanelWidth = 320;
-    const availableRight = Math.max(120, window.innerWidth - (barRect.right + gap) - 8);
-    const panelWidth = Math.max(minPanelWidth, Math.min(maxPanelWidth, availableRight));
+    // Panel opens to the LEFT of the bar
+    const availableLeft = Math.max(120, barRect.left - gap - 8);
+    const panelWidth = Math.max(minPanelWidth, Math.min(maxPanelWidth, availableLeft));
     const maxHeight = Math.min(500, window.innerHeight * 0.7);
     const barCenterY = barRect.top + barRect.height / 2;
 
-    const minNonOverlapLeft = barRect.right + gap;
-    const left = Math.max(
-      minNonOverlapLeft,
-      Math.min(window.innerWidth - panelWidth - 8, minNonOverlapLeft),
-    );
+    const left = Math.max(8, Math.round(barRect.left - gap - panelWidth));
 
     this.panelEl.style.maxHeight = `${Math.round(maxHeight)}px`;
     this.panelEl.style.width = `${Math.round(panelWidth)}px`;
     this.panelEl.style.left = `${Math.round(left)}px`;
 
-    // Measure actual rendered height to center properly (works for both few and many items)
     const panelHeight = this.panelEl.offsetHeight || maxHeight;
     let top = barCenterY - panelHeight / 2;
     top = Math.max(8, Math.min(top, window.innerHeight - panelHeight - 8));

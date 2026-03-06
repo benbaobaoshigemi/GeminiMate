@@ -1,0 +1,22 @@
+=== Gemini Tags ===
+Tag: head, classes: None
+Tag: head, classes: None
+Tag: head, classes: None
+Tag: div, classes: ['logo']
+Tag: a, classes: ['mat-ripple', 'mat-mdc-tooltip-trigger', 'conversation', 'ng-tns-c4151796294-11', 'ng-trigger', 'ng-trigger-conversationListRevealAnimation']
+Tag: chat-window-content, classes: ['ng-tns-c643597848-1', 'ui-improvements-phase-1', 'ng-star-inserted']
+Tag: div, classes: ['response-content', 'ng-tns-c3544648478-12']
+Tag: p, classes: None
+Tag: div, classes: ['response-content', 'ng-tns-c3544648478-16']
+Tag: div, classes: ['response-content', 'ng-tns-c3544648478-20']
+Tag: div, classes: ['response-content', 'ng-tns-c3544648478-24']
+Tag: div, classes: ['response-content', 'ng-tns-c3544648478-28']
+Tag: div, classes: ['response-content', 'ng-tns-c3544648478-32']
+Tag: div, classes: ['response-content', 'ng-tns-c3544648478-36']
+Tag: div, classes: ['response-content', 'ng-tns-c3544648478-40']
+Tag: div, classes: ['response-content', 'ng-tns-c3544648478-44']
+Tag: div, classes: ['capabilities-disclaimer']
+Tag: div, classes: ['cdk-describedby-message-container', 'cdk-visually-hidden']
+
+=== Mask/Gradient Classes ===
+top-gradient-container, reduced-bottom-padding, input-buttons-wrapper-bottom, input-box-shadow, top-gradient, bottom-gradient-container, input-gradient, bottom-gradient
