@@ -8,6 +8,7 @@ const RE_MATH = /(\$\$[\s\S]*?\$\$)|(\$((?:\\\$|[^$])+?)\$)/g;
 const DONE_CLASS = 'gemini-fix-done';
 const MD_FIX_CLASS = 'gemini-md-fixed';
 const MD_MARK_CLASS = 'gemini-md-fix-mark';
+const MD_UNDERLINE_CLASS = 'gemini-md-underline';
 const MESSAGE_CONTAINER_SELECTOR =
   '.message-content, message-content, [data-test-id="message-content"], model-response, model-response-text, .model-response-text, .response-content, .markdown-main-panel, .markdown';
 
@@ -25,7 +26,6 @@ declare global {
 
 export class RepairEngine {
   private static instance: RepairEngine;
-  private static readonly TRACE_PREFIX = '[GM-TRACE][RepairEngine]';
   private observer: MutationObserver | null = null;
   private isMutatingSelf = false;
   private ttPolicy: { createHTML: (html: string) => string } | null = null;
@@ -34,21 +34,17 @@ export class RepairEngine {
   private renderedSnapshots = new WeakMap<HTMLElement, string>();
   private pendingFixTimer: ReturnType<typeof setTimeout> | null = null;
   private pendingRollbackTimer: ReturnType<typeof setTimeout> | null = null;
+  private forceMarkdownRefresh = false;
   private storageListener:
     | ((changes: Record<string, chrome.storage.StorageChange>, areaName: string) => void)
     | null = null;
   private config = {
     latexEnabled: true,
     markdownEnabled: true,
+    emphasisMode: 'bold' as 'bold' | 'underline',
   };
 
-  private trace(message: string, context?: Record<string, unknown>): void {
-    if (context) {
-      console.log(`${RepairEngine.TRACE_PREFIX} ${message}`, context);
-      return;
-    }
-    console.log(`${RepairEngine.TRACE_PREFIX} ${message}`);
-  }
+  private trace(_message: string, _context?: Record<string, unknown>): void {}
 
   private constructor() {
     if (window.trustedTypes) {
@@ -80,15 +76,16 @@ export class RepairEngine {
     const res = await chrome.storage.local.get([
       StorageKeys.LATEX_FIXER_ENABLED,
       StorageKeys.MARKDOWN_REPAIR_ENABLED,
+      StorageKeys.GEMINI_EMPHASIS_MODE,
     ]);
     this.config.latexEnabled = this.resolveEnabled(res[StorageKeys.LATEX_FIXER_ENABLED], true);
     this.config.markdownEnabled = this.resolveEnabled(res[StorageKeys.MARKDOWN_REPAIR_ENABLED], true);
+    this.config.emphasisMode = res[StorageKeys.GEMINI_EMPHASIS_MODE] === 'underline' ? 'underline' : 'bold';
     this.trace('config-loaded', { ...this.config });
 
     this.storageListener = (changes, areaName) => {
       if (areaName !== 'local') return;
 
-      const prev = { ...this.config };
       let changed = false;
 
       if (changes[StorageKeys.LATEX_FIXER_ENABLED]) {
@@ -103,34 +100,29 @@ export class RepairEngine {
           changes[StorageKeys.MARKDOWN_REPAIR_ENABLED].newValue,
           true,
         );
+        this.forceMarkdownRefresh = true;
+        changed = true;
+      }
+      if (changes[StorageKeys.GEMINI_EMPHASIS_MODE]) {
+        this.config.emphasisMode =
+          changes[StorageKeys.GEMINI_EMPHASIS_MODE].newValue === 'underline' ? 'underline' : 'bold';
+        this.forceMarkdownRefresh = true;
         changed = true;
       }
       if (!changed) return;
 
       debugService.log('repair', 'config-changed', {
-        previous: prev,
         current: this.config,
       });
       this.trace('config-changed', {
-        previous: prev,
         current: this.config,
       });
 
-      const turnedOff =
-        (prev.latexEnabled && !this.config.latexEnabled) ||
-        (prev.markdownEnabled && !this.config.markdownEnabled);
-
-      if (turnedOff) {
-        this.trace('schedule-rollback-on-toggle-off');
-        this.scheduleRollback('config-turned-off');
-        if (this.config.latexEnabled || this.config.markdownEnabled) {
-          this.scheduleFixAll('reapply-after-rollback');
-        }
-        return;
-      }
-
+      // Rapid toggles can queue conflicting tasks; always keep only the latest intent.
       if (this.config.latexEnabled || this.config.markdownEnabled) {
         this.scheduleFixAll('config-changed');
+      } else {
+        this.scheduleRollback('config-turned-off');
       }
     };
     chrome.storage.onChanged.addListener(this.storageListener);
@@ -181,6 +173,10 @@ export class RepairEngine {
   }
 
   private scheduleFixAll(reason: string): void {
+    if (this.pendingRollbackTimer !== null) {
+      clearTimeout(this.pendingRollbackTimer);
+      this.pendingRollbackTimer = null;
+    }
     if (this.pendingFixTimer !== null) return;
     this.trace('schedule-fix', { reason });
     this.pendingFixTimer = setTimeout(() => {
@@ -191,6 +187,10 @@ export class RepairEngine {
   }
 
   private scheduleRollback(reason: string): void {
+    if (this.pendingFixTimer !== null) {
+      clearTimeout(this.pendingFixTimer);
+      this.pendingFixTimer = null;
+    }
     if (this.pendingRollbackTimer !== null) return;
     this.trace('schedule-rollback', { reason });
     this.pendingRollbackTimer = setTimeout(() => {
@@ -247,7 +247,10 @@ export class RepairEngine {
   }
 
   fixAll(): void {
-    if (this.isMutatingSelf) return;
+    if (this.isMutatingSelf) {
+      this.scheduleFixAll('locked-retry');
+      return;
+    }
     if (!this.config.latexEnabled && !this.config.markdownEnabled) return;
 
     this.isMutatingSelf = true;
@@ -269,6 +272,7 @@ export class RepairEngine {
       logger.error('Fix All failed', { error });
       debugService.log('repair', 'fix-all-failed', { error: String(error) });
     } finally {
+      this.forceMarkdownRefresh = false;
       setTimeout(() => {
         this.isMutatingSelf = false;
         this.trace('fix-end');
@@ -358,8 +362,23 @@ export class RepairEngine {
 
   private processContainerFromSource(container: HTMLElement): void {
     const source = this.sourceSnapshots.get(container) ?? container.innerHTML;
-    if (container.innerHTML !== source && !this.containsOwnPatchMarkers(container.innerHTML)) {
-      this.safeSetInnerHTML(container, source);
+    const currentInnerHTML = container.innerHTML;
+    if (currentInnerHTML !== source) {
+      const hasPatchMarkers = this.containsOwnPatchMarkers(currentInnerHTML);
+      const shouldRebuildMarkdown =
+        this.forceMarkdownRefresh &&
+        this.config.markdownEnabled &&
+        (currentInnerHTML.includes(MD_FIX_CLASS) || currentInnerHTML.includes(MD_MARK_CLASS));
+      // Reset to source when:
+      // (a) no patch markers at all (external update), OR
+      // (b) latex is now disabled but our rendered math markers are still present
+      const shouldReset =
+        !hasPatchMarkers ||
+        (!this.config.latexEnabled && currentInnerHTML.includes(DONE_CLASS)) ||
+        shouldRebuildMarkdown;
+      if (shouldReset) {
+        this.safeSetInnerHTML(container, source);
+      }
     }
 
     if (this.config.latexEnabled) {
@@ -397,7 +416,7 @@ export class RepairEngine {
         if (ann) math = ann.textContent;
       }
       if (!math) return;
-      mb.parentNode?.replaceChild(document.createTextNode(`\n$$${math}$$\n`), mb);
+      mb.parentNode?.replaceChild(document.createTextNode(`$$${math}$$`), mb);
       unwrapped = true;
     });
 
@@ -409,23 +428,19 @@ export class RepairEngine {
     template.innerHTML = html;
     const root = template.content;
 
-    Array.from(root.querySelectorAll(`.math-inline.${DONE_CLASS}`)).forEach((element) => {
-      const math = element.getAttribute('data-math');
-      if (!math) return;
-      this.replaceElementWithText(element, `$${math}$`);
-    });
-
-    Array.from(root.querySelectorAll(`.math-block.${DONE_CLASS}`)).forEach((element) => {
-      let math = element.getAttribute('data-math');
-      if (math === 'block') {
-        const annotation = element.querySelector('annotation[encoding="application/x-tex"]');
-        if (annotation?.textContent) {
-          math = annotation.textContent;
+    Array.from(root.querySelectorAll(`.math-inline.${DONE_CLASS}, .math-block.${DONE_CLASS}`)).forEach(
+      (element) => {
+        // Keep rendered math DOM so formulas remain visible when LaTeX fixer is turned off.
+        // We only strip plugin-specific marker/style metadata.
+        element.classList.remove(DONE_CLASS);
+        element.removeAttribute('title');
+        if (element instanceof HTMLElement) {
+          element.style.borderLeft = '';
+          element.style.borderBottom = '';
+          element.style.padding = '';
         }
-      }
-      if (!math) return;
-      this.replaceElementWithText(element, `\n$$${math}$$\n`);
-    });
+      },
+    );
 
     Array.from(root.querySelectorAll(`b.${MD_FIX_CLASS}, strong.${MD_FIX_CLASS}`)).forEach(
       (element) => {
@@ -562,8 +577,15 @@ export class RepairEngine {
     }
   }
 
+  private getMarkdownEmphasisStyle(): string {
+    return this.config.emphasisMode === 'underline'
+      ? 'border-bottom: 2px dashed #ffd400; font-weight: inherit !important;'
+      : 'border-bottom: 2px dashed #ffd400; font-weight: bold;';
+  }
+
   private repairMarkdown(container: HTMLElement): void {
     const blocks = container.querySelectorAll('p, li, blockquote, td, span, div');
+    const boldStyle = this.getMarkdownEmphasisStyle();
 
     blocks.forEach((block) => {
       const b = block as HTMLElement;
@@ -576,7 +598,8 @@ export class RepairEngine {
       fixedHTML = fixedHTML.replace(/\*\*([\s\S]+?)\*\*/g, (match, content: string) => {
         if (!content.trim()) return match;
         const trimmed = content.replace(/^[\s\xa0]+|[\s\xa0]+$/g, '');
-        return `<b class="${MD_FIX_CLASS} ${MD_MARK_CLASS}" style="border-bottom: 2px dashed #ffab40; font-weight: bold;" title="Markdown Bold Repaired">${trimmed}</b>`;
+        const underlineClass = this.config.emphasisMode === 'underline' ? ` ${MD_UNDERLINE_CLASS}` : '';
+        return `<b class="${MD_FIX_CLASS} ${MD_MARK_CLASS}${underlineClass}" style="${boldStyle}" title="Markdown Bold Repaired">${trimmed}</b>`;
       });
 
       fixedHTML = fixedHTML.replace(
@@ -599,13 +622,28 @@ export class RepairEngine {
     const bolds = container.querySelectorAll(`b:not(.${MD_FIX_CLASS}), strong:not(.${MD_FIX_CLASS})`);
     bolds.forEach((el) => {
       const b = el as HTMLElement;
-      if (b.children.length > 0) return;
+      if (b.closest('h1, h2, h3, h4, h5, h6')) return;
       const orig = b.textContent || '';
       const trimmed = orig.trim();
       if (trimmed !== orig) {
         b.textContent = trimmed;
-        b.style.borderBottom = '2px dashed #40c4ff';
+      }
+
+      if (this.config.emphasisMode === 'underline') {
+        b.style.borderBottom = '2px dashed #ffd400';
+        b.style.setProperty('font-weight', 'inherit', 'important');
         b.classList.add(MD_MARK_CLASS);
+        b.classList.add(MD_UNDERLINE_CLASS);
+        b.setAttribute('title', 'Markdown Emphasis Adjusted');
+        return;
+      }
+
+      b.style.borderBottom = '';
+      b.style.removeProperty('font-weight');
+      b.classList.remove(MD_MARK_CLASS);
+      b.classList.remove(MD_UNDERLINE_CLASS);
+      if (b.getAttribute('title') === 'Markdown Emphasis Adjusted') {
+        b.removeAttribute('title');
       }
     });
   }

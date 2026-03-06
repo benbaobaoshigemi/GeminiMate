@@ -172,8 +172,15 @@ export class TimelineManager {
   private onSliderLeave: (() => void) | null = null;
   private timelineWidthVal: number = 24;
   private readonly lockTimelineToReferenceAnchors = true;
-  private readonly timelineXAxisAnchorSelector =
-    '#app-root > main > div > bard-mode-switcher > a > bard-logo > div > span';
+  private readonly timelineXAxisAnchorSelectors: string[] = [
+    // Google account avatar button in top-right corner (preferred).
+    'a.gb_B.gb_Oa.gb_1',
+    // Fallback if class names shift slightly.
+    'a[aria-label*="Google"][aria-label*="Account"]',
+    'a[aria-label*="Google"][aria-label*="账号"]',
+    // Last-resort fallback to previous logo anchor.
+    '#app-root > main > div > bard-mode-switcher > a > bard-logo > div > span',
+  ];
   private readonly timelineBottomBoundaryAnchorSelector =
     '#app-root > main > side-navigation-v2 > bard-sidenav-container > bard-sidenav-content > div.content-wrapper > div > div.content-container > chat-window > div > input-container > fieldset > input-area-v2 > div > div';
   private readonly sidebarExpansionHostSelector =
@@ -2317,8 +2324,14 @@ export class TimelineManager {
     const viewportHeight = window.innerHeight;
     const barWidth = this.ui.timelineBar?.offsetWidth || this.timelineWidth || 24;
 
-    // Right-side anchor: pin bar 12px from the right edge
-    const desiredLeft = viewportWidth - barWidth - 12;
+    // X-axis anchor: align timeline center to the avatar center line.
+    const xAnchor = this.timelineXAxisAnchorSelectors
+      .map((selector) => document.querySelector(selector) as HTMLElement | null)
+      .find((el) => el instanceof HTMLElement) ?? null;
+    const xAnchorRect = xAnchor?.getBoundingClientRect();
+    const desiredLeft = xAnchorRect
+      ? (xAnchorRect.left + xAnchorRect.width / 2) - barWidth / 2
+      : viewportWidth - barWidth - 4;
 
     const bottomAnchor = document.querySelector(
       this.timelineBottomBoundaryAnchorSelector,
@@ -2330,7 +2343,8 @@ export class TimelineManager {
 
     const viewportCenterY = viewportHeight / 2;
     const halfSpan = Math.max(70, Math.abs(targetBottom - viewportCenterY));
-    const desiredHeight = Math.min(viewportHeight - 20, Math.max(120, halfSpan * 2));
+    const rawHeight = Math.min(viewportHeight - 20, Math.max(120, halfSpan * 2));
+    const desiredHeight = Math.max(96, rawHeight * 0.8);
     const desiredTop = viewportCenterY - desiredHeight / 2;
 
     const padding = 10;
@@ -2340,7 +2354,7 @@ export class TimelineManager {
     );
     const clampedLeft = Math.max(
       padding,
-      Math.min(desiredLeft, viewportWidth - barWidth - padding),
+      Math.min(desiredLeft, viewportWidth - barWidth - 4),
     );
 
     return {
@@ -2385,10 +2399,10 @@ export class TimelineManager {
     const viewportWidth = window.innerWidth;
     const viewportHeight = window.innerHeight;
 
-    // Clamp to viewport bounds (with small padding)
+    // Clamp to viewport bounds (4 px gap from right edge)
     const padding = 10;
     const clampedTop = Math.max(padding, Math.min(top, viewportHeight - barHeight - padding));
-    const clampedLeft = Math.max(padding, Math.min(left, viewportWidth - barWidth - padding));
+    const clampedLeft = Math.max(padding, Math.min(left, viewportWidth - barWidth - 4));
 
     this.ui.timelineBar.style.top = `${clampedTop}px`;
     this.ui.timelineBar.style.left = `${clampedLeft}px`;

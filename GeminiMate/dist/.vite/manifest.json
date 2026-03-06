@@ -5,67 +5,70 @@
     "src": "../../../../../@crx/manifest",
     "isEntry": true
   },
-  "_LoggerService-BvK50BHC.js": {
-    "file": "assets/LoggerService-BvK50BHC.js",
+  "_LoggerService-D5yn3Jp3.js": {
+    "file": "assets/LoggerService-D5yn3Jp3.js",
     "name": "LoggerService",
     "imports": [
-      "_common-C_c3W43z.js"
+      "_common-DWy1VOmc.js"
     ]
   },
-  "__commonjsHelpers-CqkleIqs.js": {
-    "file": "assets/_commonjsHelpers-CqkleIqs.js",
-    "name": "_commonjsHelpers"
+  "_Popup-BTfCOs8k.js": {
+    "file": "assets/Popup-BTfCOs8k.js",
+    "name": "Popup",
+    "imports": [
+      "_common-DWy1VOmc.js"
+    ]
   },
-  "_common-C_c3W43z.js": {
-    "file": "assets/common-C_c3W43z.js",
+  "_common-DWy1VOmc.js": {
+    "file": "assets/common-DWy1VOmc.js",
     "name": "common"
   },
-  "_index.tsx-loader-7IMZYLmX.js": {
-    "file": "assets/index.tsx-loader-7IMZYLmX.js",
-    "src": "_index.tsx-loader-7IMZYLmX.js"
+  "_index.tsx-loader-TMMcH61q.js": {
+    "file": "assets/index.tsx-loader-TMMcH61q.js",
+    "src": "_index.tsx-loader-TMMcH61q.js"
   },
   "src/features/watermarkRemover/assets/bg_96.png": {
     "file": "assets/bg_96-C2FFcR6-.png",
     "src": "src/features/watermarkRemover/assets/bg_96.png"
   },
   "src/pages/background/index.ts": {
-    "file": "assets/index.ts-Cla2blmH.js",
+    "file": "assets/index.ts-Cxt0cSXz.js",
     "name": "index.ts",
     "src": "src/pages/background/index.ts",
     "isEntry": true,
     "imports": [
-      "_LoggerService-BvK50BHC.js",
-      "_common-C_c3W43z.js"
+      "_LoggerService-D5yn3Jp3.js",
+      "_common-DWy1VOmc.js"
     ]
   },
   "src/pages/content/index.tsx": {
-    "file": "assets/index.tsx-BNPAspdS.js",
+    "file": "assets/index.tsx-BfLkmYzq.js",
     "name": "index.tsx",
     "src": "src/pages/content/index.tsx",
     "isEntry": true,
     "imports": [
-      "_common-C_c3W43z.js",
-      "_LoggerService-BvK50BHC.js",
-      "__commonjsHelpers-CqkleIqs.js"
+      "_common-DWy1VOmc.js",
+      "_LoggerService-D5yn3Jp3.js",
+      "_Popup-BTfCOs8k.js"
     ],
     "css": [
-      "assets/index-CxvDYXxW.css"
+      "assets/index-CMeKRIhK.css"
     ],
     "assets": [
       "assets/bg_96-C2FFcR6-.png"
     ]
   },
   "src/pages/popup/index.html": {
-    "file": "assets/popup-DSzQKe6R.js",
+    "file": "assets/popup-D8mhWOzR.js",
     "name": "popup",
     "src": "src/pages/popup/index.html",
     "isEntry": true,
     "imports": [
-      "__commonjsHelpers-CqkleIqs.js",
-      "_common-C_c3W43z.js"
+      "_Popup-BTfCOs8k.js",
+      "_common-DWy1VOmc.js"
     ],
     "css": [
-      "assets/popup-CDVXlEXh.css"
+      "assets/popup-BegKqmBd.css"
     ]
   }
 }

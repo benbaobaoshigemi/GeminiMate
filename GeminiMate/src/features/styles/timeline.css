@@ -110,12 +110,12 @@
 
 .gemini-timeline-bar {
   position: fixed;
-  top: 60px;
-  right: 12px;
+  top: 8px;
+  right: 4px;
   left: auto;
   width: 24px;
-  height: calc(100vh - 100px);
-  z-index: 2147483646;
+  height: calc((100vh - 44px) * 0.8);
+  z-index: 980;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -247,7 +247,7 @@ html.dark .timeline-dot:not(.active):not(.starred)::after,
   border-radius: 8px;
   box-shadow: var(--timeline-tooltip-shadow);
   padding: 4px 0;
-  z-index: 2147483647;
+  z-index: 983;
   min-width: 160px;
   animation: timeline-menu-in 0.12s ease-out;
 }
@@ -410,7 +410,7 @@ html.dark .timeline-dot:not(.active):not(.starred)::after,
   max-height: calc(3 * var(--timeline-tooltip-lh) + 2 * var(--timeline-tooltip-pad-y) + 2 * var(--timeline-tooltip-border-w));
   box-shadow: var(--timeline-tooltip-shadow);
   pointer-events: none;
-  z-index: 2147483647;
+  z-index: 984;
   display: -webkit-box;
   -webkit-line-clamp: 3;
   line-clamp: 3;
@@ -498,7 +498,7 @@ html.dark .timeline-dot:not(.active):not(.starred)::after,
   height: 160px;
   opacity: 0;
   transition: opacity 180ms ease;
-  z-index: 2147483646;
+  z-index: 979;
   pointer-events: none;
 }
 
@@ -575,7 +575,7 @@ html.dark .timeline-left-slider::before {
     color 0.15s ease,
     background-color 0.15s ease,
     opacity 0.15s ease;
-  z-index: 2147483646;
+  z-index: 981;
   opacity: 0;
 }
 
@@ -605,7 +605,7 @@ html.dark .timeline-left-slider::before {
   box-shadow: var(--timeline-panel-shadow);
   backdrop-filter: blur(10px) saturate(125%);
   -webkit-backdrop-filter: blur(10px) saturate(125%);
-  z-index: 2147483645;
+  z-index: 982;
   display: flex;
   flex-direction: column;
   opacity: 0;
@@ -764,19 +764,28 @@ mark.timeline-search-highlight {
 }
 
 /* ── Hide native scrollbars — timeline sidebar replaces the page scroll indicator ── */
-/* Target Gemini's main scroll containers specifically */
+/* mat-sidenav-content is the Angular Material primary scroll root in Gemini */
+mat-sidenav-content::-webkit-scrollbar,
+mat-sidenav-content .cdk-virtual-scroll-viewport::-webkit-scrollbar,
+.chat-history-scroll-container::-webkit-scrollbar,
 chat-window-content::-webkit-scrollbar,
-.cdk-virtual-scroll-viewport::-webkit-scrollbar,
-mat-sidenav-content > div::-webkit-scrollbar,
-.content-wrapper::-webkit-scrollbar,
-.scroll-container::-webkit-scrollbar {
+infinite-scroller::-webkit-scrollbar {
   display: none !important;
+  width: 0 !important;
+  height: 0 !important;
 }
 
+mat-sidenav-content,
+.chat-history-scroll-container,
 chat-window-content,
-.cdk-virtual-scroll-viewport,
-mat-sidenav-content > div,
-.content-wrapper,
-.scroll-container {
+infinite-scroller {
   scrollbar-width: none !important;
+  -ms-overflow-style: none !important;
+}
+
+/* Also suppress the hover-reveal thumb that Gemini applies globally */
+mat-sidenav-content::-webkit-scrollbar-thumb,
+mat-sidenav-content .cdk-virtual-scroll-viewport::-webkit-scrollbar-thumb {
+  display: none !important;
+  background: transparent !important;
 }

@@ -7,6 +7,80 @@ const MAX_SCALE = 130;
 
 const DEFAULT_WEIGHT = 400;
 const DEFAULT_FAMILY = 'default';
+const DEFAULT_SANS_PRESET = 'sans-apple';
+const DEFAULT_SERIF_PRESET = 'serif-source';
+
+const SIDEBAR_TEXT_SELECTORS = `
+    .mat-sidenav,
+    .mat-sidenav button,
+    .mat-sidenav a,
+    .mat-sidenav span,
+    .mat-sidenav div,
+    side-navigation-v2,
+    side-navigation-content,
+    side-navigation-content button,
+    side-navigation-content a,
+    side-navigation-content span,
+    side-navigation-content div,
+    .bot-row-container,
+    .bot-row-container .text-container,
+    .bot-row-container .text-container *,
+    .project-sidenav-container,
+    .project-sidenav-container *
+`.trim();
+
+const FORMULA_WEIGHT_SELECTORS = `
+    .katex-display,
+    .katex-display *,
+    .katex,
+    .katex *,
+    ms-katex,
+    ms-katex *,
+    math,
+    math *
+`.trim();
+
+const TIMELINE_TEXT_SELECTORS = `
+    .timeline-preview-panel,
+    .timeline-preview-panel *,
+    .timeline-preview-search input,
+    .timeline-preview-item,
+    .timeline-preview-index,
+    .timeline-preview-text,
+    .timeline-preview-empty,
+    .timeline-tooltip
+`.trim();
+
+function normalizeFontFamilyValue(value: unknown): string {
+    const next = String(value || DEFAULT_FAMILY);
+    if (next === 'monospace') return 'sans';
+    return next;
+}
+
+function normalizeSansPresetValue(fontFamilyValue: unknown, presetValue: unknown): string {
+    if (String(fontFamilyValue || '') === 'monospace') return 'sans-tech';
+    return String(presetValue || DEFAULT_SANS_PRESET);
+}
+
+const SANS_PRESET_FAMILIES: Record<string, string> = {
+    'sans-apple': "system-ui, -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Hiragino Sans GB', 'Noto Sans SC', sans-serif",
+    'sans-sys': "'Segoe UI', 'Microsoft YaHei UI', 'Noto Sans SC', sans-serif",
+    'sans-harmony': "'HarmonyOS Sans SC', 'HarmonyOS Sans', 'PingFang SC', 'Noto Sans SC', sans-serif",
+    'sans-modern': "'MiSans', 'Alibaba PuHuiTi 3.0', 'PingFang SC', 'Noto Sans SC', sans-serif",
+    'sans-grotesk': "'Helvetica Neue', Arial, 'Noto Sans SC', sans-serif",
+    'sans-humanist': "'Source Sans 3', 'Noto Sans SC', 'Microsoft YaHei UI', sans-serif",
+    'sans-tech': "'JetBrains Mono', 'Fira Code', 'Cascadia Code', 'Courier New', monospace",
+};
+
+const SERIF_PRESET_FAMILIES: Record<string, string> = {
+    'serif-source': "'Source Han Serif SC', 'Noto Serif SC', 'Songti SC', serif",
+    'serif-traditional': "'Songti SC', SimSun, 'Noto Serif SC', serif",
+    'serif-fangsong': "FangSong, STFangsong, 'Noto Serif SC', serif",
+    'serif-kaiti': "'Kaiti SC', KaiTi, STKaiti, 'Noto Serif SC', serif",
+    'serif-newspaper': "Constantia, 'Times New Roman', STSong, 'Noto Serif SC', serif",
+    'serif-editorial': "Baskerville, 'Times New Roman', STSong, serif",
+    'serif-georgia': "Georgia, Cambria, 'Noto Serif SC', serif",
+};
 
 const clampScale = (value: number) => Math.min(MAX_SCALE, Math.max(MIN_SCALE, Math.round(value)));
 
@@ -30,15 +104,16 @@ const INPUT_TEXT_SELECTORS = `rich-textarea p, rich-textarea [contenteditable], 
  * Bold/heading selectors inside model/user text blocks.
  */
 const BOLD_SELECTORS = `
-  .markdown strong, .markdown b, .markdown h1, .markdown h2, .markdown h3,
+    .markdown strong:not(.gemini-md-underline), .markdown b:not(.gemini-md-underline), .markdown h1, .markdown h2, .markdown h3,
   .markdown h4, .markdown h5, .markdown h6,
-  .query-text strong, .query-text b,
-  .query-text-line strong, .query-text-line b`.trim();
+    .query-text strong:not(.gemini-md-underline), .query-text b:not(.gemini-md-underline),
+    .query-text-line strong:not(.gemini-md-underline), .query-text-line b:not(.gemini-md-underline)`.trim();
 
-function getFontFamilyCSS(family: string): string {
+function getFontFamilyCSS(family: string, sansPreset: string, serifPreset: string): string {
     switch (family) {
-        case 'monospace': return "'JetBrains Mono', 'Fira Code', 'Cascadia Code', 'Courier New', monospace";
-        case 'serif': return "Georgia, 'Noto Serif', 'Times New Roman', serif";
+        case 'monospace': return SANS_PRESET_FAMILIES['sans-tech'];
+        case 'sans': return SANS_PRESET_FAMILIES[sansPreset] ?? SANS_PRESET_FAMILIES[DEFAULT_SANS_PRESET];
+        case 'serif': return SERIF_PRESET_FAMILIES[serifPreset] ?? SERIF_PRESET_FAMILIES[DEFAULT_SERIF_PRESET];
         case 'default': return 'inherit';
         default: return `'${family}', sans-serif`; // user-loaded custom font
     }
@@ -54,7 +129,15 @@ function getBoldShiftedWeight(weight: number): number {
     return Math.min(900, Math.max(weight, shifted));
 }
 
-function buildCSS(scalePercent: number, weight: number, family: string): string {
+function buildCSS(
+    scalePercent: number,
+    weight: number,
+    family: string,
+    sansPreset: string,
+    serifPreset: string,
+    letterSpacing: number,
+    lineHeight: number,
+): string {
     const clamped = clampScale(scalePercent);
     const scaleValue = clamped / 100;
 
@@ -66,30 +149,74 @@ function buildCSS(scalePercent: number, weight: number, family: string): string 
      */
     const fontSizeRule = `font-size: calc(1rem * ${scaleValue}) !important;`;
     const fontWeightRule = weight !== DEFAULT_WEIGHT ? `font-weight: ${weight} !important;` : '';
-    const fontFamilyRule = family !== DEFAULT_FAMILY ? `font-family: ${getFontFamilyCSS(family)} !important;` : '';
-
-    console.log(`[GM-FontSize] buildCSS scale=${clamped}% weight=${weight} family=${family}`);
+    const fontVariationRule = weight !== DEFAULT_WEIGHT ? `font-variation-settings: 'wght' ${weight};` : '';
+    const fontFamilyRule = family !== DEFAULT_FAMILY ? `font-family: ${getFontFamilyCSS(family, sansPreset, serifPreset)} !important;` : '';
+    // letterSpacing: integer 0–15, each unit = 0.01em; 0 = no override
+    const letterSpacingRule = letterSpacing > 0 ? `letter-spacing: ${(letterSpacing * 0.01).toFixed(2)}em !important;` : '';
+    // lineHeight: integer 0–8, each unit = 0.1 above baseline 1.4; 0 = no override
+    const lineHeightRule = lineHeight > 0 ? `line-height: ${(1.4 + lineHeight * 0.1).toFixed(1)} !important;` : '';
 
     const parts: string[] = [];
 
     /* All conversation text — model, user, input */
-    const textRules = [fontSizeRule, fontWeightRule, fontFamilyRule].filter(Boolean).join('\n      ');
+        const textRules = [fontSizeRule, fontWeightRule, fontVariationRule, fontFamilyRule, letterSpacingRule, lineHeightRule].filter(Boolean).join('\n      ');
     parts.push(`${MODEL_TEXT_SELECTORS}, ${USER_TEXT_SELECTORS}, ${INPUT_TEXT_SELECTORS} {
       ${textRules}
     }`);
+
+        if (family !== DEFAULT_FAMILY || weight !== DEFAULT_WEIGHT) {
+                        const chromeUiRules = [fontFamilyRule, fontWeightRule, fontVariationRule].filter(Boolean).join('\n      ');
+                        parts.push(`${SIDEBAR_TEXT_SELECTORS} {
+            ${chromeUiRules}
+        }`);
+                        parts.push(`${TIMELINE_TEXT_SELECTORS} {
+            ${chromeUiRules}
+        }`);
+        }
+
+        if (weight !== DEFAULT_WEIGHT) {
+                        parts.push(`${FORMULA_WEIGHT_SELECTORS} {
+            ${fontWeightRule}
+            ${fontVariationRule}
+        }`);
+        }
+
+    /*
+     * Explicitly set heading sizes so Gemini's own heading resets don't make them
+     * smaller than body text. Sizes are proportional to the scale factor.
+     */
+    const hFamilyRule = family !== DEFAULT_FAMILY ? `\n      font-family: ${getFontFamilyCSS(family, sansPreset, serifPreset)} !important;` : '';
+    const hLetterRule = letterSpacingRule ? `\n      ${letterSpacingRule}` : '';
+    // Headings track the line-height slider (offset by -0.2 vs body, min 1.2), and always have
+    // generous margins so they visually breathe from surrounding body text.
+    const hLineHeight = lineHeight > 0 ? Math.max(1.2, (1.4 + lineHeight * 0.1) - 0.2) : 1.25;
+    const hLineHeightRule = `\n      line-height: ${hLineHeight.toFixed(2)} !important;`;
+    parts.push(`.markdown h1 { font-size: calc(1.75rem * ${scaleValue}) !important;${hFamilyRule}${hLetterRule}${hLineHeightRule}\n      margin-top: 1.6em !important; margin-bottom: 0.5em !important; }`);
+    parts.push(`.markdown h2 { font-size: calc(1.5rem * ${scaleValue}) !important;${hFamilyRule}${hLetterRule}${hLineHeightRule}\n      margin-top: 1.4em !important; margin-bottom: 0.45em !important; }`);
+    parts.push(`.markdown h3 { font-size: calc(1.2rem * ${scaleValue}) !important;${hFamilyRule}${hLetterRule}${hLineHeightRule}\n      margin-top: 1.2em !important; margin-bottom: 0.4em !important; }`);
+    parts.push(`.markdown h4, .markdown h5, .markdown h6 { font-size: calc(1.05rem * ${scaleValue}) !important;${hFamilyRule}${hLetterRule}${hLineHeightRule}\n      margin-top: 1.0em !important; margin-bottom: 0.35em !important; }`);
+
+    /*
+     * Apply font-family ONLY to timeline tooltip (no size/weight/spacing overrides).
+     * This keeps the timeline popup text in sync with the user's chosen font family
+     * while not affecting the carefully tuned tooltip dimensions and spacing.
+     */
+        if (family !== DEFAULT_FAMILY) {
+            parts.push(`.timeline-preview-search input::placeholder { font-family: ${getFontFamilyCSS(family, sansPreset, serifPreset)} !important; }`);
+        }
 
     /*
      * Bold/heading elements need an explicit shifted weight so the adjustment
      * is visible on content that already carries a bold default.
      */
     const boldWeight = getBoldShiftedWeight(weight);
-    const boldFamilyRule = family !== DEFAULT_FAMILY ? `font-family: ${getFontFamilyCSS(family)} !important;` : '';
+        const boldFamilyRule = family !== DEFAULT_FAMILY ? `font-family: ${getFontFamilyCSS(family, sansPreset, serifPreset)} !important;` : '';
+        const boldVariationRule = `font-variation-settings: 'wght' ${boldWeight};`;
     parts.push(`${BOLD_SELECTORS} {
-      font-weight: ${boldWeight} !important;${boldFamilyRule ? '\n      ' + boldFamilyRule : ''}
+            font-weight: ${boldWeight} !important;${boldFamilyRule ? '\n      ' + boldFamilyRule : ''}\n      ${boldVariationRule}
     }`);
 
     const css = parts.join('\n');
-    console.log(`[GM-FontSize] generated CSS:\n${css}`);
     return css;
 }
 
@@ -97,6 +224,49 @@ export function startFontSizeAdjuster(): void {
     let currentScale = DEFAULT_SCALE;
     let currentWeight = DEFAULT_WEIGHT;
     let currentFamily = DEFAULT_FAMILY;
+    let currentSansPreset = DEFAULT_SANS_PRESET;
+    let currentSerifPreset = DEFAULT_SERIF_PRESET;
+    let currentLetterSpacing = 0;
+    let currentLineHeight = 0;
+    const handleStorageChanged = (changes: { [key: string]: chrome.storage.StorageChange; }, area: string): void => {
+        if (area !== 'local') return;
+        let changed = false;
+
+        if (changes[StorageKeys.GEMINI_FONT_SIZE_SCALE]) {
+            const z = Number(changes[StorageKeys.GEMINI_FONT_SIZE_SCALE].newValue);
+            if (Number.isFinite(z)) { currentScale = clampScale(z); changed = true; }
+        }
+        if (changes[StorageKeys.GEMINI_FONT_WEIGHT]) {
+            const w = Number(changes[StorageKeys.GEMINI_FONT_WEIGHT].newValue);
+            if (Number.isFinite(w)) { currentWeight = w; changed = true; }
+        }
+        if (changes[StorageKeys.GEMINI_FONT_FAMILY]) {
+            const f = normalizeFontFamilyValue(changes[StorageKeys.GEMINI_FONT_FAMILY].newValue);
+            currentFamily = f;
+            if (!changes[StorageKeys.GEMINI_SANS_PRESET]) {
+                currentSansPreset = normalizeSansPresetValue(changes[StorageKeys.GEMINI_FONT_FAMILY].newValue, currentSansPreset);
+            }
+            changed = true;
+        }
+        if (changes[StorageKeys.GEMINI_SANS_PRESET]) {
+            currentSansPreset = normalizeSansPresetValue(changes[StorageKeys.GEMINI_FONT_FAMILY]?.newValue ?? currentFamily, changes[StorageKeys.GEMINI_SANS_PRESET].newValue);
+            changed = true;
+        }
+        if (changes[StorageKeys.GEMINI_SERIF_PRESET]) {
+            currentSerifPreset = String(changes[StorageKeys.GEMINI_SERIF_PRESET].newValue || DEFAULT_SERIF_PRESET);
+            changed = true;
+        }
+        if (changes[StorageKeys.GEMINI_LETTER_SPACING]) {
+            const ls = Number(changes[StorageKeys.GEMINI_LETTER_SPACING].newValue);
+            if (Number.isFinite(ls)) { currentLetterSpacing = ls; changed = true; }
+        }
+        if (changes[StorageKeys.GEMINI_LINE_HEIGHT]) {
+            const lh = Number(changes[StorageKeys.GEMINI_LINE_HEIGHT].newValue);
+            if (Number.isFinite(lh)) { currentLineHeight = lh; changed = true; }
+        }
+
+        if (changed) apply();
+    };
 
     const apply = (): void => {
         let style = document.getElementById(STYLE_ID) as HTMLStyleElement | null;
@@ -104,49 +274,45 @@ export function startFontSizeAdjuster(): void {
             style = document.createElement('style');
             style.id = STYLE_ID;
             document.head.appendChild(style);
-            console.log('[GM-FontSize] Style element created and inserted into <head>');
         }
-        const css = buildCSS(currentScale, currentWeight, currentFamily);
+        const css = buildCSS(
+            currentScale,
+            currentWeight,
+            currentFamily,
+            currentSansPreset,
+            currentSerifPreset,
+            currentLetterSpacing,
+            currentLineHeight,
+        );
         style.textContent = css;
-        console.log('[GM-FontSize] Style element updated', { id: STYLE_ID, inDOM: !!document.getElementById(STYLE_ID) });
     };
 
     chrome.storage.local.get(
-        [StorageKeys.GEMINI_FONT_SIZE_SCALE, StorageKeys.GEMINI_FONT_WEIGHT, StorageKeys.GEMINI_FONT_FAMILY],
+        [
+            StorageKeys.GEMINI_FONT_SIZE_SCALE,
+            StorageKeys.GEMINI_FONT_WEIGHT,
+            StorageKeys.GEMINI_FONT_FAMILY,
+            StorageKeys.GEMINI_SANS_PRESET,
+            StorageKeys.GEMINI_SERIF_PRESET,
+            StorageKeys.GEMINI_LETTER_SPACING,
+            StorageKeys.GEMINI_LINE_HEIGHT,
+        ],
         (res) => {
-            console.log('[GM-FontSize] Storage read:', res);
             currentScale = clampScale(Number(res[StorageKeys.GEMINI_FONT_SIZE_SCALE]) || DEFAULT_SCALE);
             currentWeight = Number(res[StorageKeys.GEMINI_FONT_WEIGHT]) || DEFAULT_WEIGHT;
-            currentFamily = String(res[StorageKeys.GEMINI_FONT_FAMILY] || DEFAULT_FAMILY);
+            currentFamily = normalizeFontFamilyValue(res[StorageKeys.GEMINI_FONT_FAMILY]);
+            currentSansPreset = normalizeSansPresetValue(res[StorageKeys.GEMINI_FONT_FAMILY], res[StorageKeys.GEMINI_SANS_PRESET]);
+            currentSerifPreset = String(res[StorageKeys.GEMINI_SERIF_PRESET] || DEFAULT_SERIF_PRESET);
+            currentLetterSpacing = Number(res[StorageKeys.GEMINI_LETTER_SPACING]) || 0;
+            currentLineHeight = Number(res[StorageKeys.GEMINI_LINE_HEIGHT]) || 0;
             apply();
         },
     );
 
-    chrome.storage.onChanged.addListener((changes, area) => {
-        if (area !== 'local') return;
-        let changed = false;
-
-        if (changes[StorageKeys.GEMINI_FONT_SIZE_SCALE]) {
-            const z = Number(changes[StorageKeys.GEMINI_FONT_SIZE_SCALE].newValue);
-            console.log('[GM-FontSize] Scale changed:', z);
-            if (Number.isFinite(z)) { currentScale = z; changed = true; }
-        }
-        if (changes[StorageKeys.GEMINI_FONT_WEIGHT]) {
-            const w = Number(changes[StorageKeys.GEMINI_FONT_WEIGHT].newValue);
-            console.log('[GM-FontSize] Weight changed:', w);
-            if (Number.isFinite(w)) { currentWeight = w; changed = true; }
-        }
-        if (changes[StorageKeys.GEMINI_FONT_FAMILY]) {
-            const f = String(changes[StorageKeys.GEMINI_FONT_FAMILY].newValue || DEFAULT_FAMILY);
-            console.log('[GM-FontSize] Family changed:', f);
-            currentFamily = f;
-            changed = true;
-        }
-
-        if (changed) apply();
-    });
+    chrome.storage.onChanged.addListener(handleStorageChanged);
 
     window.addEventListener('beforeunload', () => {
+        chrome.storage.onChanged.removeListener(handleStorageChanged);
         const style = document.getElementById(STYLE_ID);
         if (style) style.remove();
     }, { once: true });

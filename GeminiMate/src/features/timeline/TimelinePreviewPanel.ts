@@ -273,7 +273,9 @@ export class TimelinePreviewPanel {
     const barRect = this.anchorElement.getBoundingClientRect();
     const btnSize = 24;
     const gap = 8;
-    const leftPx = Math.max(8, Math.round(barRect.left - gap - btnSize));
+    const leftPx = this.isRTLContext()
+      ? Math.min(window.innerWidth - btnSize - 8, Math.round(barRect.right + gap))
+      : Math.max(8, Math.round(barRect.left - gap - btnSize));
     this.toggleBtn.style.left = `${leftPx}px`;
     this.toggleBtn.style.top = `${Math.round(barRect.top + barRect.height / 2 - btnSize / 2)}px`;
   }
@@ -284,13 +286,17 @@ export class TimelinePreviewPanel {
     const gap = 12;
     const minPanelWidth = 220;
     const maxPanelWidth = 320;
-    // Panel opens to the LEFT of the bar
-    const availableLeft = Math.max(120, barRect.left - gap - 8);
-    const panelWidth = Math.max(minPanelWidth, Math.min(maxPanelWidth, availableLeft));
+    const isRTL = this.isRTLContext();
+    const availableWidth = isRTL
+      ? Math.max(120, window.innerWidth - barRect.right - gap - 8)
+      : Math.max(120, barRect.left - gap - 8);
+    const panelWidth = Math.max(minPanelWidth, Math.min(maxPanelWidth, availableWidth));
     const maxHeight = Math.min(500, window.innerHeight * 0.7);
     const barCenterY = barRect.top + barRect.height / 2;
 
-    const left = Math.max(8, Math.round(barRect.left - gap - panelWidth));
+    const left = isRTL
+      ? Math.min(window.innerWidth - panelWidth - 8, Math.round(barRect.right + gap))
+      : Math.max(8, Math.round(barRect.left - gap - panelWidth));
 
     this.panelEl.style.maxHeight = `${Math.round(maxHeight)}px`;
     this.panelEl.style.width = `${Math.round(panelWidth)}px`;

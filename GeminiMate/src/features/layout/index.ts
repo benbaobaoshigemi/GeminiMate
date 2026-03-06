@@ -5,4 +5,5 @@ export { startSidebarAutoHide } from './sidebarAutoHide';
 export { startZoomAdjuster } from './zoom';
 export { startFontSizeAdjuster } from './fontSize';
 export { startCustomFontInjector } from './customFont';
+export { startParagraphIndentAdjuster } from './paragraphIndent';
 export type { CustomFont } from './customFont';

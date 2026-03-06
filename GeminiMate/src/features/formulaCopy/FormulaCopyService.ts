@@ -33,7 +33,6 @@ export interface FormulaCopyConfig {
 export class FormulaCopyService {
   private static instance: FormulaCopyService | null = null;
   private static readonly MATHML_NS = 'http://www.w3.org/1998/Math/MathML';
-  private static readonly TRACE_PREFIX = '[GM-TRACE][FormulaCopy]';
   private readonly logger: ILogger;
   private readonly config: Required<Omit<FormulaCopyConfig, 'format'>>;
   private currentFormat: FormulaCopyFormat = 'latex';
@@ -64,16 +63,9 @@ export class FormulaCopyService {
   private copyEnabled = true;
   private storageListenerAttached = false;
   private mathMlMimeState: 'unknown' | 'supported' | 'unsupported' = 'unknown';
-  private copyToast: HTMLDivElement | null = null;
   private i18nMessages: Record<string, string> = {};
 
-  private trace(message: string, context?: Record<string, unknown>): void {
-    if (context) {
-      console.log(`${FormulaCopyService.TRACE_PREFIX} ${message}`, context);
-      return;
-    }
-    console.log(`${FormulaCopyService.TRACE_PREFIX} ${message}`);
-  }
+  private trace(_message: string, _context?: Record<string, unknown>): void {}
 
   private constructor(config: FormulaCopyConfig = {}) {
     this.logger = logger.createChild('FormulaCopy');
@@ -186,7 +178,6 @@ export class FormulaCopyService {
     }
 
     document.removeEventListener('click', this.handleClick, true);
-    this.removeCopyToast();
     this.isInitialized = false;
     this.trace('destroy');
     this.logger.info('Formula copy service destroyed');
@@ -261,7 +252,7 @@ export class FormulaCopyService {
     const isDisplayMode = this.isDisplayMode(mathElement);
     const { text, html } = this.wrapFormula(latexSource, isDisplayMode, mathElement);
 
-    this.copyFormula(text, html, event.clientX, event.clientY);
+    this.copyFormula(text, html, mathElement);
     event.stopPropagation();
   };
 
@@ -320,8 +311,7 @@ export class FormulaCopyService {
   private async copyFormula(
     text: string,
     html: string | undefined,
-    x: number,
-    y: number,
+    mathElement: HTMLElement,
   ): Promise<void> {
     try {
       this.trace('copy-start', {
@@ -338,7 +328,7 @@ export class FormulaCopyService {
       const success = await this.copyToClipboard(text, html);
 
       if (success) {
-        this.showToast(this.i18nMessages.copied, x, y, true);
+        this.showInlineSuccess(mathElement);
         this.logger.debug('Formula copied successfully', { length: text.length, hasHtml: !!html });
         debugService.log('formula-copy', 'copy-success', {
           format: this.currentFormat,
@@ -349,13 +339,13 @@ export class FormulaCopyService {
           format: this.currentFormat,
         });
       } else {
-        this.showToast(this.i18nMessages.failed, x, y, false);
+        this.showInlineError(mathElement);
         this.logger.error('Failed to copy formula');
         debugService.log('formula-copy', 'copy-failed');
         this.trace('copy-failed');
       }
     } catch (error) {
-      this.showToast(this.i18nMessages.failed, x, y, false);
+      this.showInlineError(mathElement);
       this.logger.error('Error copying formula', { error });
       debugService.log('formula-copy', 'copy-error', { error: String(error) });
       this.trace('copy-error', {
@@ -1166,51 +1156,46 @@ export class FormulaCopyService {
   }
 
   /**
-   * Show toast notification
+   * Walk up from mathElement to find the nearest visual block wrapper
+   * (e.g. .math-display, .katex-display) within a few levels, for display formulas.
    */
-  private showToast(message: string, x: number, y: number, isSuccess: boolean): void {
-    if (!this.copyToast) {
-      this.copyToast = this.createCopyToast();
+  private getBlockElement(el: HTMLElement): HTMLElement {
+    let cur: HTMLElement | null = el;
+    for (let i = 0; i < 4 && cur; i++) {
+      if (
+        cur.classList.contains('math-display') ||
+        cur.classList.contains('katex-display') ||
+        cur.classList.contains('math-block')
+      ) {
+        return cur;
+      }
+      cur = cur.parentElement;
     }
+    return el;
+  }
 
-    this.copyToast.textContent = message;
-    this.copyToast.style.left = `${x}px`;
-    this.copyToast.style.top = `${y - this.config.toastOffsetY}px`;
-
-    // Update toast style based on success/failure
-    if (isSuccess) {
-      this.copyToast.classList.remove('gv-copy-toast-error');
-      this.copyToast.classList.add('gv-copy-toast-success');
-    } else {
-      this.copyToast.classList.remove('gv-copy-toast-success');
-      this.copyToast.classList.add('gv-copy-toast-error');
-    }
-
-    this.copyToast.classList.add('gv-copy-toast-show');
-
+  /**
+   * Show inline success highlight (green outline + checkmark badge) on the formula block.
+   */
+  private showInlineSuccess(mathElement: HTMLElement): void {
+    const block = this.getBlockElement(mathElement);
+    block.classList.remove('gv-copy-error');
+    block.classList.add('gv-copy-success');
     setTimeout(() => {
-      this.copyToast?.classList.remove('gv-copy-toast-show');
-    }, this.config.toastDuration);
+      block.classList.remove('gv-copy-success');
+    }, 1400);
   }
 
   /**
-   * Create toast element
+   * Show inline error highlight (red outline) on the formula block.
    */
-  private createCopyToast(): HTMLDivElement {
-    const toast = document.createElement('div');
-    toast.className = 'gv-copy-toast';
-    document.body.appendChild(toast);
-    return toast;
-  }
-
-  /**
-   * Remove toast element from DOM
-   */
-  private removeCopyToast(): void {
-    if (this.copyToast?.parentElement) {
-      this.copyToast.parentElement.removeChild(this.copyToast);
-      this.copyToast = null;
-    }
+  private showInlineError(mathElement: HTMLElement): void {
+    const block = this.getBlockElement(mathElement);
+    block.classList.remove('gv-copy-success');
+    block.classList.add('gv-copy-error');
+    setTimeout(() => {
+      block.classList.remove('gv-copy-error');
+    }, 1400);
   }
 
   /**

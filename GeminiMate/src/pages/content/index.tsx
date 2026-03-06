@@ -7,6 +7,7 @@ import { startQuoteReply } from '../../features/quoteReply';
 import { startTimeline } from '../../features/timeline';
 import { startBottomCleanup, stopBottomCleanup } from '../../features/uiCleanup';
 import { startWatermarkRemover, stopWatermarkRemover } from '../../features/watermarkRemover';
+import { startControlCapsule, stopControlCapsule } from '../../features/ui/controlCapsule';
 import {
   startChatWidthAdjuster,
   startEditInputWidthAdjuster,
@@ -15,11 +16,13 @@ import {
   startZoomAdjuster,
   startFontSizeAdjuster,
   startCustomFontInjector,
+  startParagraphIndentAdjuster,
 } from '../../features/layout';
 
 // Import injected styles
 import '../../features/styles/timeline.css';
 import '../../features/styles/formulaCopy.css';
+import '../../features/styles/controlCapsule.css';
 
 // Staggered initialization similar to Voyager
 let formulaCopyRunning = false;
@@ -208,6 +211,8 @@ const initExtension = async () => {
     startZoomAdjuster();
     startFontSizeAdjuster();
     startCustomFontInjector();
+    startParagraphIndentAdjuster();
+    startControlCapsule();
 
     chrome.storage.onChanged.addListener(handleStorageChanged);
     window.addEventListener('beforeunload', () => {
@@ -218,6 +223,7 @@ const initExtension = async () => {
       }
       stopWatermarkRemover();
       stopBottomCleanup();
+      stopControlCapsule();
     });
 
     logger.info('GeminiMate Content Script Initialized');

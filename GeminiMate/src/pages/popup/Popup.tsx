@@ -6,6 +6,112 @@ import type { CustomFont } from '@/features/layout/customFont';
 
 type FormulaCopyFormat = 'latex' | 'unicodemath' | 'no-dollar';
 
+const SANS_PRESET_OPTIONS = [
+  {
+    value: 'sans-apple',
+    label: '苹果生态',
+    description: 'PingFang SC / San Francisco',
+    fontFamily: "system-ui, -apple-system, 'PingFang SC', sans-serif",
+  },
+  {
+    value: 'sans-sys',
+    label: '系统默认',
+    description: 'Segoe UI / 微软雅黑',
+    fontFamily: "'Segoe UI', 'Microsoft YaHei UI', sans-serif",
+  },
+  {
+    value: 'sans-harmony',
+    label: '鸿蒙 OS',
+    description: 'HarmonyOS Sans SC',
+    fontFamily: "'HarmonyOS Sans SC', sans-serif",
+  },
+  {
+    value: 'sans-modern',
+    label: '现代开源',
+    description: 'MiSans / 阿里普惠体',
+    fontFamily: "'MiSans', sans-serif",
+  },
+  {
+    value: 'sans-grotesk',
+    label: '经典无衬线',
+    description: 'Helvetica / Arial',
+    fontFamily: "'Helvetica Neue', Arial, sans-serif",
+  },
+  {
+    value: 'sans-humanist',
+    label: '人文阅读',
+    description: 'Source Sans 3',
+    fontFamily: "'Source Sans 3', sans-serif",
+  },
+  {
+    value: 'sans-tech',
+    label: '极客等宽',
+    description: 'JetBrains / Fira Code',
+    fontFamily: "'JetBrains Mono', monospace",
+  },
+] as const;
+
+const SERIF_PRESET_OPTIONS = [
+  {
+    value: 'serif-source',
+    label: '思源宋体',
+    description: 'Source Han Serif SC',
+    fontFamily: "'Source Han Serif SC', serif",
+  },
+  {
+    value: 'serif-traditional',
+    label: '经典明体',
+    description: 'SimSun / Songti',
+    fontFamily: "'Songti SC', SimSun, serif",
+  },
+  {
+    value: 'serif-fangsong',
+    label: '公文仿宋',
+    description: 'FangSong / STFangsong',
+    fontFamily: "FangSong, serif",
+  },
+  {
+    value: 'serif-kaiti',
+    label: '手写楷体',
+    description: 'KaiTi / Kaiti SC',
+    fontFamily: "KaiTi, serif",
+  },
+  {
+    value: 'serif-newspaper',
+    label: '报纸排版',
+    description: 'Constantia / STSong',
+    fontFamily: "Constantia, 'Times New Roman', serif",
+  },
+  {
+    value: 'serif-editorial',
+    label: '优雅英文',
+    description: 'Baskerville / 经典组合',
+    fontFamily: "Baskerville, serif",
+  },
+  {
+    value: 'serif-georgia',
+    label: 'Web 经典',
+    description: 'Georgia / Cambria',
+    fontFamily: "Georgia, serif",
+  },
+] as const;
+
+const DEFAULT_SANS_PRESET = 'sans-apple';
+const DEFAULT_SERIF_PRESET = 'serif-source';
+
+const normalizeFontFamilyValue = (value: unknown): string => {
+  const next = String(value || 'default');
+  if (next === 'monospace') return 'sans';
+  return next;
+};
+
+const normalizeSansPresetValue = (fontFamilyValue: unknown, presetValue: unknown): string => {
+  if (String(fontFamilyValue || '') === 'monospace') return 'sans-tech';
+  return String(presetValue || DEFAULT_SANS_PRESET);
+};
+
+const normalizeSerifPresetValue = (value: unknown): string => String(value || DEFAULT_SERIF_PRESET);
+
 const Toggle = ({
   checked,
   onChange,
@@ -16,14 +122,16 @@ const Toggle = ({
   disabled?: boolean;
 }) => (
   <button
+    type="button"
     role="switch"
     aria-checked={checked}
     onClick={() => !disabled && onChange(!checked)}
     disabled={disabled}
     className={`
-      relative inline-flex h-5 w-9 shrink-0 cursor-pointer items-center justify-center rounded-full
+      relative inline-flex h-5 w-9 shrink-0 cursor-pointer items-center rounded-full px-0.5
       transition-colors duration-200 ease-in-out focus:outline-none focus-visible:ring-2
       focus-visible:ring-white/75 ${disabled ? 'opacity-50 cursor-not-allowed' : ''}
+      ${checked ? 'justify-end' : 'justify-start'}
       ${checked ? 'bg-blue-500' : 'bg-slate-200 dark:bg-white/20'}
     `}
   >
@@ -31,9 +139,8 @@ const Toggle = ({
     <span
       aria-hidden="true"
       className={`
-        pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow-lg ring-0
+        pointer-events-none inline-block h-4 w-4 rounded-full bg-white shadow-lg ring-0
         transition duration-200 ease-in-out
-        ${checked ? 'translate-x-2' : '-translate-x-2'}
       `}
     />
   </button>
@@ -143,11 +250,11 @@ const Slider = ({
       <div className="relative h-[14px] flex items-center mt-1">
         <div
           className="absolute rounded-full overflow-hidden pointer-events-none"
-          style={{ left: '5px', right: '5px', top: 0, bottom: 0, background: 'rgba(255,255,255,0.07)', boxShadow: 'inset 0 2px 4px rgba(0,0,0,0.55), inset 0 1px 2px rgba(0,0,0,0.3)' }}
+          style={{ left: '5px', right: '5px', top: 0, bottom: 0, background: 'rgba(148,163,184,0.15)', boxShadow: 'inset 0 1px 3px rgba(0,0,0,0.18)' }}
         >
           <div
             className="h-full rounded-full"
-            style={{ width: `${percentage}%`, background: 'linear-gradient(90deg, #3b82f6 0%, #6366f1 100%)' }}
+            style={{ width: `${percentage}%`, background: '#3b82f6' }}
           />
         </div>
         <input
@@ -184,7 +291,7 @@ const SectionHeader = ({ icon: Icon, title }: { icon: React.ElementType; title: 
 );
 
 export default function Popup() {
-  const BUILD_MARK = 'build-20260306-18-timeline-overlap-cleanup';
+  const BUILD_MARK = 'build-20260306-s11-acronym-indent-font-presets-clean-logs';
 
   // View routing: 'main' or 'settings'
   const [view, setView] = useState<'main' | 'settings'>('main');
@@ -225,66 +332,188 @@ export default function Popup() {
   const [fontSizeScale, setFontSizeScale] = useState(100);
   const [fontWeight, setFontWeight] = useState(400);
   const [fontFamily, setFontFamily] = useState('default');
+  const [sansPreset, setSansPreset] = useState(DEFAULT_SANS_PRESET);
+  const [serifPreset, setSerifPreset] = useState(DEFAULT_SERIF_PRESET);
+  const [letterSpacing, setLetterSpacing] = useState(0);
+  const [lineHeight, setLineHeight] = useState(0);
+  const [paragraphIndentEnabled, setParagraphIndentEnabled] = useState(false);
+  const [emphasisMode, setEmphasisMode] = useState<'bold' | 'underline'>('bold');
 
   useEffect(() => {
-    chrome.storage.local.get(
-      [
-        StorageKeys.LATEX_FIXER_ENABLED,
-        StorageKeys.MARKDOWN_REPAIR_ENABLED,
-        'geminimate_mermaid_enabled',
-        StorageKeys.FORMULA_COPY_ENABLED,
-        StorageKeys.FORMULA_COPY_FORMAT,
-        StorageKeys.WATERMARK_REMOVER_ENABLED,
-        StorageKeys.QUOTE_REPLY_ENABLED,
-        StorageKeys.BOTTOM_CLEANUP_ENABLED,
-        StorageKeys.TIMELINE_ENABLED,
-        'geminiTimelineScrollMode',
-        'geminiTimelineHideContainer',
-        StorageKeys.TIMELINE_WIDTH,
-        StorageKeys.TIMELINE_AUTO_HIDE,
-        StorageKeys.GEMINI_CHAT_WIDTH,
-        StorageKeys.GEMINI_EDIT_INPUT_WIDTH,
-        StorageKeys.GEMINI_SIDEBAR_WIDTH,
-        StorageKeys.GEMINI_SIDEBAR_AUTO_HIDE,
-        StorageKeys.GEMINI_ZOOM_LEVEL,
-        StorageKeys.GEMINI_FONT_SIZE_SCALE,
-        StorageKeys.GEMINI_FONT_WEIGHT,
-        StorageKeys.GEMINI_FONT_FAMILY,
-        StorageKeys.GEMINI_CUSTOM_FONTS,
-      ],
-      (result) => {
-        setLatexEnabled(result[StorageKeys.LATEX_FIXER_ENABLED] ?? true);
-        setMarkdownEnabled(result[StorageKeys.MARKDOWN_REPAIR_ENABLED] ?? true);
-        setMermaidEnabled(result.geminimate_mermaid_enabled ?? true);
+    const keys = [
+      StorageKeys.LATEX_FIXER_ENABLED,
+      StorageKeys.MARKDOWN_REPAIR_ENABLED,
+      'geminimate_mermaid_enabled',
+      StorageKeys.FORMULA_COPY_ENABLED,
+      StorageKeys.FORMULA_COPY_FORMAT,
+      StorageKeys.WATERMARK_REMOVER_ENABLED,
+      StorageKeys.QUOTE_REPLY_ENABLED,
+      StorageKeys.BOTTOM_CLEANUP_ENABLED,
+      StorageKeys.TIMELINE_ENABLED,
+      'geminiTimelineScrollMode',
+      'geminiTimelineHideContainer',
+      StorageKeys.TIMELINE_WIDTH,
+      StorageKeys.TIMELINE_AUTO_HIDE,
+      StorageKeys.GEMINI_CHAT_WIDTH,
+      StorageKeys.GEMINI_EDIT_INPUT_WIDTH,
+      StorageKeys.GEMINI_SIDEBAR_WIDTH,
+      StorageKeys.GEMINI_SIDEBAR_AUTO_HIDE,
+      StorageKeys.GEMINI_ZOOM_LEVEL,
+      StorageKeys.GEMINI_FONT_SIZE_SCALE,
+      StorageKeys.GEMINI_FONT_WEIGHT,
+      StorageKeys.GEMINI_FONT_FAMILY,
+      StorageKeys.GEMINI_SANS_PRESET,
+      StorageKeys.GEMINI_SERIF_PRESET,
+      StorageKeys.GEMINI_CUSTOM_FONTS,
+      StorageKeys.GEMINI_LETTER_SPACING,
+      StorageKeys.GEMINI_LINE_HEIGHT,
+      StorageKeys.GEMINI_PARAGRAPH_INDENT_ENABLED,
+      StorageKeys.GEMINI_EMPHASIS_MODE,
+    ];
 
-        setFormulaCopyEnabled(result[StorageKeys.FORMULA_COPY_ENABLED] ?? true);
-        const rawFormat = result[StorageKeys.FORMULA_COPY_FORMAT];
-        setFormulaCopyFormat(
-          rawFormat === 'unicodemath' || rawFormat === 'no-dollar' ? rawFormat : 'latex',
-        );
+    const applyResult = (result: Record<string, unknown>): void => {
+      setLatexEnabled(result[StorageKeys.LATEX_FIXER_ENABLED] ?? true);
+      setMarkdownEnabled(result[StorageKeys.MARKDOWN_REPAIR_ENABLED] ?? true);
+      setMermaidEnabled((result as Record<string, unknown>)['geminimate_mermaid_enabled'] ?? true);
 
-        setWatermarkRemoverEnabled(result[StorageKeys.WATERMARK_REMOVER_ENABLED] ?? true);
-        setQuoteReplyEnabled(result[StorageKeys.QUOTE_REPLY_ENABLED] ?? true);
-        setBottomCleanupEnabled(result[StorageKeys.BOTTOM_CLEANUP_ENABLED] === true);
+      setFormulaCopyEnabled(result[StorageKeys.FORMULA_COPY_ENABLED] ?? true);
+      const rawFormat = result[StorageKeys.FORMULA_COPY_FORMAT];
+      setFormulaCopyFormat(
+        rawFormat === 'unicodemath' || rawFormat === 'no-dollar' ? rawFormat as FormulaCopyFormat : 'latex',
+      );
 
-        setTimelineEnabled(result[StorageKeys.TIMELINE_ENABLED] ?? true);
-        setTimelineWidth(result[StorageKeys.TIMELINE_WIDTH] ?? 24);
-        setTimelineScrollMode(result.geminiTimelineScrollMode ?? 'flow');
-        setTimelineHideContainer(result.geminiTimelineHideContainer ?? false);
-        setTimelineAutoHide(result[StorageKeys.TIMELINE_AUTO_HIDE] ?? false);
+      setWatermarkRemoverEnabled(result[StorageKeys.WATERMARK_REMOVER_ENABLED] ?? true);
+      setQuoteReplyEnabled(result[StorageKeys.QUOTE_REPLY_ENABLED] ?? true);
+      setBottomCleanupEnabled(result[StorageKeys.BOTTOM_CLEANUP_ENABLED] === true);
 
-        setChatWidth(result[StorageKeys.GEMINI_CHAT_WIDTH] ?? 70);
-        setEditInputWidth(result[StorageKeys.GEMINI_EDIT_INPUT_WIDTH] ?? 60);
-        setSidebarWidth(result[StorageKeys.GEMINI_SIDEBAR_WIDTH] ?? 312);
-        setSidebarAutoHide(result[StorageKeys.GEMINI_SIDEBAR_AUTO_HIDE] ?? false);
+      setTimelineEnabled(result[StorageKeys.TIMELINE_ENABLED] ?? true);
+      setTimelineWidth(Number(result[StorageKeys.TIMELINE_WIDTH]) || 24);
+      setTimelineScrollMode((result as Record<string, unknown>)['geminiTimelineScrollMode'] as string ?? 'flow');
+      setTimelineHideContainer((result as Record<string, unknown>)['geminiTimelineHideContainer'] ?? false);
+      setTimelineAutoHide(result[StorageKeys.TIMELINE_AUTO_HIDE] ?? false);
 
-        setPageZoom(result[StorageKeys.GEMINI_ZOOM_LEVEL] ?? 110);
-        setFontSizeScale(result[StorageKeys.GEMINI_FONT_SIZE_SCALE] ?? 100);
-        setFontWeight(result[StorageKeys.GEMINI_FONT_WEIGHT] ?? 400);
-        setFontFamily(result[StorageKeys.GEMINI_FONT_FAMILY] ?? 'default');
-        setCustomFonts(result[StorageKeys.GEMINI_CUSTOM_FONTS] ?? []);
-      },
-    );
+      setChatWidth(Number(result[StorageKeys.GEMINI_CHAT_WIDTH]) || 70);
+      setEditInputWidth(Number(result[StorageKeys.GEMINI_EDIT_INPUT_WIDTH]) || 60);
+      setSidebarWidth(Number(result[StorageKeys.GEMINI_SIDEBAR_WIDTH]) || 312);
+      setSidebarAutoHide(result[StorageKeys.GEMINI_SIDEBAR_AUTO_HIDE] ?? false);
+
+      setPageZoom(Number(result[StorageKeys.GEMINI_ZOOM_LEVEL]) || 110);
+      setFontSizeScale(Number(result[StorageKeys.GEMINI_FONT_SIZE_SCALE]) || 100);
+      const rawFontFamily = result[StorageKeys.GEMINI_FONT_FAMILY];
+      setFontWeight(Number(result[StorageKeys.GEMINI_FONT_WEIGHT]) || 400);
+      setFontFamily(normalizeFontFamilyValue(rawFontFamily));
+      setSansPreset(normalizeSansPresetValue(rawFontFamily, result[StorageKeys.GEMINI_SANS_PRESET]));
+      setSerifPreset(normalizeSerifPresetValue(result[StorageKeys.GEMINI_SERIF_PRESET]));
+      setCustomFonts(result[StorageKeys.GEMINI_CUSTOM_FONTS] as typeof customFonts ?? []);
+      setLetterSpacing(Number(result[StorageKeys.GEMINI_LETTER_SPACING]) || 0);
+      setLineHeight(Number(result[StorageKeys.GEMINI_LINE_HEIGHT]) || 0);
+      setParagraphIndentEnabled(result[StorageKeys.GEMINI_PARAGRAPH_INDENT_ENABLED] === true);
+      setEmphasisMode(result[StorageKeys.GEMINI_EMPHASIS_MODE] === 'underline' ? 'underline' : 'bold');
+    };
+
+    const applyStorageChanges = (changes: Record<string, chrome.storage.StorageChange>): void => {
+      if (changes[StorageKeys.LATEX_FIXER_ENABLED]) {
+        setLatexEnabled(changes[StorageKeys.LATEX_FIXER_ENABLED].newValue ?? true);
+      }
+      if (changes[StorageKeys.MARKDOWN_REPAIR_ENABLED]) {
+        setMarkdownEnabled(changes[StorageKeys.MARKDOWN_REPAIR_ENABLED].newValue ?? true);
+      }
+      if (changes.geminimate_mermaid_enabled) {
+        setMermaidEnabled(changes.geminimate_mermaid_enabled.newValue ?? true);
+      }
+      if (changes[StorageKeys.FORMULA_COPY_ENABLED]) {
+        setFormulaCopyEnabled(changes[StorageKeys.FORMULA_COPY_ENABLED].newValue ?? true);
+      }
+      if (changes[StorageKeys.FORMULA_COPY_FORMAT]) {
+        const next = changes[StorageKeys.FORMULA_COPY_FORMAT].newValue;
+        setFormulaCopyFormat(next === 'unicodemath' || next === 'no-dollar' ? next : 'latex');
+      }
+      if (changes[StorageKeys.WATERMARK_REMOVER_ENABLED]) {
+        setWatermarkRemoverEnabled(changes[StorageKeys.WATERMARK_REMOVER_ENABLED].newValue ?? true);
+      }
+      if (changes[StorageKeys.QUOTE_REPLY_ENABLED]) {
+        setQuoteReplyEnabled(changes[StorageKeys.QUOTE_REPLY_ENABLED].newValue ?? true);
+      }
+      if (changes[StorageKeys.BOTTOM_CLEANUP_ENABLED]) {
+        setBottomCleanupEnabled(changes[StorageKeys.BOTTOM_CLEANUP_ENABLED].newValue === true);
+      }
+      if (changes[StorageKeys.TIMELINE_ENABLED]) {
+        setTimelineEnabled(changes[StorageKeys.TIMELINE_ENABLED].newValue ?? true);
+      }
+      if (changes.geminiTimelineScrollMode) {
+        setTimelineScrollMode(changes.geminiTimelineScrollMode.newValue ?? 'flow');
+      }
+      if (changes.geminiTimelineHideContainer) {
+        setTimelineHideContainer(changes.geminiTimelineHideContainer.newValue ?? false);
+      }
+      if (changes[StorageKeys.TIMELINE_WIDTH]) {
+        setTimelineWidth(Number(changes[StorageKeys.TIMELINE_WIDTH].newValue) || 24);
+      }
+      if (changes[StorageKeys.TIMELINE_AUTO_HIDE]) {
+        setTimelineAutoHide(changes[StorageKeys.TIMELINE_AUTO_HIDE].newValue ?? false);
+      }
+      if (changes[StorageKeys.GEMINI_CHAT_WIDTH]) {
+        setChatWidth(Number(changes[StorageKeys.GEMINI_CHAT_WIDTH].newValue) || 70);
+      }
+      if (changes[StorageKeys.GEMINI_EDIT_INPUT_WIDTH]) {
+        setEditInputWidth(Number(changes[StorageKeys.GEMINI_EDIT_INPUT_WIDTH].newValue) || 60);
+      }
+      if (changes[StorageKeys.GEMINI_SIDEBAR_WIDTH]) {
+        setSidebarWidth(Number(changes[StorageKeys.GEMINI_SIDEBAR_WIDTH].newValue) || 312);
+      }
+      if (changes[StorageKeys.GEMINI_SIDEBAR_AUTO_HIDE]) {
+        setSidebarAutoHide(changes[StorageKeys.GEMINI_SIDEBAR_AUTO_HIDE].newValue ?? false);
+      }
+      if (changes[StorageKeys.GEMINI_ZOOM_LEVEL]) {
+        setPageZoom(Number(changes[StorageKeys.GEMINI_ZOOM_LEVEL].newValue) || 110);
+      }
+      if (changes[StorageKeys.GEMINI_FONT_SIZE_SCALE]) {
+        setFontSizeScale(Number(changes[StorageKeys.GEMINI_FONT_SIZE_SCALE].newValue) || 100);
+      }
+      if (changes[StorageKeys.GEMINI_FONT_WEIGHT]) {
+        setFontWeight(Number(changes[StorageKeys.GEMINI_FONT_WEIGHT].newValue) || 400);
+      }
+      if (changes[StorageKeys.GEMINI_FONT_FAMILY]) {
+        const rawFontFamily = changes[StorageKeys.GEMINI_FONT_FAMILY].newValue;
+        setFontFamily(normalizeFontFamilyValue(rawFontFamily));
+        if (!changes[StorageKeys.GEMINI_SANS_PRESET]) {
+          setSansPreset((current) => normalizeSansPresetValue(rawFontFamily, current));
+        }
+      }
+      if (changes[StorageKeys.GEMINI_SANS_PRESET]) {
+        const rawFontFamily = changes[StorageKeys.GEMINI_FONT_FAMILY]?.newValue ?? fontFamily;
+        setSansPreset(normalizeSansPresetValue(rawFontFamily, changes[StorageKeys.GEMINI_SANS_PRESET].newValue));
+      }
+      if (changes[StorageKeys.GEMINI_SERIF_PRESET]) {
+        setSerifPreset(normalizeSerifPresetValue(changes[StorageKeys.GEMINI_SERIF_PRESET].newValue));
+      }
+      if (changes[StorageKeys.GEMINI_CUSTOM_FONTS]) {
+        setCustomFonts((changes[StorageKeys.GEMINI_CUSTOM_FONTS].newValue as CustomFont[]) ?? []);
+      }
+      if (changes[StorageKeys.GEMINI_LETTER_SPACING]) {
+        setLetterSpacing(Number(changes[StorageKeys.GEMINI_LETTER_SPACING].newValue) || 0);
+      }
+      if (changes[StorageKeys.GEMINI_LINE_HEIGHT]) {
+        setLineHeight(Number(changes[StorageKeys.GEMINI_LINE_HEIGHT].newValue) || 0);
+      }
+      if (changes[StorageKeys.GEMINI_PARAGRAPH_INDENT_ENABLED]) {
+        setParagraphIndentEnabled(changes[StorageKeys.GEMINI_PARAGRAPH_INDENT_ENABLED].newValue === true);
+      }
+      if (changes[StorageKeys.GEMINI_EMPHASIS_MODE]) {
+        setEmphasisMode(changes[StorageKeys.GEMINI_EMPHASIS_MODE].newValue === 'underline' ? 'underline' : 'bold');
+      }
+    };
+
+    chrome.storage.local.get(keys, applyResult);
+
+    const onChanged = (changes: Record<string, chrome.storage.StorageChange>, area: string): void => {
+      if (area !== 'local') return;
+      const relevant = Object.keys(changes).some((k) => (keys as string[]).includes(k));
+      if (!relevant) return;
+      applyStorageChanges(changes);
+    };
+    chrome.storage.onChanged.addListener(onChanged);
+    return () => chrome.storage.onChanged.removeListener(onChanged);
   }, []);
 
   const updateSetting = (key: string, value: boolean, setter: (v: boolean) => void): void => {
@@ -299,6 +528,21 @@ export default function Popup() {
   const updateFormulaCopyFormat = (value: FormulaCopyFormat): void => {
     setFormulaCopyFormat(value);
     updateValueSetting(StorageKeys.FORMULA_COPY_FORMAT, value);
+  };
+
+  const currentSansPreset =
+    SANS_PRESET_OPTIONS.find((option) => option.value === sansPreset) ?? SANS_PRESET_OPTIONS[0];
+  const currentSerifPreset =
+    SERIF_PRESET_OPTIONS.find((option) => option.value === serifPreset) ?? SERIF_PRESET_OPTIONS[0];
+
+  const updateSansPreset = (value: string): void => {
+    setSansPreset(value);
+    chrome.storage.local.set({ [StorageKeys.GEMINI_SANS_PRESET]: value });
+  };
+
+  const updateSerifPreset = (value: string): void => {
+    setSerifPreset(value);
+    chrome.storage.local.set({ [StorageKeys.GEMINI_SERIF_PRESET]: value });
   };
 
   // ── Custom Font Handlers ─────────────────────────────────────────────────────
@@ -358,6 +602,53 @@ export default function Popup() {
               <ChevronLeft size={18} />
             </button>
             <h1 className="text-base font-bold text-slate-800 dark:text-white/90">设置</h1>
+          </div>
+
+          <div className="bg-white dark:bg-white/[0.02] backdrop-blur-xl border border-slate-200 dark:border-white/10 rounded-2xl p-4 mb-4">
+            <SectionHeader icon={Type} title="预置字体" />
+            <div className="space-y-4">
+              <div>
+                <p className="text-[11px] text-slate-400 dark:text-white/40 uppercase tracking-wider mb-2 px-0.5">非衬线预设</p>
+                <div className="space-y-2">
+                  {SANS_PRESET_OPTIONS.map((option) => (
+                    <button
+                      key={option.value}
+                      type="button"
+                      onClick={() => updateSansPreset(option.value)}
+                      className={`w-full text-left p-2.5 rounded-lg border transition-all ${
+                        sansPreset === option.value
+                          ? 'border-blue-400/60 bg-blue-500/15 text-blue-400'
+                          : 'border-slate-200 dark:border-white/10 bg-white dark:bg-white/5 hover:bg-slate-100 dark:hover:bg-white/10 text-slate-600 dark:text-white/70'
+                      }`}
+                    >
+                      <span className="block text-sm font-medium" style={{ fontFamily: option.fontFamily }}>{option.label}</span>
+                      <span className="block text-[11px] opacity-65 mt-0.5">{option.description}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div>
+                <p className="text-[11px] text-slate-400 dark:text-white/40 uppercase tracking-wider mb-2 px-0.5">衬线预设</p>
+                <div className="space-y-2">
+                  {SERIF_PRESET_OPTIONS.map((option) => (
+                    <button
+                      key={option.value}
+                      type="button"
+                      onClick={() => updateSerifPreset(option.value)}
+                      className={`w-full text-left p-2.5 rounded-lg border transition-all ${
+                        serifPreset === option.value
+                          ? 'border-blue-400/60 bg-blue-500/15 text-blue-400'
+                          : 'border-slate-200 dark:border-white/10 bg-white dark:bg-white/5 hover:bg-slate-100 dark:hover:bg-white/10 text-slate-600 dark:text-white/70'
+                      }`}
+                    >
+                      <span className="block text-sm font-medium" style={{ fontFamily: option.fontFamily }}>{option.label}</span>
+                      <span className="block text-[11px] opacity-65 mt-0.5">{option.description}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
           </div>
 
           <div className="bg-white dark:bg-white/[0.02] backdrop-blur-xl border border-slate-200 dark:border-white/10 rounded-2xl p-4">
@@ -443,12 +734,11 @@ export default function Popup() {
   return (
     <div className="w-[360px] max-h-[600px] overflow-y-auto bg-slate-50 dark:bg-[#0f111a] p-4 text-slate-900 dark:text-white font-sans antialiased selection:bg-blue-500/30">
       <div className="w-full relative">
-        <div className="absolute -top-20 -left-20 w-40 h-40 bg-blue-500/20 rounded-full blur-[60px] pointer-events-none" />
-        <div className="absolute top-40 -right-20 w-40 h-40 bg-purple-500/20 rounded-full blur-[60px] pointer-events-none" />
+        <div className="absolute -top-20 -left-20 w-40 h-40 bg-blue-500/15 rounded-full blur-[60px] pointer-events-none" />
 
         <div className="flex items-center justify-between mb-6 relative z-10 px-1">
           <div className="flex items-center gap-3">
-            <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-blue-400 to-indigo-600 flex items-center justify-center shadow-lg shadow-blue-500/20">
+            <div className="w-8 h-8 rounded-xl bg-blue-500 flex items-center justify-center shadow-md shadow-blue-500/25">
               <span className="text-white font-bold text-lg">G</span>
             </div>
             <div>
@@ -467,7 +757,7 @@ export default function Popup() {
           </button>
         </div>
 
-        <div className="relative z-10 bg-white dark:bg-white/[0.02] backdrop-blur-xl border border-slate-200 dark:border-white/10 rounded-2xl p-4 shadow-2xl dark:shadow-black/50">
+        <div className="relative z-10 bg-white dark:bg-white/[0.02] backdrop-blur-xl border border-slate-200 dark:border-white/10 rounded-2xl p-4 shadow-sm dark:shadow-none">
           <SectionHeader icon={PenTool} title="文字修复类" />
           <div className="space-y-2">
             <SettingRow
@@ -593,6 +883,83 @@ export default function Popup() {
                 chrome.storage.local.set({ [StorageKeys.GEMINI_FONT_SIZE_SCALE]: v });
               }}
             />
+            <Slider
+              icon={Type}
+              title="字间距"
+              description="字母间距调节 (0 = 默认，每格 +0.01em)"
+              value={letterSpacing}
+              min={0}
+              max={15}
+              step={1}
+              unit=""
+              defaultValue={0}
+              onChange={(v) => {
+                setLetterSpacing(v);
+                chrome.storage.local.set({ [StorageKeys.GEMINI_LETTER_SPACING]: v });
+              }}
+            />
+            <Slider
+              icon={Type}
+              title="行间距"
+              description="行高调节 (0 = 默认，每格 +0.1 倍行高)"
+              value={lineHeight}
+              min={0}
+              max={8}
+              step={1}
+              unit=""
+              defaultValue={0}
+              onChange={(v) => {
+                setLineHeight(v);
+                chrome.storage.local.set({ [StorageKeys.GEMINI_LINE_HEIGHT]: v });
+              }}
+            />
+            <SettingRow
+              icon={Type}
+              title="首行缩进"
+              description="响应区内的非空段落统一应用首行缩进"
+              checked={paragraphIndentEnabled}
+              onChange={(v) =>
+                updateSetting(
+                  StorageKeys.GEMINI_PARAGRAPH_INDENT_ENABLED,
+                  v,
+                  setParagraphIndentEnabled,
+                )
+              }
+            />
+            <div className="p-3 rounded-xl bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/5">
+              <div className="flex items-center gap-3 mb-3">
+                <div className="p-2 rounded-lg bg-blue-500/20 text-blue-400 shrink-0">
+                  <PenTool size={16} />
+                </div>
+                <div>
+                  <p className="text-sm font-medium text-slate-800 dark:text-white/90">强调显示方式</p>
+                  <p className="text-xs text-slate-500 dark:text-white/50">Markdown 加粗标记的视觉呈现</p>
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-1.5">
+                {([
+                  { value: 'bold' as const, label: '加粗', desc: '默认' },
+                  { value: 'underline' as const, label: '下划线', desc: '去除加粗，保留虚线' },
+                ] as { value: 'bold' | 'underline'; label: string; desc: string }[]).map((opt) => (
+                  <button
+                    key={opt.value}
+                    type="button"
+                    onClick={() => {
+                      setEmphasisMode(opt.value);
+                      chrome.storage.local.set({ [StorageKeys.GEMINI_EMPHASIS_MODE]: opt.value });
+                    }}
+                    className={`py-2 px-3 rounded-lg border text-xs transition-all text-left ${
+                      emphasisMode === opt.value
+                        ? 'border-blue-400/60 bg-blue-500/15 text-blue-400'
+                        : 'border-slate-200 dark:border-white/10 bg-white dark:bg-white/5 hover:bg-slate-100 dark:hover:bg-white/10 text-slate-600 dark:text-white/70'
+                    }`}
+                  >
+                    <span className={`block font-medium ${opt.value === 'bold' ? 'font-bold' : ''}`}>{opt.label}</span>
+                    <span className="block text-[10px] opacity-60 mt-0.5">{opt.desc}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
             <div className="p-3 rounded-xl bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/5">
               <div className="flex items-center gap-3 mb-3">
                 <div className="p-2 rounded-lg bg-blue-500/20 text-blue-400 shrink-0">
@@ -603,40 +970,29 @@ export default function Popup() {
                   <p className="text-xs text-slate-500 dark:text-white/50">调整消息文字的粗细与字体风格</p>
                 </div>
               </div>
-              <p className="text-[11px] text-slate-400 dark:text-white/40 uppercase tracking-wider mb-1.5">字重</p>
-              <div className="grid grid-cols-4 gap-1.5 mb-3">
-                {([
-                  { value: 300, label: '细' },
-                  { value: 400, label: '正常' },
-                  { value: 500, label: '中' },
-                  { value: 700, label: '粗' },
-                ] as { value: number; label: string }[]).map((opt) => (
-                  <button
-                    key={opt.value}
-                    type="button"
-                    onClick={() => {
-                      setFontWeight(opt.value);
-                      chrome.storage.local.set({ [StorageKeys.GEMINI_FONT_WEIGHT]: opt.value });
-                    }}
-                    style={{ fontWeight: opt.value }}
-                    className={`py-1.5 rounded-lg border text-xs transition-all ${
-                      fontWeight === opt.value
-                        ? 'border-blue-400/60 bg-blue-500/15 text-blue-400'
-                        : 'border-slate-200 dark:border-white/10 bg-white dark:bg-white/5 hover:bg-slate-100 dark:hover:bg-white/10 text-slate-600 dark:text-white/70'
-                    }`}
-                  >
-                    {opt.label}
-                  </button>
-                ))}
-              </div>
+              <Slider
+                icon={Type}
+                title="字重精细调节"
+                description="更细步进地调整正文粗细（25 为一档）"
+                value={fontWeight}
+                min={250}
+                max={800}
+                step={25}
+                unit=""
+                defaultValue={400}
+                onChange={(v) => {
+                  setFontWeight(v);
+                  chrome.storage.local.set({ [StorageKeys.GEMINI_FONT_WEIGHT]: v });
+                }}
+              />
               <p className="text-[11px] text-slate-400 dark:text-white/40 uppercase tracking-wider mb-1.5">字体族</p>
               <div className="grid grid-cols-3 gap-1.5">
                 {([
-                  { value: 'default', label: '默认', fontFamily: 'inherit' },
-                  { value: 'monospace', label: '等宽', fontFamily: 'monospace' },
-                  { value: 'serif', label: '衬线', fontFamily: 'serif' },
-                  ...customFonts.map((f) => ({ value: f.name, label: f.name, fontFamily: f.name })),
-                ] as { value: string; label: string; fontFamily: string }[]).map((opt) => (
+                  { value: 'default', label: '默认', fontFamily: 'inherit', description: 'Gemini 原生' },
+                  { value: 'sans', label: '非衬线', fontFamily: currentSansPreset.fontFamily, description: currentSansPreset.label },
+                  { value: 'serif', label: '衬线', fontFamily: currentSerifPreset.fontFamily, description: currentSerifPreset.label },
+                  ...customFonts.map((f) => ({ value: f.name, label: f.name, fontFamily: f.name, description: '本地字体' })),
+                ] as { value: string; label: string; fontFamily: string; description: string }[]).map((opt) => (
                   <button
                     key={opt.value}
                     type="button"
@@ -645,16 +1001,20 @@ export default function Popup() {
                       chrome.storage.local.set({ [StorageKeys.GEMINI_FONT_FAMILY]: opt.value });
                     }}
                     style={{ fontFamily: opt.fontFamily }}
-                    className={`py-1.5 rounded-lg border text-xs transition-all ${
+                    className={`py-2 rounded-lg border text-xs transition-all ${
                       fontFamily === opt.value
                         ? 'border-blue-400/60 bg-blue-500/15 text-blue-400'
                         : 'border-slate-200 dark:border-white/10 bg-white dark:bg-white/5 hover:bg-slate-100 dark:hover:bg-white/10 text-slate-600 dark:text-white/70'
                     }`}
                   >
-                    {opt.label}
+                    <span className="block font-medium">{opt.label}</span>
+                    <span className="block text-[10px] opacity-60 mt-0.5">{opt.description}</span>
                   </button>
                 ))}
               </div>
+              <p className="text-[11px] text-slate-400 dark:text-white/40 mt-2 px-0.5">
+                预置字体可在“设置”中继续切换：当前非衬线为 {currentSansPreset.label}，衬线为 {currentSerifPreset.label}。
+              </p>
             </div>
           </div>
 

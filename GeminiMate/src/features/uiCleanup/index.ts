@@ -21,7 +21,6 @@ let cleanupObserver: MutationObserver | null = null;
 let refreshRafId: number | null = null;
 
 const logTrace = (event: string, data: Record<string, unknown> = {}): void => {
-  console.log(`[GM-TRACE][BottomCleanup] ${event}`, data);
   debugService.log('bottom-cleanup', event, data);
 };
 
