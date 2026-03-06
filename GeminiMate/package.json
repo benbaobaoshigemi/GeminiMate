@@ -11,6 +11,8 @@
   },
   "dependencies": {
     "clsx": "^2.1.1",
+    "html-to-image": "^1.11.13",
+    "jszip": "^3.10.1",
     "katex": "^0.16.11",
     "lucide-react": "^0.468.0",
     "react": "^19.1.0",
@@ -23,6 +25,7 @@
     "@crxjs/vite-plugin": "^2.2.1",
     "@tailwindcss/vite": "^4.1.15",
     "@types/chrome": "^0.0.301",
+    "@types/jszip": "^3.4.1",
     "@types/katex": "^0.16.8",
     "@types/node": "^25.3.3",
     "@types/react": "^19.0.1",

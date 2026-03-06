@@ -1,0 +1,1362 @@
+{
+  "extName": {
+    "message": "Gemini Voyager",
+    "description": "Extension name"
+  },
+  "extDescription": {
+    "message": "Улучшите опыт Gemini: таймлайн, папки, промпты и экспорт чатов.",
+    "description": "Extension description"
+  },
+  "scrollMode": {
+    "message": "Режим прокрутки",
+    "description": "Scroll mode label"
+  },
+  "flow": {
+    "message": "Поток",
+    "description": "Flow mode"
+  },
+  "jump": {
+    "message": "Прыжок",
+    "description": "Jump mode"
+  },
+  "hideOuterContainer": {
+    "message": "Скрыть внешний контейнер",
+    "description": "Hide outer container label"
+  },
+  "draggableTimeline": {
+    "message": "Перетаскиваемый таймлайн",
+    "description": "Draggable Timeline label"
+  },
+  "enableMarkerLevel": {
+    "message": "Включить уровни узлов",
+    "description": "Enable timeline node level feature"
+  },
+  "enableMarkerLevelHint": {
+    "message": "Щелкните правой кнопкой мыши по узлам таймлайна, чтобы установить их уровень и свернуть дочерние элементы",
+    "description": "Node level feature hint"
+  },
+  "experimentalLabel": {
+    "message": "Экспериментально",
+    "description": "Experimental feature label"
+  },
+  "resetPosition": {
+    "message": "Сбросить позицию",
+    "description": "Reset Position button"
+  },
+  "resetTimelinePosition": {
+    "message": "Сбросить позицию таймлайна",
+    "description": "Reset timeline position button in timeline options"
+  },
+  "language": {
+    "message": "Язык",
+    "description": "Language label"
+  },
+  "pm_title": {
+    "message": "Gemini Voyager",
+    "description": "Prompt Manager title"
+  },
+  "pm_add": {
+    "message": "Добавить",
+    "description": "Add prompt button"
+  },
+  "pm_search_placeholder": {
+    "message": "Поиск промптов или тегов",
+    "description": "Search placeholder"
+  },
+  "pm_import": {
+    "message": "Импорт",
+    "description": "Import button"
+  },
+  "pm_export": {
+    "message": "Экспорт",
+    "description": "Export button"
+  },
+  "pm_prompt_placeholder": {
+    "message": "Текст промпта",
+    "description": "Prompt textarea placeholder"
+  },
+  "pm_tags_placeholder": {
+    "message": "Теги (через запятую)",
+    "description": "Tags input placeholder"
+  },
+  "pm_save": {
+    "message": "Сохранить",
+    "description": "Save prompt"
+  },
+  "pm_cancel": {
+    "message": "Отмена",
+    "description": "Cancel"
+  },
+  "pm_all_tags": {
+    "message": "Все",
+    "description": "All tags chip"
+  },
+  "pm_empty": {
+    "message": "Промптов пока нет",
+    "description": "Empty state"
+  },
+  "pm_copy": {
+    "message": "Копировать",
+    "description": "Copy prompt"
+  },
+  "pm_copied": {
+    "message": "Скопировано",
+    "description": "Copied notice"
+  },
+  "pm_delete": {
+    "message": "Удалить",
+    "description": "Delete prompt"
+  },
+  "pm_delete_confirm": {
+    "message": "Удалить этот промпт?",
+    "description": "Delete confirm"
+  },
+  "pm_lock": {
+    "message": "Заблокировать позицию",
+    "description": "Lock panel position"
+  },
+  "pm_unlock": {
+    "message": "Разблокировать позицию",
+    "description": "Unlock panel position"
+  },
+  "pm_import_invalid": {
+    "message": "Неверный формат файла",
+    "description": "Import invalid"
+  },
+  "pm_import_success": {
+    "message": "Импортировано {count} промптов",
+    "description": "Import success"
+  },
+  "pm_duplicate": {
+    "message": "Дублировать промпт",
+    "description": "Duplicate on add"
+  },
+  "pm_deleted": {
+    "message": "Удалено",
+    "description": "Deleted notice"
+  },
+  "pm_edit": {
+    "message": "Редактировать",
+    "description": "Edit prompt"
+  },
+  "pm_expand": {
+    "message": "Развернуть",
+    "description": "Expand prompt text"
+  },
+  "pm_collapse": {
+    "message": "Свернуть",
+    "description": "Collapse prompt text"
+  },
+  "pm_saved": {
+    "message": "Сохранено",
+    "description": "Saved notice"
+  },
+  "pm_settings": {
+    "message": "Настройки",
+    "description": "Settings button"
+  },
+  "pm_settings_tooltip": {
+    "message": "Открыть настройки расширения",
+    "description": "Settings button tooltip"
+  },
+  "pm_settings_fallback": {
+    "message": "Пожалуйста, нажмите на значок расширения на панели инструментов браузера, чтобы открыть настройки",
+    "description": "Settings open failed message"
+  },
+  "pm_backup": {
+    "message": "Локальное резервное копирование",
+    "description": "Local backup button"
+  },
+  "pm_backup_tooltip": {
+    "message": "Резервное копирование промптов и папок в папку с отметкой времени",
+    "description": "Backup button tooltip"
+  },
+  "pm_backup_cancelled": {
+    "message": "Резервное копирование отменено",
+    "description": "Backup cancelled hint"
+  },
+  "pm_backup_error": {
+    "message": "✗ Ошибка резервного копирования",
+    "description": "Backup failed hint"
+  },
+  "pm_backup_hint_options": {
+    "message": "Эта функция интегрирована в Менеджер промптов на странице Gemini.",
+    "description": "Backup hint in options page"
+  },
+  "pm_backup_step1": {
+    "message": "Откройте страницу Gemini (gemini.google.com)",
+    "description": "Backup step 1"
+  },
+  "pm_backup_step2": {
+    "message": "Нажмите на значок расширения в правом нижнем углу, чтобы открыть Менеджер промптов",
+    "description": "Backup step 2"
+  },
+  "pm_backup_step3": {
+    "message": "Нажмите кнопку \"💾 Локальное резервное копирование\" и выберите папку для резервного копирования",
+    "description": "Backup step 3"
+  },
+  "pm_backup_note": {
+    "message": "Резервные копии включают все промпты и папки, сохраненные в папке с отметкой времени (формат: backup-YYYYMMDD-HHMMSS)",
+    "description": "Backup feature note"
+  },
+  "extensionVersion": {
+    "message": "Версия",
+    "description": "Extension version label"
+  },
+  "newVersionAvailable": {
+    "message": "Доступна новая версия",
+    "description": "Update reminder title"
+  },
+  "currentVersionLabel": {
+    "message": "Текущая",
+    "description": "Label for current version number"
+  },
+  "latestVersionLabel": {
+    "message": "Последняя",
+    "description": "Label for latest version number"
+  },
+  "updateNow": {
+    "message": "Обновить",
+    "description": "CTA to update to latest version"
+  },
+  "starProject": {
+    "message": "Поддержать меня ⭐",
+    "description": "Github callout"
+  },
+  "officialDocs": {
+    "message": "Официальная документация",
+    "description": "Official docs link"
+  },
+  "exportChatJson": {
+    "message": "Экспорт истории диалога",
+    "description": "Tooltip for export button"
+  },
+  "folder_title": {
+    "message": "Папки",
+    "description": "Folder section title"
+  },
+  "folder_create": {
+    "message": "Создать папку",
+    "description": "Create folder button tooltip"
+  },
+  "folder_name_prompt": {
+    "message": "Введите имя папки:",
+    "description": "Create folder name prompt"
+  },
+  "folder_rename_prompt": {
+    "message": "Введите новое имя:",
+    "description": "Rename folder prompt"
+  },
+  "folder_delete_confirm": {
+    "message": "Удалить эту папку и все её содержимое?",
+    "description": "Delete folder confirmation"
+  },
+  "folder_create_subfolder": {
+    "message": "Создать подпапку",
+    "description": "Create subfolder menu item"
+  },
+  "folder_rename": {
+    "message": "Переименовать",
+    "description": "Rename folder menu item"
+  },
+  "folder_change_color": {
+    "message": "Изменить цвет",
+    "description": "Change folder color menu item"
+  },
+  "folder_delete": {
+    "message": "Удалить",
+    "description": "Delete folder menu item"
+  },
+  "folder_color_default": {
+    "message": "По умолчанию",
+    "description": "Default folder color name"
+  },
+  "folder_color_red": {
+    "message": "Красный",
+    "description": "Red folder color name"
+  },
+  "folder_color_orange": {
+    "message": "Оранжевый",
+    "description": "Orange folder color name"
+  },
+  "folder_color_yellow": {
+    "message": "Желтый",
+    "description": "Yellow folder color name"
+  },
+  "folder_color_green": {
+    "message": "Зеленый",
+    "description": "Green folder color name"
+  },
+  "folder_color_blue": {
+    "message": "Синий",
+    "description": "Blue folder color name"
+  },
+  "folder_color_purple": {
+    "message": "Фиолетовый",
+    "description": "Purple folder color name"
+  },
+  "folder_color_pink": {
+    "message": "Розовый",
+    "description": "Pink folder color name"
+  },
+  "folder_color_custom": {
+    "message": "Пользовательский",
+    "description": "Custom folder color name"
+  },
+  "folder_empty": {
+    "message": "Папок пока нет",
+    "description": "Empty state placeholder when no folders exist"
+  },
+  "folder_pin": {
+    "message": "Закрепить папку",
+    "description": "Pin folder menu item"
+  },
+  "folder_unpin": {
+    "message": "Открепить папку",
+    "description": "Unpin folder menu item"
+  },
+  "folder_remove_conversation": {
+    "message": "Убрать из папки",
+    "description": "Remove conversation button tooltip"
+  },
+  "folder_remove_conversation_confirm": {
+    "message": "Убрать \"{title}\" из этой папки?",
+    "description": "Remove conversation confirmation"
+  },
+  "conversation_more": {
+    "message": "Больше опций",
+    "description": "Conversation more options button tooltip"
+  },
+  "conversation_move_to_folder": {
+    "message": "Переместить в папку",
+    "description": "Move conversation to folder menu item"
+  },
+  "conversation_move_to_folder_title": {
+    "message": "Переместить в папку",
+    "description": "Move conversation to folder dialog title"
+  },
+  "chatWidth": {
+    "message": "Ширина чата",
+    "description": "Chat width adjustment label"
+  },
+  "chatWidthNarrow": {
+    "message": "Узкая",
+    "description": "Narrow chat width label"
+  },
+  "chatWidthWide": {
+    "message": "Широкая",
+    "description": "Wide chat width label"
+  },
+  "sidebarWidth": {
+    "message": "Ширина боковой панели",
+    "description": "Sidebar width adjustment label"
+  },
+  "sidebarWidthNarrow": {
+    "message": "Узкая",
+    "description": "Narrow sidebar width label"
+  },
+  "sidebarWidthWide": {
+    "message": "Широкая",
+    "description": "Wide sidebar width label"
+  },
+  "formula_copied": {
+    "message": "✓ Формула скопирована",
+    "description": "Formula copied success message"
+  },
+  "formula_copy_failed": {
+    "message": "✗ Не удалось скопировать",
+    "description": "Formula copy failed message"
+  },
+  "formulaCopyFormat": {
+    "message": "Формат копирования формулы",
+    "description": "Formula copy format setting label"
+  },
+  "formulaCopyFormatLatex": {
+    "message": "LaTeX",
+    "description": "LaTeX format option"
+  },
+  "formulaCopyFormatUnicodeMath": {
+    "message": "MathML (Word)",
+    "description": "Label for MathML formula copy format option (formerly UnicodeMath)"
+  },
+  "formulaCopyFormatHint": {
+    "message": "Выберите формат при копировании формул щелчком мыши",
+    "description": "Formula copy format hint"
+  },
+  "formulaCopyFormatNoDollar": {
+    "message": "LaTeX (без знака доллара)",
+    "description": "LaTeX format option without dollar signs"
+  },
+  "folder_filter_current_user": {
+    "message": "Изоляция аккаунтов",
+    "description": "Show only conversations from the current Google account"
+  },
+  "folder_export": {
+    "message": "Экспорт папок",
+    "description": "Export folders button tooltip"
+  },
+  "folder_import_export": {
+    "message": "Импорт/Экспорт папок",
+    "description": "Combined import/export button tooltip"
+  },
+  "folder_cloud_upload": {
+    "message": "Загрузить в облако",
+    "description": "Cloud upload button tooltip"
+  },
+  "folder_cloud_sync": {
+    "message": "Синхронизировать из облака",
+    "description": "Cloud sync button tooltip"
+  },
+  "folder_import": {
+    "message": "Импорт папок",
+    "description": "Import folders button tooltip"
+  },
+  "folder_import_title": {
+    "message": "Импорт конфигурации папок",
+    "description": "Import dialog title"
+  },
+  "folder_import_strategy": {
+    "message": "Стратегия импорта:",
+    "description": "Import strategy label"
+  },
+  "folder_import_merge": {
+    "message": "Объединить с существующими папками",
+    "description": "Merge import strategy"
+  },
+  "folder_import_overwrite": {
+    "message": "Перезаписать существующие папки",
+    "description": "Overwrite import strategy"
+  },
+  "folder_import_select_file": {
+    "message": "Выберите файл JSON для импорта",
+    "description": "Import file selection prompt"
+  },
+  "folder_import_success": {
+    "message": "✓ Импортировано папок: {folders}, разговоров: {conversations}",
+    "description": "Import success message"
+  },
+  "folder_import_success_skipped": {
+    "message": "✓ Импортировано папок: {folders}, разговоров: {conversations} ({skipped} дубликатов пропущено)",
+    "description": "Import success with skipped message"
+  },
+  "folder_import_error": {
+    "message": "✗ Ошибка импорта: {error}",
+    "description": "Import error message"
+  },
+  "folder_export_success": {
+    "message": "✓ Папки успешно экспортированы",
+    "description": "Export success message"
+  },
+  "folder_import_invalid_format": {
+    "message": "Неверный формат файла. Пожалуйста, выберите допустимый файл конфигурации папок.",
+    "description": "Invalid format error"
+  },
+  "folder_import_confirm_overwrite": {
+    "message": "Это заменит все существующие папки. Будет создана резервная копия. Продолжить?",
+    "description": "Overwrite confirmation"
+  },
+  "export_dialog_title": {
+    "message": "Экспорт разговора",
+    "description": "Export dialog title"
+  },
+  "export_dialog_select": {
+    "message": "Выберите формат экспорта:",
+    "description": "Export format selection label"
+  },
+  "export_dialog_warning": {
+    "message": "⚠️ После нажатия на экспорт система автоматически перейдет к первому сообщению для загрузки всего контента. Пожалуйста, не совершайте никаких действий; экспорт продолжится автоматически после перехода.",
+    "description": "Warning about auto-jump and loading completeness"
+  },
+  "export_dialog_safari_cmdp_hint": {
+    "message": "Совет для Safari: нажмите «Экспорт» ниже, подождите немного, затем нажмите ⌘P и выберите «Сохранить как PDF».",
+    "description": "Safari-specific hint for PDF export"
+  },
+  "export_toast_safari_pdf_ready": {
+    "message": "Теперь можно нажать Command + P, чтобы экспортировать PDF.",
+    "description": "Safari-specific toast shown after PDF export is prepared"
+  },
+  "export_dialog_safari_markdown_hint": {
+    "message": "Примечание: из-за ограничений Safari изображения из истории чата извлечь нельзя. Для полного экспорта используйте экспорт в PDF.",
+    "description": "Warning about image references in Safari markdown export"
+  },
+  "export_format_json_description": {
+    "message": "Машиночитаемый формат для разработчиков",
+    "description": "Description for JSON export format"
+  },
+  "export_format_markdown_description": {
+    "message": "Чистый текстовый формат (рекомендуется)",
+    "description": "Description for Markdown export format"
+  },
+  "export_format_pdf_description": {
+    "message": "Формат для печати (через Сохранить как PDF)",
+    "description": "Description for PDF export format"
+  },
+  "editInputWidth": {
+    "message": "Ширина поля ввода",
+    "description": "Edit input width adjustment label"
+  },
+  "editInputWidthNarrow": {
+    "message": "Узкая",
+    "description": "Narrow edit input width label"
+  },
+  "editInputWidthWide": {
+    "message": "Широкая",
+    "description": "Wide edit input width label"
+  },
+  "timelineOptions": {
+    "message": "Настройки таймлайна",
+    "description": "Timeline options section label"
+  },
+  "folderOptions": {
+    "message": "Настройки папок",
+    "description": "Folder options section label"
+  },
+  "enableFolderFeature": {
+    "message": "Включить функцию папок",
+    "description": "Enable or disable the folder feature"
+  },
+  "hideArchivedConversations": {
+    "message": "Скрыть архивные разговоры",
+    "description": "Hide conversations that are in folders from the main list"
+  },
+  "conversation_star": {
+    "message": "Пометить разговор",
+    "description": "Star conversation button tooltip"
+  },
+  "conversation_unstar": {
+    "message": "Снять пометку",
+    "description": "Unstar conversation button tooltip"
+  },
+  "conversation_untitled": {
+    "message": "Без названия",
+    "description": "Fallback title for conversations without a name"
+  },
+  "geminiOnlyNotice": {
+    "message": "Работает по умолчанию в Gemini (включая Enterprise) и AI Studio. Добавьте другие сайты ниже, чтобы включить там Менеджер промптов.",
+    "description": "Notice that defaults are limited to Gemini/AI Studio"
+  },
+  "folderManager_dataLossWarning": {
+    "message": "⚠️ Внимание: не удалось загрузить данные папок. Ваши папки могут быть повреждены. Пожалуйста, проверьте консоль браузера для получения подробной информации и попробуйте восстановить из резервной копии, если она доступна.",
+    "description": "Warning shown when folder data fails to load"
+  },
+  "backupOptions": {
+    "message": "Авто-резервное копирование",
+    "description": "Backup options section label"
+  },
+  "backupEnabled": {
+    "message": "Включить авто-бэкап",
+    "description": "Enable auto backup toggle"
+  },
+  "backupNow": {
+    "message": "Создать бэкап сейчас",
+    "description": "Backup now button"
+  },
+  "backupSelectFolder": {
+    "message": "Выбрать папку для бэкапа",
+    "description": "Select backup folder button"
+  },
+  "backupFolderSelected": {
+    "message": "Папка для бэкапа: {folder}",
+    "description": "Shows selected backup folder"
+  },
+  "backupIncludePrompts": {
+    "message": "Включить промпты",
+    "description": "Include prompts in backup toggle"
+  },
+  "backupIncludeFolders": {
+    "message": "Включить папки",
+    "description": "Include folders in backup toggle"
+  },
+  "backupIntervalLabel": {
+    "message": "Интервал бэкапа",
+    "description": "Backup interval label"
+  },
+  "backupIntervalManual": {
+    "message": "Только вручную",
+    "description": "Manual backup mode"
+  },
+  "backupIntervalDaily": {
+    "message": "Ежедневно",
+    "description": "Daily backup interval"
+  },
+  "backupIntervalWeekly": {
+    "message": "Еженедельно (7 дней)",
+    "description": "Weekly backup interval"
+  },
+  "backupLastBackup": {
+    "message": "Последний бэкап: {time}",
+    "description": "Last backup timestamp"
+  },
+  "backupNever": {
+    "message": "Никогда",
+    "description": "Never backed up"
+  },
+  "backupSuccess": {
+    "message": "✓ Бэкап создан: {prompts} промптов, {folders} папок, {conversations} разговоров",
+    "description": "Backup success message"
+  },
+  "backupError": {
+    "message": "✗ Ошибка бэкапа: {error}",
+    "description": "Backup error message"
+  },
+  "backupNotSupported": {
+    "message": "⚠️ Авто-бэкап требует современный браузер с поддержкой File System Access API",
+    "description": "Browser not supported message"
+  },
+  "backupSelectFolderFirst": {
+    "message": "Пожалуйста, сначала выберите папку для бэкапа",
+    "description": "No folder selected warning"
+  },
+  "backupUserCancelled": {
+    "message": "Бэкап отменен",
+    "description": "User cancelled folder selection"
+  },
+  "backupConfigSaved": {
+    "message": "✓ Настройки бэкапа сохранены",
+    "description": "Config saved message"
+  },
+  "backupPermissionDenied": {
+    "message": "⚠️ Нет доступа к этой директории. Пожалуйста, выберите другое место (например, Документы, Загрузки или папку на Рабочем столе)",
+    "description": "Permission denied for restricted directory"
+  },
+  "backupConfigureInOptions": {
+    "message": "Настройка бэкапа требует страницы Опций. Нажмите кнопку ниже, чтобы открыть её (нажмите три точки рядом со значком расширения → Опции).",
+    "description": "Backup configure in options page explanation"
+  },
+  "openOptionsPage": {
+    "message": "Открыть страницу Опций",
+    "description": "Open options page button"
+  },
+  "optionsPageSubtitle": {
+    "message": "Настройки расширения",
+    "description": "Options page subtitle"
+  },
+  "optionsComingSoon": {
+    "message": "Больше опций скоро...",
+    "description": "Options page placeholder text"
+  },
+  "backupDataAccessNotice": {
+    "message": "Ограничение доступа к данным",
+    "description": "Backup data access limitation title"
+  },
+  "backupDataAccessHint": {
+    "message": "Из-за ограничений безопасности браузера эта страница Опций не может получить прямой доступ к промптам и папкам со страниц Gemini. Пожалуйста, используйте функции Менеджера промптов и Экспорта папок на странице Gemini для ручного резервного копирования.",
+    "description": "Backup data access limitation explanation"
+  },
+  "promptManagerOptions": {
+    "message": "Менеджер промптов",
+    "description": "Prompt Manager options section label"
+  },
+  "hidePromptManager": {
+    "message": "Скрыть Менеджер промптов",
+    "description": "Hide the prompt manager floating ball"
+  },
+  "hidePromptManagerHint": {
+    "message": "Скрыть плавающую кнопку Менеджера промптов на странице",
+    "description": "Hint for hiding prompt manager feature"
+  },
+  "customWebsites": {
+    "message": "Пользовательские сайты",
+    "description": "Custom websites for prompt manager"
+  },
+  "customWebsitesPlaceholder": {
+    "message": "Введите URL сайта (например, chatgpt.com)",
+    "description": "Custom websites input placeholder"
+  },
+  "customWebsitesHint": {
+    "message": "Добавьте сайты, на которых вы хотите использовать Менеджер промптов. Только Менеджер промптов будет активирован на этих сайтах.",
+    "description": "Custom websites hint"
+  },
+  "addWebsite": {
+    "message": "Добавить сайт",
+    "description": "Add website button"
+  },
+  "removeWebsite": {
+    "message": "Удалить",
+    "description": "Remove website button"
+  },
+  "invalidUrl": {
+    "message": "Неверный формат URL",
+    "description": "Invalid URL error message"
+  },
+  "websiteAdded": {
+    "message": "Сайт добавлен",
+    "description": "Website added success message"
+  },
+  "websiteRemoved": {
+    "message": "Сайт удален",
+    "description": "Website removed success message"
+  },
+  "permissionDenied": {
+    "message": "В доступе отказано. Пожалуйста, разрешите доступ к этому сайту.",
+    "description": "Permission denied error message"
+  },
+  "permissionRequestFailed": {
+    "message": "Не удалось запросить разрешение. Пожалуйста, попробуйте снова или предоставьте доступ в настройках расширения.",
+    "description": "Permission request failure message"
+  },
+  "customWebsitesNote": {
+    "message": "Совет: Вас попросят разрешить доступ при добавлении сайта. После предоставления разрешения перезагрузите этот сайт, чтобы Менеджер промптов мог запуститься.",
+    "description": "Custom websites reload/permission note"
+  },
+  "starredHistory": {
+    "message": "Избранная история",
+    "description": "Starred history title"
+  },
+  "viewStarredHistory": {
+    "message": "Просмотр избранной истории",
+    "description": "View starred history button"
+  },
+  "noStarredMessages": {
+    "message": "Нет избранных сообщений",
+    "description": "No starred messages placeholder"
+  },
+  "removeFromStarred": {
+    "message": "Убрать из избранного",
+    "description": "Remove from starred tooltip"
+  },
+  "justNow": {
+    "message": "Только что",
+    "description": "Just now time label"
+  },
+  "hoursAgo": {
+    "message": "ч. назад",
+    "description": "Hours ago label"
+  },
+  "yesterday": {
+    "message": "Вчера",
+    "description": "Yesterday date label"
+  },
+  "daysAgo": {
+    "message": "дн. назад",
+    "description": "Days ago label"
+  },
+  "loading": {
+    "message": "Загрузка...",
+    "description": "Loading message"
+  },
+  "keyboardShortcuts": {
+    "message": "Горячие клавиши",
+    "description": "Keyboard shortcuts section title"
+  },
+  "enableShortcuts": {
+    "message": "Включить горячие клавиши",
+    "description": "Enable shortcuts toggle label"
+  },
+  "previousNode": {
+    "message": "Предыдущий узел",
+    "description": "Previous timeline node shortcut label"
+  },
+  "nextNode": {
+    "message": "Следующий узел",
+    "description": "Next timeline node shortcut label"
+  },
+  "shortcutKey": {
+    "message": "Клавиша",
+    "description": "Shortcut key label"
+  },
+  "shortcutModifiers": {
+    "message": "Модификаторы",
+    "description": "Shortcut modifiers label"
+  },
+  "resetShortcuts": {
+    "message": "Сбросить по умолчанию",
+    "description": "Reset shortcuts button"
+  },
+  "shortcutsResetSuccess": {
+    "message": "Горячие клавиши сброшены",
+    "description": "Shortcuts reset success message"
+  },
+  "shortcutsDescription": {
+    "message": "Навигация по узлам таймлайна с помощью клавиатуры",
+    "description": "Shortcuts description"
+  },
+  "modifierNone": {
+    "message": "Нет",
+    "description": "No modifier key"
+  },
+  "modifierAlt": {
+    "message": "Alt",
+    "description": "Alt modifier key"
+  },
+  "modifierCtrl": {
+    "message": "Ctrl",
+    "description": "Ctrl modifier key"
+  },
+  "modifierShift": {
+    "message": "Shift",
+    "description": "Shift modifier key"
+  },
+  "modifierMeta": {
+    "message": "Cmd/Win",
+    "description": "Meta/Command/Windows modifier key"
+  },
+  "preventAutoScroll": {
+    "message": "Предотвращение автопрокрутки",
+    "description": "Auto-hide sidebar toggle label"
+  },
+  "preventAutoScrollHint": {
+    "message": "Предотвращает прыжок Gemini вниз при нажатии Enter во время чтения предыдущих ответов.",
+    "description": "Auto-hide sidebar feature hint"
+  },
+  "cloudSync": {
+    "message": "Облачная синхронизация",
+    "description": "Cloud sync section title"
+  },
+  "cloudSyncDescription": {
+    "message": "Синхронизация папок и промптов с Google Drive",
+    "description": "Cloud sync description"
+  },
+  "syncModeDisabled": {
+    "message": "Отключено",
+    "description": "Sync mode disabled option"
+  },
+  "syncModeManual": {
+    "message": "Вручную",
+    "description": "Sync mode manual option"
+  },
+  "syncServerPort": {
+    "message": "Порт сервера",
+    "description": "Port number for the sync server"
+  },
+  "syncNow": {
+    "message": "Синхронизировать сейчас",
+    "description": "Sync now button"
+  },
+  "lastSynced": {
+    "message": "Последняя синхронизация: {time}",
+    "description": "Last sync timestamp"
+  },
+  "neverSynced": {
+    "message": "Никогда не синхронизировалось",
+    "description": "Never synced message"
+  },
+  "lastUploaded": {
+    "message": "Загружено: {time}",
+    "description": "Last upload timestamp"
+  },
+  "neverUploaded": {
+    "message": "Никогда не загружалось",
+    "description": "Never uploaded message"
+  },
+  "syncSuccess": {
+    "message": "✓ Синхронизация успешна",
+    "description": "Sync success message"
+  },
+  "syncError": {
+    "message": "✗ Ошибка синхронизации: {error}",
+    "description": "Sync error message"
+  },
+  "syncInProgress": {
+    "message": "Синхронизация...",
+    "description": "Sync in progress message"
+  },
+  "uploadInProgress": {
+    "message": "Uploading...",
+    "description": "Upload in progress message"
+  },
+  "uploadSuccess": {
+    "message": "✓ Uploaded successfully",
+    "description": "Upload success message"
+  },
+  "downloadInProgress": {
+    "message": "Downloading...",
+    "description": "Download in progress message"
+  },
+  "downloadMergeSuccess": {
+    "message": "✓ Downloaded and merged",
+    "description": "Download and merge success message"
+  },
+  "syncUpload": {
+    "message": "Загрузить",
+    "description": "Upload button label"
+  },
+  "syncMerge": {
+    "message": "Синхронизация",
+    "description": "Merge button label"
+  },
+  "syncMode": {
+    "message": "Режим синхронизации",
+    "description": "Sync mode label"
+  },
+  "minutesAgo": {
+    "message": "мин. назад",
+    "description": "Minutes ago label"
+  },
+  "syncNoData": {
+    "message": "Данные синхронизации не найдены в Drive",
+    "description": "Error message when no data is found in Drive"
+  },
+  "syncUploadFailed": {
+    "message": "Загрузка не удалась",
+    "description": "Error message when upload fails"
+  },
+  "syncDownloadFailed": {
+    "message": "Скачивание не удалось",
+    "description": "Error message when download fails"
+  },
+  "syncAuthFailed": {
+    "message": "Ошибка аутентификации",
+    "description": "Error message when authentication fails"
+  },
+  "signOut": {
+    "message": "Выйти",
+    "description": "Sign out button"
+  },
+  "signInWithGoogle": {
+    "message": "Войти через Google",
+    "description": "Sign in with Google button"
+  },
+  "nanobananaOptions": {
+    "message": "Настройки NanoBanana",
+    "description": "NanoBanana options section label"
+  },
+  "enableNanobananaWatermarkRemover": {
+    "message": "Удалить водяной знак NanoBanana",
+    "description": "Enable automatic watermark removal for NanoBanana images"
+  },
+  "nanobananaWatermarkRemoverHint": {
+    "message": "Автоматически удаляет видимые водяные знаки Gemini с сгенерированных изображений",
+    "description": "Watermark remover feature hint"
+  },
+  "nanobananaDownloadTooltip": {
+    "message": "Скачать изображение без водяного знака (NanoBanana)",
+    "description": "Download button tooltip"
+  },
+  "deepResearchDownload": {
+    "message": "Скачать содержимое мыслей",
+    "description": "Deep Research download button text"
+  },
+  "deepResearchDownloadTooltip": {
+    "message": "Скачать содержимое мыслей как Markdown",
+    "description": "Deep Research download button tooltip"
+  },
+  "folder_uncategorized": {
+    "message": "Без категории",
+    "description": "Label for root-level conversations not in any folder"
+  },
+  "timelineLevelTitle": {
+    "message": "Уровень узла",
+    "description": "Title for timeline node level context menu"
+  },
+  "timelineLevel1": {
+    "message": "Уровень 1",
+    "description": "Timeline node level 1 option"
+  },
+  "timelineLevel2": {
+    "message": "Уровень 2",
+    "description": "Timeline node level 2 option"
+  },
+  "timelineLevel3": {
+    "message": "Уровень 3",
+    "description": "Timeline node level 3 option"
+  },
+  "timelineCollapse": {
+    "message": "Свернуть",
+    "description": "Collapse children"
+  },
+  "timelineExpand": {
+    "message": "Развернуть",
+    "description": "Expand children"
+  },
+  "timelinePreviewSearch": {
+    "message": "Поиск...",
+    "description": "Timeline preview panel search placeholder"
+  },
+  "timelinePreviewNoResults": {
+    "message": "Нет результатов",
+    "description": "Timeline preview panel no search results"
+  },
+  "timelinePreviewNoMessages": {
+    "message": "Нет сообщений",
+    "description": "Timeline preview panel no messages"
+  },
+  "quoteReply": {
+    "message": "Цитировать",
+    "description": "Quote reply button text"
+  },
+  "inputCollapseOptions": {
+    "message": "Параметры ввода",
+    "description": "Input options section label"
+  },
+  "enableInputCollapse": {
+    "message": "Включить сворачивание ввода",
+    "description": "Enable input collapse toggle label"
+  },
+  "enableInputCollapseHint": {
+    "message": "Сворачивать поле ввода, когда оно пустое, для увеличения пространства для чтения",
+    "description": "Input collapse feature hint"
+  },
+  "inputCollapsePlaceholder": {
+    "message": "Сообщение Gemini",
+    "description": "Placeholder text shown in collapsed input"
+  },
+  "ctrlEnterSend": {
+    "message": "Ctrl+Enter для отправки",
+    "description": "Ctrl+Enter to send toggle label"
+  },
+  "ctrlEnterSendHint": {
+    "message": "Нажмите Ctrl+Enter для отправки сообщений, Enter для новой строки",
+    "description": "Ctrl+Enter to send feature hint"
+  },
+  "batch_delete_confirm": {
+    "message": "Вы уверены, что хотите удалить {count} разговор(ов)? Это действие нельзя отменить.",
+    "description": "Batch delete confirmation message"
+  },
+  "batch_delete_in_progress": {
+    "message": "Удаление... ({current}/{total})",
+    "description": "Batch delete progress message"
+  },
+  "batch_delete_success": {
+    "message": "✓ Удалено {count} разговор(ов)",
+    "description": "Batch delete success message"
+  },
+  "batch_delete_partial": {
+    "message": "Удаление завершено: {success} успешно, {failed} не удалось",
+    "description": "Batch delete partial success message"
+  },
+  "batch_delete_limit_reached": {
+    "message": "Максимум {max} разговоров может быть выбрано за раз",
+    "description": "Batch delete limit warning"
+  },
+  "batch_delete_button": {
+    "message": "Удалить выбранные",
+    "description": "Batch delete button tooltip in multi-select mode"
+  },
+  "batch_delete_match_patterns": {
+    "message": "delete,confirm,yes,ok,remove,удалить,подтвердить,да,ок,убрать",
+    "description": "Comma-separated list of keywords to match native delete/confirm buttons (case-insensitive)"
+  },
+  "generalOptions": {
+    "message": "Общие настройки",
+    "description": "General options section label"
+  },
+  "enableTabTitleUpdate": {
+    "message": "Синхронизировать заголовок вкладки с разговором",
+    "description": "Enable tab title sync toggle label"
+  },
+  "enableTabTitleUpdateHint": {
+    "message": "Автоматически обновлять заголовок вкладки браузера в соответствии с текущим заголовком разговора",
+    "description": "Tab title sync feature hint"
+  },
+  "enableMermaidRendering": {
+    "message": "Включить рендеринг диаграмм Mermaid",
+    "description": "Enable Mermaid diagram rendering toggle label"
+  },
+  "enableMermaidRenderingHint": {
+    "message": "Автоматически рендерить диаграммы Mermaid в блоках кода",
+    "description": "Mermaid rendering feature hint"
+  },
+  "enableQuoteReply": {
+    "message": "Включить ответ с цитированием",
+    "description": "Enable quote reply toggle label"
+  },
+  "enableQuoteReplyHint": {
+    "message": "Показывать плавающую кнопку для цитирования выделенного текста при выделении текста в разговорах",
+    "description": "Quote reply feature hint"
+  },
+  "contextSync": {
+    "message": "Синхронизация контекста",
+    "description": "Context Sync title"
+  },
+  "contextSyncDescription": {
+    "message": "Синхронизируйте контекст чата с вашей локальной IDE",
+    "description": "Context Sync description"
+  },
+  "syncToIDE": {
+    "message": "Синхронизировать с IDE",
+    "description": "Sync to IDE button"
+  },
+  "ideOnline": {
+    "message": "IDE Онлайн",
+    "description": "IDE Online status"
+  },
+  "ideOffline": {
+    "message": "IDE Оффлайн",
+    "description": "IDE Offline status"
+  },
+  "syncing": {
+    "message": "Синхронизация...",
+    "description": "Syncing status"
+  },
+  "checkServer": {
+    "message": "Пожалуйста, запустите сервер AI Sync в VS Code",
+    "description": "Check server hint"
+  },
+  "capturing": {
+    "message": "Захват диалога...",
+    "description": "Capturing status"
+  },
+  "syncedSuccess": {
+    "message": "Синхронизировано успешно!",
+    "description": "Synced success message"
+  },
+  "downloadingOriginal": {
+    "message": "Скачивание оригинального изображения",
+    "description": "Status when downloading original image"
+  },
+  "downloadingOriginalLarge": {
+    "message": "Скачивание оригинального изображения (большой файл)",
+    "description": "Status when downloading large original image"
+  },
+  "downloadLargeWarning": {
+    "message": "Предупреждение о большом файле",
+    "description": "Warning shown for large downloads"
+  },
+  "downloadProcessing": {
+    "message": "Обработка водяного знака",
+    "description": "Status when processing watermark removal"
+  },
+  "downloadSuccess": {
+    "message": "Скачивание...",
+    "description": "Status when download starts"
+  },
+  "downloadError": {
+    "message": "Ошибка",
+    "description": "Status prefix when download fails"
+  },
+  "recentsHide": {
+    "message": "Скрыть недавние элементы",
+    "description": "Подсказка для скрытия раздела недавних элементов"
+  },
+  "recentsShow": {
+    "message": "Показать недавние элементы",
+    "description": "Подсказка для отображения раздела недавних элементов"
+  },
+  "gemsHide": {
+    "message": "Скрыть Gems",
+    "description": "Подсказка для скрытия раздела списка Gems"
+  },
+  "gemsShow": {
+    "message": "Показать Gems",
+    "description": "Подсказка для отображения раздела списка Gems"
+  },
+  "setAsDefaultModel": {
+    "message": "Set as default model",
+    "description": "Tooltip for setting default model"
+  },
+  "cancelDefaultModel": {
+    "message": "Cancel default model",
+    "description": "Tooltip for cancelling default model"
+  },
+  "defaultModelSet": {
+    "message": "Default model set: $1",
+    "description": "Toast message when default model is set"
+  },
+  "defaultModelCleared": {
+    "message": "Default model cleared",
+    "description": "Toast message when default model is cleared"
+  },
+  "sidebarAutoHide": {
+    "message": "Авто-скрытие боковой панели",
+    "description": "Auto-hide sidebar toggle label"
+  },
+  "sidebarAutoHideHint": {
+    "message": "Автоматически сворачивать боковую панель при уходе мыши, разворачивать при наведении",
+    "description": "Auto-hide sidebar feature hint"
+  },
+  "folderSpacing": {
+    "message": "Расстояние между папками",
+    "description": "Folder spacing adjustment label"
+  },
+  "folderSpacingCompact": {
+    "message": "Компактно",
+    "description": "Compact folder spacing label"
+  },
+  "folderSpacingSpacious": {
+    "message": "Просторно",
+    "description": "Spacious folder spacing label"
+  },
+  "folderTreeIndent": {
+    "message": "Отступ подпапок",
+    "description": "Subfolder tree indentation adjustment label"
+  },
+  "folderTreeIndentCompact": {
+    "message": "Узкий",
+    "description": "Narrow subfolder indentation label"
+  },
+  "folderTreeIndentSpacious": {
+    "message": "Широкий",
+    "description": "Wide subfolder indentation label"
+  },
+  "export_select_mode_select_all": {
+    "message": "Select all",
+    "description": "Selection mode select all toggle"
+  },
+  "export_select_mode_count": {
+    "message": "Selected {count}",
+    "description": "Selection mode selected message count"
+  },
+  "export_select_mode_toggle": {
+    "message": "Select message",
+    "description": "Selection mode per-message toggle tooltip"
+  },
+  "export_select_mode_select_below": {
+    "message": "Select messages below",
+    "description": "Selection mode top-left button to select messages below current line"
+  },
+  "export_select_mode_empty": {
+    "message": "Please select at least one message to export.",
+    "description": "Selection mode validation when nothing is selected"
+  },
+  "export_format_image_description": {
+    "message": "Один PNG-файл, удобно для отправки с мобильного.",
+    "description": "Description for Image export format"
+  },
+  "export_image_progress": {
+    "message": "Generating image...",
+    "description": "Progress message while generating image export"
+  },
+  "deepResearchSaveReport": {
+    "message": "Save Report",
+    "description": "Deep Research save report button"
+  },
+  "deepResearchSaveReportTooltip": {
+    "message": "Export this research report",
+    "description": "Deep Research save report tooltip"
+  },
+  "export_fontsize_label": {
+    "message": "Размер шрифта",
+    "description": "Label for font size slider in export dialog"
+  },
+  "export_fontsize_preview": {
+    "message": "Съешь ещё этих мягких французских булок, да выпей чаю.",
+    "description": "Preview text for font size slider in export dialog"
+  },
+  "export_error_generic": {
+    "message": "Не удалось экспортировать: {error}",
+    "description": "Общее сообщение об ошибке экспорта с подробной причиной"
+  },
+  "export_error_refresh_retry": {
+    "message": "Экспорт изображения не удался из-за проблем с сетью. Обновите страницу и попробуйте снова.",
+    "description": "Подсказка при временной ошибке загрузки во время экспорта изображения"
+  },
+  "export_md_include_source_confirm": {
+    "message": "Экспортируемый контент содержит изображения из веб-поиска. Включить ссылки на источники изображений в Markdown?",
+    "description": "Confirm dialog when exporting markdown with web search images"
+  },
+  "deepResearch_exportedAt": {
+    "message": "Экспортировано",
+    "description": "Метка временной метки экспорта Deep Research"
+  },
+  "deepResearch_totalPhases": {
+    "message": "Всего фаз",
+    "description": "Метка общего количества фаз размышления Deep Research"
+  },
+  "deepResearch_thinkingPhase": {
+    "message": "Фаза размышления",
+    "description": "Заголовок фазы размышления Deep Research"
+  },
+  "deepResearch_researchedWebsites": {
+    "message": "Исследованные сайты",
+    "description": "Заголовок раздела исследованных сайтов Deep Research"
+  },
+  "snowEffect": {
+    "message": "Эффект снега",
+    "description": "Snow effect toggle label"
+  },
+  "snowEffectHint": {
+    "message": "Снегопад на странице для зимней атмосферы",
+    "description": "Snow effect feature hint"
+  },
+  "changelog_title": {
+    "message": "Что нового",
+    "description": "Changelog modal title"
+  },
+  "changelog_close": {
+    "message": "Понятно",
+    "description": "Changelog modal close button"
+  },
+  "changelog_docs_link": {
+    "message": "Документация",
+    "description": "Changelog modal documentation link text"
+  },
+  "changelog_recommendation": {
+    "message": "Если Voyager был полезен, поделитесь им с друзьями или в соцсетях!",
+    "description": "Changelog modal recommendation message"
+  },
+  "changelog_docs_hint": {
+    "message": "Подробности в документации",
+    "description": "Changelog annotation pointing to docs icon"
+  },
+  "changelog_rate_chrome": {
+    "message": "Нравится Gemini Voyager? Оценка в Chrome Web Store помогает другим пользователям найти расширение!",
+    "description": "Chrome Web Store rating prompt in changelog modal"
+  },
+  "changelog_rate_chrome_cta": {
+    "message": "Оценить",
+    "description": "Chrome Web Store rating CTA button text"
+  },
+  "forkConversation": {
+    "message": "Fork",
+    "description": "Fork conversation button label"
+  },
+  "forkConfirm": {
+    "message": "Fork conversation from this point?",
+    "description": "Fork confirmation prompt"
+  },
+  "forkConfirmBtn": {
+    "message": "Fork",
+    "description": "Fork confirmation button"
+  },
+  "forkCancel": {
+    "message": "Cancel",
+    "description": "Fork cancel button"
+  },
+  "forkBranch": {
+    "message": "Branch",
+    "description": "Fork branch label"
+  },
+  "forkOriginal": {
+    "message": "Original",
+    "description": "Original fork branch tag"
+  },
+  "forkCurrent": {
+    "message": "Current",
+    "description": "Current fork branch tag"
+  },
+  "forkPreparing": {
+    "message": "Preparing fork...",
+    "description": "Fork preparation status"
+  },
+  "forkPasteHint": {
+    "message": "Press Enter to send and create the fork",
+    "description": "Fork paste hint text"
+  },
+  "forkDeleteData": {
+    "message": "Удалить эту ветку",
+    "description": "Delete fork branch metadata button"
+  },
+  "forkDeleteDataConfirm": {
+    "message": "Удалить эту связь ветвления? Будут удалены только метаданные ветвления Voyager, сами диалоги не удаляются.",
+    "description": "Fork metadata delete confirmation prompt"
+  },
+  "enableForkFeature": {
+    "message": "Включить ветвление диалога",
+    "description": "Enable conversation fork feature toggle label"
+  },
+  "enableForkFeatureHint": {
+    "message": "Показывать кнопку Fork и индикаторы веток в диалогах Gemini",
+    "description": "Enable conversation fork feature toggle hint"
+  },
+  "enableAccountIsolation": {
+    "message": "Enable Hard Isolation",
+    "description": "Enable hard isolation for account-scoped folder data and cloud sync."
+  },
+  "enableAccountIsolationHint": {
+    "message": "Strictly isolate folder and cloud sync data by Google account to prevent cross-account mixing.",
+    "description": "Hint text for account isolation option."
+  },
+  "currentPlatform": {
+    "message": "Current platform",
+    "description": "Current active platform label in popup."
+  },
+  "platformGemini": {
+    "message": "Gemini",
+    "description": "Gemini platform label."
+  },
+  "platformAIStudio": {
+    "message": "AI Studio",
+    "description": "AI Studio platform label."
+  }
+}

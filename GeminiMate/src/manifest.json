@@ -29,12 +29,16 @@
       "js": [
         "src/pages/content/index.tsx"
       ],
+      "css": [
+        "contentStyle.css"
+      ],
       "run_at": "document_start"
     }
   ],
   "web_accessible_resources": [
     {
       "resources": [
+        "contentStyle.css",
         "assets/*",
         "fetchInterceptor.js"
       ],

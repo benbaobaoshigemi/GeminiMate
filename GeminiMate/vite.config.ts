@@ -15,6 +15,7 @@ export default defineConfig({
   resolve: {
     alias: {
       '@': resolve(__dirname, './src'),
+      '@locales': resolve(__dirname, './src/locales'),
     },
   },
   build: {

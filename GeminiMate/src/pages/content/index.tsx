@@ -8,6 +8,8 @@ import { startTimeline } from '../../features/timeline';
 import { startBottomCleanup, stopBottomCleanup } from '../../features/uiCleanup';
 import { startWatermarkRemover, stopWatermarkRemover } from '../../features/watermarkRemover';
 import { startControlCapsule, stopControlCapsule } from '../../features/ui/controlCapsule';
+import { startExportButton } from './export';
+import { startFolderManager } from './folder';
 import {
   startChatWidthAdjuster,
   startEditInputWidthAdjuster,
@@ -27,6 +29,7 @@ import '../../features/styles/controlCapsule.css';
 let formulaCopyRunning = false;
 let clickLogListenerAttached = false;
 let quoteReplyCleanup: (() => void) | null = null;
+let folderManagerInstance: Awaited<ReturnType<typeof startFolderManager>> | null = null;
 let watermarkEnabled = false;
 let bottomCleanupEnabled = false;
 
@@ -201,6 +204,8 @@ const initExtension = async () => {
 
     // Initialize Timeline with SPA route handling
     startTimeline();
+    folderManagerInstance = await startFolderManager();
+    void startExportButton();
 
     // Layout features
     startChatWidthAdjuster();
@@ -218,6 +223,10 @@ const initExtension = async () => {
       if (quoteReplyCleanup) {
         quoteReplyCleanup();
         quoteReplyCleanup = null;
+      }
+      if (folderManagerInstance) {
+        folderManagerInstance.destroy();
+        folderManagerInstance = null;
       }
       stopWatermarkRemover();
       stopBottomCleanup();

@@ -6,7 +6,16 @@ export interface ILogger {
     createChild(prefix: string): ILogger;
 }
 
+export type Result<T, E = Error> = { success: true; data: T } | { success: false; error: E };
+
+export type Brand<K, T> = K & { __brand: T };
+export type ConversationId = Brand<string, 'ConversationId'>;
+export type FolderId = Brand<string, 'FolderId'>;
+export type TurnId = Brand<string, 'TurnId'>;
+
 export const StorageKeys = {
+    FOLDER_DATA: 'gvFolderData',
+    FOLDER_DATA_AISTUDIO: 'gvFolderDataAIStudio',
     LATEX_FIXER_ENABLED: 'geminimate_latex_enabled',
     MARKDOWN_REPAIR_ENABLED: 'geminimate_markdown_enabled',
     FORMULA_COPY_ENABLED: 'geminimate_formula_copy_enabled',
@@ -21,6 +30,7 @@ export const StorageKeys = {
     TIMELINE_WIDTH: 'geminimate_timeline_width',
     TIMELINE_AUTO_HIDE: 'geminimate_timeline_auto_hide',
     TIMELINE_STARRED_MESSAGES: 'geminiTimelineStarred',
+    TIMELINE_SCROLL_MODE: 'geminiTimelineScrollMode',
     GEMINI_CHAT_WIDTH: 'geminimate_chat_width',
     GEMINI_EDIT_INPUT_WIDTH: 'geminimate_edit_input_width',
     GEMINI_SIDEBAR_WIDTH: 'geminimate_sidebar_width',
@@ -36,4 +46,10 @@ export const StorageKeys = {
     GEMINI_LINE_HEIGHT: 'geminimate_line_height',
     GEMINI_PARAGRAPH_INDENT_ENABLED: 'geminimate_paragraph_indent_enabled',
     GEMINI_EMPHASIS_MODE: 'geminimate_emphasis_mode',
+    GV_FOLDER_FILTER_USER_ONLY: 'gvFolderFilterUserOnly',
+    GV_FOLDER_TREE_INDENT: 'gvFolderTreeIndent',
+    GV_ACCOUNT_ISOLATION_ENABLED: 'gvAccountIsolationEnabled',
+    GV_ACCOUNT_ISOLATION_ENABLED_GEMINI: 'gvAccountIsolationEnabledGemini',
+    GV_ACCOUNT_ISOLATION_ENABLED_AISTUDIO: 'gvAccountIsolationEnabledAIStudio',
+    GV_ACCOUNT_PROFILE_MAP: 'gvAccountProfileMap',
 } as const;

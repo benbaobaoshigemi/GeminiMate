@@ -23,16 +23,17 @@
   "content_scripts": [
     {
       "js": [
-        "assets/index.tsx-loader-aUAmKl4h.js"
+        "assets/index.tsx-loader-CwRbMAcH.js"
       ],
       "matches": [
         "https://gemini.google.com/*",
         "https://business.gemini.google/*"
       ],
-      "run_at": "document_start",
       "css": [
+        "contentStyle.css",
         "assets/index-BMNbxs3Y.css"
-      ]
+      ],
+      "run_at": "document_start"
     }
   ],
   "web_accessible_resources": [
@@ -41,6 +42,7 @@
         "<all_urls>"
       ],
       "resources": [
+        "contentStyle.css",
         "assets/*",
         "fetchInterceptor.js"
       ],
@@ -53,10 +55,10 @@
       ],
       "resources": [
         "assets/bg_96-C2FFcR6-.png",
-        "assets/common-DWy1VOmc.js",
-        "assets/LoggerService-D5yn3Jp3.js",
-        "assets/Popup-COx-TRqo.js",
-        "assets/index.tsx--_zDZXko.js"
+        "assets/common-Cm8LN5fy.js",
+        "assets/LoggerService-IoXruaNP.js",
+        "assets/Popup-8Vhbplfe.js",
+        "assets/index.tsx-BWdSmdvV.js"
       ],
       "use_dynamic_url": false
     }
