@@ -401,36 +401,16 @@ export class TimelineManager {
   }
 
   private isSidebarExpandedBlockingTimeline(): boolean {
-    const host = document.querySelector(this.sidebarExpansionHostSelector) as HTMLElement | null;
-    if (!host) return false;
-    const className = host.className || '';
-    const expanded = className.includes('expanded');
-    const collapsed = className.includes('collapsed');
-    return expanded && !collapsed;
+    return false;
   }
 
   private setupSidebarVisibilityObserver(): void {
-    if (this.sidebarVisibilityObserver) return;
-
-    this.sidebarVisibilityObserver = new MutationObserver(() => {
-      if (this.sidebarVisibilityRafId !== null) return;
-      this.sidebarVisibilityRafId = requestAnimationFrame(() => {
-        this.sidebarVisibilityRafId = null;
-        this.applyTimelineVisibility();
-      });
-    });
-
-    this.sidebarVisibilityObserver.observe(document.body, {
-      childList: true,
-      subtree: true,
-      attributes: true,
-      attributeFilter: ['class'],
-    });
+    // Sidebar expansion check is disabled; observer not needed
   }
 
   private applyTimelineVisibility(): void {
     if (!this.ui.timelineBar) return;
-    const visible = this.timelineEnabled && !this.isSidebarExpandedBlockingTimeline();
+    const visible = this.timelineEnabled;
     this.ui.timelineBar.style.display = visible ? 'flex' : 'none';
     if (this.ui.slider) {
       this.ui.slider.style.display = visible ? '' : 'none';
@@ -720,6 +700,8 @@ export class TimelineManager {
       '.user-query-bubble-container',
       '.user-query-container',
       'user-query-content .user-query-bubble-with-background',
+      'user-query-content',
+      'user-query',
       // Attribute-based fallbacks for other Gemini variants
       'div[aria-label="User message"]',
       'article[data-author="user"]',
@@ -2856,13 +2838,6 @@ export class TimelineManager {
       const labelSpan = document.createElement('span');
       labelSpan.textContent = label;
       item.appendChild(labelSpan);
-
-      if (level === currentLevel) {
-        const check = document.createElement('span');
-        check.className = 'check-icon';
-        check.textContent = '✓';
-        item.appendChild(check);
-      }
 
       item.addEventListener('click', (e) => {
         e.preventDefault();

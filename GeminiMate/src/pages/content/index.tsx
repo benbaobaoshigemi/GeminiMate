@@ -13,7 +13,6 @@ import {
   startEditInputWidthAdjuster,
   startSidebarWidthAdjuster,
   startSidebarAutoHide,
-  startZoomAdjuster,
   startFontSizeAdjuster,
   startCustomFontInjector,
   startParagraphIndentAdjuster,
@@ -208,7 +207,6 @@ const initExtension = async () => {
     startEditInputWidthAdjuster();
     startSidebarWidthAdjuster();
     startSidebarAutoHide();
-    startZoomAdjuster();
     startFontSizeAdjuster();
     startCustomFontInjector();
     startParagraphIndentAdjuster();

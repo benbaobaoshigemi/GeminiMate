@@ -1,5 +1,5 @@
 ﻿import React, { useEffect, useRef, useState } from 'react';
-import { Settings, PenTool, Layout, Zap, Clock, ZoomIn, Type, ChevronLeft, Upload, Trash2 } from 'lucide-react';
+import { Settings, PenTool, Layout, Zap, Clock, Type, ChevronLeft, Upload, Trash2 } from 'lucide-react';
 
 import { StorageKeys } from '@/core/types/common';
 import type { CustomFont } from '@/features/layout/customFont';
@@ -325,9 +325,6 @@ export default function Popup() {
   const [sidebarWidth, setSidebarWidth] = useState(312);
   const [sidebarAutoHide, setSidebarAutoHide] = useState(false);
 
-  // Page zoom
-  const [pageZoom, setPageZoom] = useState(110);
-
   // Typography
   const [fontSizeScale, setFontSizeScale] = useState(100);
   const [fontWeight, setFontWeight] = useState(400);
@@ -358,7 +355,6 @@ export default function Popup() {
       StorageKeys.GEMINI_EDIT_INPUT_WIDTH,
       StorageKeys.GEMINI_SIDEBAR_WIDTH,
       StorageKeys.GEMINI_SIDEBAR_AUTO_HIDE,
-      StorageKeys.GEMINI_ZOOM_LEVEL,
       StorageKeys.GEMINI_FONT_SIZE_SCALE,
       StorageKeys.GEMINI_FONT_WEIGHT,
       StorageKeys.GEMINI_FONT_FAMILY,
@@ -397,7 +393,6 @@ export default function Popup() {
       setSidebarWidth(Number(result[StorageKeys.GEMINI_SIDEBAR_WIDTH]) || 312);
       setSidebarAutoHide(result[StorageKeys.GEMINI_SIDEBAR_AUTO_HIDE] ?? false);
 
-      setPageZoom(Number(result[StorageKeys.GEMINI_ZOOM_LEVEL]) || 110);
       setFontSizeScale(Number(result[StorageKeys.GEMINI_FONT_SIZE_SCALE]) || 100);
       const rawFontFamily = result[StorageKeys.GEMINI_FONT_FAMILY];
       setFontWeight(Number(result[StorageKeys.GEMINI_FONT_WEIGHT]) || 400);
@@ -463,9 +458,6 @@ export default function Popup() {
       }
       if (changes[StorageKeys.GEMINI_SIDEBAR_AUTO_HIDE]) {
         setSidebarAutoHide(changes[StorageKeys.GEMINI_SIDEBAR_AUTO_HIDE].newValue ?? false);
-      }
-      if (changes[StorageKeys.GEMINI_ZOOM_LEVEL]) {
-        setPageZoom(Number(changes[StorageKeys.GEMINI_ZOOM_LEVEL].newValue) || 110);
       }
       if (changes[StorageKeys.GEMINI_FONT_SIZE_SCALE]) {
         setFontSizeScale(Number(changes[StorageKeys.GEMINI_FONT_SIZE_SCALE].newValue) || 100);
@@ -831,21 +823,6 @@ export default function Popup() {
               onChange={(v) => {
                 setSidebarWidth(v);
                 chrome.storage.local.set({ [StorageKeys.GEMINI_SIDEBAR_WIDTH]: v });
-              }}
-            />
-            <Slider
-              icon={ZoomIn}
-              title="页面缩放比例"
-              description="整体缩放 Gemini 页面 (90%–120%，每档 10%)"
-              value={pageZoom}
-              min={90}
-              max={120}
-              step={10}
-              unit="%"
-              defaultValue={110}
-              onChange={(v) => {
-                setPageZoom(v);
-                chrome.storage.local.set({ [StorageKeys.GEMINI_ZOOM_LEVEL]: v });
               }}
             />
             <SettingRow

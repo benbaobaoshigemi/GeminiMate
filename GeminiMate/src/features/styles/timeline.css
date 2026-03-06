@@ -296,7 +296,8 @@ html.dark .timeline-dot:not(.active):not(.starred)::after,
 }
 
 .timeline-context-menu-item.active {
-  background-color: var(--timeline-dot-active-color);
+  background-color: #16a34a;
+  color: #ffffff;
   font-weight: 500;
 }
 
@@ -332,11 +333,7 @@ html.dark .timeline-dot:not(.active):not(.starred)::after,
   clip-path: polygon(50% 0%, 0% 100%, 100% 100%);
 }
 
-.timeline-context-menu-item .check-icon {
-  margin-left: auto;
-  color: var(--timeline-dot-active-color);
-  font-size: 14px;
-}
+/* check-icon removed; active state shown via green background */
 
 /* Context menu separator */
 .timeline-context-menu-separator {

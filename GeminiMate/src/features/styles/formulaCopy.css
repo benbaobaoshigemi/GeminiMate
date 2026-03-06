@@ -25,36 +25,16 @@ html[data-color-scheme='light'] [data-math]:hover {
   background-color: rgba(66, 133, 244, 0.08) !important;
 }
 
-/* Inline success indicator — keep it subtle and avoid clipping on large formula blocks */
+/* Inline success indicator — green border glow on the element itself, no floating badge */
 @keyframes gv-checkmark-fade {
-  0% { opacity: 0; }
-  15% { opacity: 1; }
-  80% { opacity: 1; }
-  100% { opacity: 0; }
+  0%   { box-shadow: 0 0 0 2px rgba(52, 168, 83, 0.9), 0 0 8px rgba(52, 168, 83, 0.5); background-color: rgba(52, 168, 83, 0.15); }
+  60%  { box-shadow: 0 0 0 2px rgba(52, 168, 83, 0.7), 0 0 6px rgba(52, 168, 83, 0.3); background-color: rgba(52, 168, 83, 0.10); }
+  100% { box-shadow: 0 0 0 0px rgba(52, 168, 83, 0); background-color: transparent; }
 }
 
 .gv-copy-success {
-  position: relative !important;
-  overflow: visible !important;
-}
-
-.gv-copy-success::after {
-  content: '✓';
-  position: absolute;
-  top: 6px;
-  right: 6px;
-  width: 17px;
-  height: 17px;
-  background: #34a853;
-  color: white;
-  border-radius: 50%;
-  font-size: 10px;
-  font-weight: bold;
-  text-align: center;
-  line-height: 17px;
-  z-index: 2147483646;
-  pointer-events: none;
-  animation: gv-checkmark-fade 1.1s ease-out forwards;
+  border-radius: 4px !important;
+  animation: gv-checkmark-fade 1.1s ease-out forwards !important;
 }
 
 /* Inline error highlight — red outline */
