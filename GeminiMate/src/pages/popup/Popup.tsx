@@ -351,6 +351,10 @@ export default function Popup() {
   const [lineHeight, setLineHeight] = useState(0);
   const [paragraphIndentEnabled, setParagraphIndentEnabled] = useState(false);
   const [emphasisMode, setEmphasisMode] = useState<'bold' | 'underline'>('bold');
+  const [debugModeEnabled, setDebugModeEnabled] = useState(false);
+  const [debugFileLogEnabled, setDebugFileLogEnabled] = useState(true);
+  const [debugCacheCaptureEnabled, setDebugCacheCaptureEnabled] = useState(true);
+  const [debugActionStatus, setDebugActionStatus] = useState('');
 
   useEffect(() => {
     const keys = [
@@ -382,6 +386,9 @@ export default function Popup() {
       StorageKeys.GEMINI_LINE_HEIGHT,
       StorageKeys.GEMINI_PARAGRAPH_INDENT_ENABLED,
       StorageKeys.GEMINI_EMPHASIS_MODE,
+      StorageKeys.DEBUG_MODE,
+      StorageKeys.DEBUG_FILE_LOG_ENABLED,
+      StorageKeys.DEBUG_CACHE_CAPTURE_ENABLED,
     ];
 
     const applyResult = (result: Record<string, unknown>): void => {
@@ -422,6 +429,9 @@ export default function Popup() {
       setLineHeight(Number(result[StorageKeys.GEMINI_LINE_HEIGHT]) || 0);
       setParagraphIndentEnabled(resolveToggleValue(result[StorageKeys.GEMINI_PARAGRAPH_INDENT_ENABLED], false));
       setEmphasisMode(result[StorageKeys.GEMINI_EMPHASIS_MODE] === 'underline' ? 'underline' : 'bold');
+      setDebugModeEnabled(result[StorageKeys.DEBUG_MODE] === true);
+      setDebugFileLogEnabled(resolveToggleValue(result[StorageKeys.DEBUG_FILE_LOG_ENABLED], true));
+      setDebugCacheCaptureEnabled(resolveToggleValue(result[StorageKeys.DEBUG_CACHE_CAPTURE_ENABLED], true));
     };
 
     const applyStorageChanges = (changes: Record<string, chrome.storage.StorageChange>): void => {
@@ -515,6 +525,15 @@ export default function Popup() {
       if (changes[StorageKeys.GEMINI_EMPHASIS_MODE]) {
         setEmphasisMode(changes[StorageKeys.GEMINI_EMPHASIS_MODE].newValue === 'underline' ? 'underline' : 'bold');
       }
+      if (changes[StorageKeys.DEBUG_MODE]) {
+        setDebugModeEnabled(changes[StorageKeys.DEBUG_MODE].newValue === true);
+      }
+      if (changes[StorageKeys.DEBUG_FILE_LOG_ENABLED]) {
+        setDebugFileLogEnabled(resolveToggleValue(changes[StorageKeys.DEBUG_FILE_LOG_ENABLED].newValue, true));
+      }
+      if (changes[StorageKeys.DEBUG_CACHE_CAPTURE_ENABLED]) {
+        setDebugCacheCaptureEnabled(resolveToggleValue(changes[StorageKeys.DEBUG_CACHE_CAPTURE_ENABLED].newValue, true));
+      }
     };
 
     chrome.storage.local.get(keys, applyResult);
@@ -541,6 +560,22 @@ export default function Popup() {
   const updateFormulaCopyFormat = (value: FormulaCopyFormat): void => {
     setFormulaCopyFormat(value);
     updateValueSetting(StorageKeys.FORMULA_COPY_FORMAT, value);
+  };
+
+  const triggerDebugAction = (message: { type: 'gm.debug.exportNow' | 'gm.debug.captureNow'; reason: string }, successText: string): void => {
+    setDebugActionStatus('执行中...');
+    chrome.runtime.sendMessage(message, (response?: { ok?: boolean; error?: string }) => {
+      if (chrome.runtime.lastError) {
+        setDebugActionStatus(`失败: ${chrome.runtime.lastError.message}`);
+        return;
+      }
+      if (!response?.ok) {
+        setDebugActionStatus(`失败: ${response?.error || 'unknown_error'}`);
+        return;
+      }
+      setDebugActionStatus(successText);
+      window.setTimeout(() => setDebugActionStatus(''), 2400);
+    });
   };
 
   const currentSansPreset =
@@ -1155,6 +1190,76 @@ export default function Popup() {
 
           <SectionHeader icon={Settings} title="其他" />
           <div className="space-y-2">
+            <SettingRow
+              icon={Settings}
+              title="调试模式"
+              description="开启后持续记录运行日志并落盘到本地 .log 目录"
+              checked={debugModeEnabled}
+              onChange={(v) => updateSetting(StorageKeys.DEBUG_MODE, v, setDebugModeEnabled)}
+              badge="DEBUG"
+            />
+            <SettingRow
+              icon={Settings}
+              title="日志落盘"
+              description="将运行日志持续写入 .log/geminimate-runtime.log"
+              checked={debugFileLogEnabled}
+              onChange={(v) =>
+                updateSetting(
+                  StorageKeys.DEBUG_FILE_LOG_ENABLED,
+                  v,
+                  setDebugFileLogEnabled,
+                )
+              }
+              disabled={!debugModeEnabled}
+            />
+            <SettingRow
+              icon={Settings}
+              title="缓存快照采集"
+              description="采集 local/session/chrome storage 快照到 .log/cache"
+              checked={debugCacheCaptureEnabled}
+              onChange={(v) =>
+                updateSetting(
+                  StorageKeys.DEBUG_CACHE_CAPTURE_ENABLED,
+                  v,
+                  setDebugCacheCaptureEnabled,
+                )
+              }
+              disabled={!debugModeEnabled}
+            />
+            <div className="p-3 rounded-xl bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/5">
+              <p className="text-sm font-medium text-slate-800 dark:text-white/90 mb-2">调试操作</p>
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={() =>
+                    triggerDebugAction(
+                      { type: 'gm.debug.exportNow', reason: 'popup-manual-export' },
+                      '已导出日志',
+                    )
+                  }
+                  disabled={!debugModeEnabled}
+                  className="px-3 py-2 rounded-lg text-xs font-medium border border-slate-200 dark:border-white/10 bg-white dark:bg-white/5 hover:bg-slate-100 dark:hover:bg-white/10 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  立即导出日志
+                </button>
+                <button
+                  type="button"
+                  onClick={() =>
+                    triggerDebugAction(
+                      { type: 'gm.debug.captureNow', reason: 'popup-manual-cache' },
+                      '已抓取缓存快照',
+                    )
+                  }
+                  disabled={!debugModeEnabled || !debugCacheCaptureEnabled}
+                  className="px-3 py-2 rounded-lg text-xs font-medium border border-slate-200 dark:border-white/10 bg-white dark:bg-white/5 hover:bg-slate-100 dark:hover:bg-white/10 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  立即抓缓存
+                </button>
+              </div>
+              {debugActionStatus ? (
+                <p className="text-[11px] text-blue-500 dark:text-blue-300 mt-2">{debugActionStatus}</p>
+              ) : null}
+            </div>
             <SettingRow
               icon={Zap}
               title="Word 一键导出"

@@ -12,6 +12,11 @@ export interface DebugLogEntry {
   readonly detail?: unknown;
 }
 
+interface DebugIngestMessage {
+  type: 'gm.debug.ingest';
+  entry: DebugLogEntry;
+}
+
 const toSerializable = (value: unknown): unknown => {
   if (value === undefined) return undefined;
   try {
@@ -100,6 +105,7 @@ export class DebugService {
       this.logs = this.logs.slice(-MAX_DEBUG_LOGS);
     }
 
+    this.forwardToBackground(entry);
     this.scheduleFlush();
   }
 
@@ -136,6 +142,19 @@ export class DebugService {
   private normalizeContext(context: string): string {
     const normalized = context.trim().toLowerCase().replace(/[^a-z0-9_-]+/g, '-');
     return normalized.length > 0 ? normalized : 'unknown';
+  }
+
+  private forwardToBackground(entry: DebugLogEntry): void {
+    try {
+      if (!chrome?.runtime?.id) return;
+      const message: DebugIngestMessage = {
+        type: 'gm.debug.ingest',
+        entry,
+      };
+      chrome.runtime.sendMessage(message);
+    } catch {
+      // Ignore cross-context forwarding errors. Local storage flush remains available.
+    }
   }
 }
 

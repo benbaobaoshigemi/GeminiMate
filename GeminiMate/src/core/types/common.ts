@@ -27,6 +27,8 @@ export const StorageKeys = {
     BOTTOM_CLEANUP_ENABLED: 'geminimate_bottom_cleanup_enabled',
     DEBUG_MODE: 'geminimate_debug_mode',
     DEBUG_LOGS: 'geminimate_debug_logs',
+    DEBUG_FILE_LOG_ENABLED: 'geminimate_debug_file_log_enabled',
+    DEBUG_CACHE_CAPTURE_ENABLED: 'geminimate_debug_cache_capture_enabled',
     LANGUAGE: 'geminimate_language',
     TIMELINE_ENABLED: 'geminimate_timeline_enabled',
     TIMELINE_WIDTH: 'geminimate_timeline_width',

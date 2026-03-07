@@ -9,6 +9,12 @@ const FETCH_INTERCEPTOR_MATCHES = [
   'https://business.gemini.google/*',
 ];
 const THOUGHT_TRANSLATION_TIMEOUT_MS = 12000;
+const DEBUG_LOG_DIR = 'GeminiMate/.log';
+const DEBUG_RUNTIME_LOG_FILE = `${DEBUG_LOG_DIR}/geminimate-runtime.log`;
+const DEBUG_CACHE_DIR = `${DEBUG_LOG_DIR}/cache`;
+const DEBUG_FLUSH_INTERVAL_MS = 1500;
+const DEBUG_MAX_LOG_LINES = 9000;
+const DEBUG_MAX_DETAIL_CHARS = 2400;
 
 type StarredMessageRequest =
   | { type: 'gv.starred.getAll'; payload?: unknown }
@@ -22,6 +28,47 @@ type ThoughtTranslationRequest = {
   text?: unknown;
   targetLang?: unknown;
 };
+
+type DebugIngestRequest = {
+  type: 'gm.debug.ingest';
+  entry?: unknown;
+};
+
+type DebugExportNowRequest = {
+  type: 'gm.debug.exportNow';
+  reason?: unknown;
+};
+
+type DebugCaptureCacheRequest = {
+  type: 'gm.debug.captureCache';
+  payload?: unknown;
+};
+
+type DebugCaptureNowRequest = {
+  type: 'gm.debug.captureNow';
+  reason?: unknown;
+};
+
+type DebugMessageRequest =
+  | DebugIngestRequest
+  | DebugExportNowRequest
+  | DebugCaptureCacheRequest
+  | DebugCaptureNowRequest;
+
+type NormalizedDebugEntry = {
+  ts: string;
+  context: string;
+  source: string;
+  action: string;
+  detail?: unknown;
+};
+
+let debugModeEnabled = false;
+let debugFileLogEnabled = true;
+let debugCacheCaptureEnabled = true;
+let debugRuntimeLines: string[] = [];
+let debugFileDirty = false;
+let debugFlushTimer: ReturnType<typeof setTimeout> | null = null;
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === 'object' && value !== null;
@@ -39,6 +86,157 @@ const isFetchImageRequest = (message: unknown): message is FetchImageRequest =>
 
 const isThoughtTranslationRequest = (message: unknown): message is ThoughtTranslationRequest =>
   isRecord(message) && message.type === 'gm.translateThought';
+
+const isDebugMessageRequest = (message: unknown): message is DebugMessageRequest =>
+  isRecord(message) && typeof message.type === 'string' && message.type.startsWith('gm.debug.');
+
+const isDebugIngestRequest = (message: unknown): message is DebugIngestRequest =>
+  isRecord(message) && message.type === 'gm.debug.ingest';
+
+const isDebugExportNowRequest = (message: unknown): message is DebugExportNowRequest =>
+  isRecord(message) && message.type === 'gm.debug.exportNow';
+
+const isDebugCaptureCacheRequest = (message: unknown): message is DebugCaptureCacheRequest =>
+  isRecord(message) && message.type === 'gm.debug.captureCache';
+
+const isDebugCaptureNowRequest = (message: unknown): message is DebugCaptureNowRequest =>
+  isRecord(message) && message.type === 'gm.debug.captureNow';
+
+const getNowIso = (): string => new Date().toISOString();
+
+const createTimestampForFile = (): string =>
+  new Date().toISOString().replace(/[:.]/g, '-').replace('T', '_').replace('Z', '');
+
+const stringifyLimited = (value: unknown, maxChars = DEBUG_MAX_DETAIL_CHARS): string => {
+  let serialized = '';
+  try {
+    serialized = JSON.stringify(value);
+  } catch {
+    serialized = String(value);
+  }
+  if (serialized.length <= maxChars) return serialized;
+  return `${serialized.slice(0, maxChars)}...<trimmed>`;
+};
+
+const normalizeDebugEntry = (value: unknown): NormalizedDebugEntry | null => {
+  if (!isRecord(value)) return null;
+
+  const ts = typeof value.ts === 'string' && value.ts.trim() ? value.ts : getNowIso();
+  const context = typeof value.context === 'string' && value.context.trim() ? value.context : 'unknown';
+  const source = typeof value.source === 'string' && value.source.trim() ? value.source : 'unknown';
+  const action = typeof value.action === 'string' && value.action.trim() ? value.action : 'event';
+
+  return {
+    ts,
+    context,
+    source,
+    action,
+    detail: value.detail,
+  };
+};
+
+const appendRuntimeLogLine = (line: string): void => {
+  debugRuntimeLines.push(line);
+  if (debugRuntimeLines.length > DEBUG_MAX_LOG_LINES) {
+    debugRuntimeLines = debugRuntimeLines.slice(-DEBUG_MAX_LOG_LINES);
+  }
+  debugFileDirty = true;
+};
+
+const formatDebugLine = (entry: NormalizedDebugEntry): string => {
+  const detail = entry.detail === undefined ? '' : ` | detail=${stringifyLimited(entry.detail)}`;
+  return `[${entry.ts}] [${entry.context}] ${entry.source}/${entry.action}${detail}`;
+};
+
+const downloadTextToLocalLog = async (fileName: string, content: string): Promise<boolean> => {
+  if (!chrome.downloads?.download) return false;
+  try {
+    const dataUrl = `data:text/plain;charset=utf-8,${encodeURIComponent(content)}`;
+    await chrome.downloads.download({
+      url: dataUrl,
+      filename: fileName,
+      saveAs: false,
+      conflictAction: 'overwrite',
+    });
+    return true;
+  } catch {
+    return false;
+  }
+};
+
+const scheduleDebugFileFlush = (): void => {
+  if (!debugModeEnabled || !debugFileLogEnabled || !debugFileDirty) return;
+  if (debugFlushTimer !== null) return;
+  debugFlushTimer = setTimeout(() => {
+    debugFlushTimer = null;
+    void flushRuntimeLogFile();
+  }, DEBUG_FLUSH_INTERVAL_MS);
+};
+
+const flushRuntimeLogFile = async (): Promise<void> => {
+  if (!debugModeEnabled || !debugFileLogEnabled || !debugFileDirty) return;
+  const content = debugRuntimeLines.join('\n');
+  const ok = await downloadTextToLocalLog(DEBUG_RUNTIME_LOG_FILE, content);
+  if (ok) {
+    debugFileDirty = false;
+    return;
+  }
+  console.warn('[GeminiMate][Debug] Failed to persist runtime log file');
+};
+
+const normalizeObjectForSnapshot = (value: unknown, depth = 0): unknown => {
+  if (depth > 3) return '[max-depth]';
+
+  if (value === null || value === undefined) return value;
+  if (typeof value === 'string') {
+    return value.length > 1200 ? `${value.slice(0, 1200)}...<trimmed>` : value;
+  }
+  if (typeof value === 'number' || typeof value === 'boolean') return value;
+
+  if (Array.isArray(value)) {
+    return value.slice(0, 80).map((item) => normalizeObjectForSnapshot(item, depth + 1));
+  }
+
+  if (!isRecord(value)) {
+    return String(value);
+  }
+
+  const entries = Object.entries(value).slice(0, 120);
+  const normalized: Record<string, unknown> = {};
+  entries.forEach(([key, item]) => {
+    normalized[key] = normalizeObjectForSnapshot(item, depth + 1);
+  });
+  if (Object.keys(value).length > entries.length) {
+    normalized.__trimmedKeys = Object.keys(value).length - entries.length;
+  }
+  return normalized;
+};
+
+const captureBackgroundStorageSnapshot = async (
+  reason: string,
+  payload?: unknown,
+  writeTimestampedFile = false,
+): Promise<void> => {
+  if (!debugModeEnabled || !debugCacheCaptureEnabled) return;
+
+  const all = await chrome.storage.local.get(null);
+  const snapshot = {
+    ts: getNowIso(),
+    reason,
+    storageLocal: normalizeObjectForSnapshot(all),
+    payload: normalizeObjectForSnapshot(payload),
+  };
+
+  const fileName = writeTimestampedFile
+    ? `${DEBUG_CACHE_DIR}/background-${createTimestampForFile()}.json`
+    : `${DEBUG_CACHE_DIR}/background-latest.json`;
+  await downloadTextToLocalLog(fileName, JSON.stringify(snapshot, null, 2));
+
+  appendRuntimeLogLine(
+    `[${snapshot.ts}] [background] debug/cache-snapshot | reason=${reason} | keys=${Object.keys(all).length}`,
+  );
+  scheduleDebugFileFlush();
+};
 
 const extractTranslatedText = (payload: unknown): string => {
   if (!Array.isArray(payload)) return '';
@@ -133,8 +331,22 @@ async function registerFetchInterceptor(): Promise<void> {
 void (async () => {
   try {
     await debugService.init('background');
+    const debugSettings = await chrome.storage.local.get([
+      StorageKeys.DEBUG_MODE,
+      StorageKeys.DEBUG_FILE_LOG_ENABLED,
+      StorageKeys.DEBUG_CACHE_CAPTURE_ENABLED,
+    ]);
+    debugModeEnabled = debugSettings[StorageKeys.DEBUG_MODE] === true;
+    debugFileLogEnabled = debugSettings[StorageKeys.DEBUG_FILE_LOG_ENABLED] !== false;
+    debugCacheCaptureEnabled = debugSettings[StorageKeys.DEBUG_CACHE_CAPTURE_ENABLED] !== false;
+
     logger.info('GeminiMate Background Worker Initialized');
     debugService.log('background', 'worker-initialized');
+    appendRuntimeLogLine(
+      `[${getNowIso()}] [background] debug/worker-initialized | mode=${String(debugModeEnabled)} | file=${String(debugFileLogEnabled)} | cache=${String(debugCacheCaptureEnabled)}`,
+    );
+    scheduleDebugFileFlush();
+
     await registerFetchInterceptor();
   } catch (error) {
     logger.error('Failed to initialize background worker', {
@@ -151,8 +363,39 @@ chrome.runtime.onInstalled.addListener(() => {
 
 chrome.storage.onChanged.addListener((changes, areaName) => {
   if (areaName !== 'local') return;
-  if (!changes[StorageKeys.WATERMARK_REMOVER_ENABLED]) return;
-  void registerFetchInterceptor();
+
+  if (changes[StorageKeys.WATERMARK_REMOVER_ENABLED]) {
+    void registerFetchInterceptor();
+  }
+
+  if (changes[StorageKeys.DEBUG_MODE]) {
+    debugModeEnabled = changes[StorageKeys.DEBUG_MODE].newValue === true;
+    appendRuntimeLogLine(
+      `[${getNowIso()}] [background] debug/mode-changed | enabled=${String(debugModeEnabled)}`,
+    );
+    if (debugModeEnabled) {
+      scheduleDebugFileFlush();
+      void captureBackgroundStorageSnapshot('debug-mode-enabled');
+    }
+  }
+
+  if (changes[StorageKeys.DEBUG_FILE_LOG_ENABLED]) {
+    debugFileLogEnabled = changes[StorageKeys.DEBUG_FILE_LOG_ENABLED].newValue !== false;
+    appendRuntimeLogLine(
+      `[${getNowIso()}] [background] debug/file-log-changed | enabled=${String(debugFileLogEnabled)}`,
+    );
+    if (debugModeEnabled && debugFileLogEnabled) {
+      scheduleDebugFileFlush();
+    }
+  }
+
+  if (changes[StorageKeys.DEBUG_CACHE_CAPTURE_ENABLED]) {
+    debugCacheCaptureEnabled = changes[StorageKeys.DEBUG_CACHE_CAPTURE_ENABLED].newValue !== false;
+    appendRuntimeLogLine(
+      `[${getNowIso()}] [background] debug/cache-capture-changed | enabled=${String(debugCacheCaptureEnabled)}`,
+    );
+    scheduleDebugFileFlush();
+  }
 });
 
 const normalizeStarredMessage = (value: unknown): StarredMessage | null => {
@@ -244,7 +487,85 @@ async function blobToBase64(blob: Blob): Promise<string> {
   return btoa(binary);
 }
 
+const captureClientCacheSnapshot = async (
+  payload: unknown,
+  writeTimestampedFile = false,
+): Promise<void> => {
+  if (!debugModeEnabled || !debugCacheCaptureEnabled) return;
+
+  const normalized = normalizeObjectForSnapshot(payload);
+  const payloadRecord = isRecord(normalized) ? normalized : { payload: normalized };
+  const context =
+    typeof payloadRecord.context === 'string' && payloadRecord.context.trim()
+      ? payloadRecord.context.trim().toLowerCase()
+      : 'content';
+  const reason =
+    typeof payloadRecord.reason === 'string' && payloadRecord.reason.trim()
+      ? payloadRecord.reason.trim()
+      : 'periodic';
+
+  const snapshot = {
+    ts: getNowIso(),
+    context,
+    reason,
+    data: payloadRecord,
+  };
+
+  const fileName = writeTimestampedFile
+    ? `${DEBUG_CACHE_DIR}/${context}-${createTimestampForFile()}.json`
+    : `${DEBUG_CACHE_DIR}/${context}-latest.json`;
+  await downloadTextToLocalLog(fileName, JSON.stringify(snapshot, null, 2));
+
+  appendRuntimeLogLine(
+    `[${snapshot.ts}] [${context}] debug/cache-snapshot | reason=${reason}`,
+  );
+  scheduleDebugFileFlush();
+};
+
 chrome.runtime.onMessage.addListener((message: unknown, _sender, sendResponse) => {
+  if (isDebugMessageRequest(message)) {
+    if (isDebugIngestRequest(message)) {
+      const entry = normalizeDebugEntry(message.entry);
+      if (entry) {
+        appendRuntimeLogLine(formatDebugLine(entry));
+        scheduleDebugFileFlush();
+      }
+      sendResponse({ ok: true });
+      return;
+    }
+
+    if (isDebugCaptureCacheRequest(message)) {
+      void captureClientCacheSnapshot(message.payload)
+        .then(() => {
+          sendResponse({ ok: true });
+        })
+        .catch((error: unknown) => {
+          sendResponse({ ok: false, error: getErrorMessage(error) });
+        });
+      return true;
+    }
+
+    if (isDebugCaptureNowRequest(message)) {
+      const reason = typeof message.reason === 'string' ? message.reason : 'manual';
+      void captureBackgroundStorageSnapshot(`manual-${reason}`, undefined, true)
+        .then(() => sendResponse({ ok: true }))
+        .catch((error: unknown) => sendResponse({ ok: false, error: getErrorMessage(error) }));
+      return true;
+    }
+
+    if (isDebugExportNowRequest(message)) {
+      const reason = typeof message.reason === 'string' ? message.reason : 'manual';
+      void (async () => {
+        appendRuntimeLogLine(`[${getNowIso()}] [background] debug/export-now | reason=${reason}`);
+        await captureBackgroundStorageSnapshot(`export-${reason}`, undefined, true);
+        await flushRuntimeLogFile();
+      })()
+        .then(() => sendResponse({ ok: true }))
+        .catch((error: unknown) => sendResponse({ ok: false, error: getErrorMessage(error) }));
+      return true;
+    }
+  }
+
   if (isFetchImageRequest(message)) {
     const url = typeof message.url === 'string' ? message.url : '';
     if (!/^https?:\/\//i.test(url)) {

@@ -32,6 +32,7 @@ const THOUGHT_ROOT_SELECTOR =
   '[data-test-id="thoughts-content"], .thoughts-content, .thoughts-content-expanded, .thoughts-streaming, .thoughts-container, .thoughts-wrapper';
 const TRACE_ENABLED = false;
 const MAX_CONCURRENT_TRANSLATIONS = 1;
+const LINE_BREAK_TOKEN = '__GM_THOUGHT_NL_9F2E__';
 
 type TranslateResponse =
   | { ok: true; translatedText: string }
@@ -70,7 +71,12 @@ const ensureStyle = (): void => {
       background: rgba(59, 130, 246, 0.06);
       color: inherit;
       line-height: 1.72;
-      white-space: pre-wrap;
+      white-space: pre-wrap !important;
+      overflow-wrap: anywhere !important;
+      word-break: break-word !important;
+      min-width: 0;
+      width: 100%;
+      max-width: 100%;
     }
 
     .${TRANSLATION_CLASS}::before {
@@ -189,9 +195,16 @@ const getPrimaryThoughtTextElement = (container: HTMLElement): HTMLElement | nul
   let bestCandidate: HTMLElement | null = null;
   let bestLength = 0;
 
+  const extractText = (el: HTMLElement): string => {
+    // innerText preserves visual paragraph/list newlines in thought panels.
+    const raw = typeof el.innerText === 'string' && el.innerText.length > 0
+      ? el.innerText
+      : el.textContent || '';
+    return normalizeText(raw);
+  };
+
   candidates.forEach((candidate) => {
-    // textContent avoids expensive layout reads from innerText during streaming.
-    const sourceText = normalizeText(candidate.textContent || '');
+    const sourceText = extractText(candidate);
     if (!sourceText) return;
     if (sourceText.length > bestLength) {
       bestCandidate = candidate;
@@ -253,9 +266,11 @@ const translateText = async (sourceText: string): Promise<string> => {
       continue;
     }
 
+    const encodedPart = part.replace(/\n/g, ` ${LINE_BREAK_TOKEN} `);
+
     const response = (await chrome.runtime.sendMessage({
       type: 'gm.translateThought',
-      text: part,
+      text: encodedPart,
       targetLang: 'zh-CN',
     })) as TranslateResponse;
 
@@ -263,8 +278,10 @@ const translateText = async (sourceText: string): Promise<string> => {
       throw new Error(response?.error || 'translation_failed');
     }
 
-    translationPartCache.set(part, response.translatedText);
-    translatedParts.push(response.translatedText);
+    const restoreTokenRegex = new RegExp(`\\s*${LINE_BREAK_TOKEN}\\s*`, 'g');
+    const restoredLineBreaks = response.translatedText.replace(restoreTokenRegex, '\n');
+    translationPartCache.set(part, restoredLineBreaks);
+    translatedParts.push(restoredLineBreaks);
   }
 
   const translated = normalizeText(translatedParts.join('\n\n'));
@@ -330,7 +347,11 @@ const processThoughts = (): void => {
       return;
     }
 
-    const sourceText = normalizeText(textElement.textContent || '');
+    const sourceText = normalizeText(
+      (typeof textElement.innerText === 'string' && textElement.innerText.length > 0)
+        ? textElement.innerText
+        : (textElement.textContent || ''),
+    );
     logTrace('thought-text-extracted', {
       length: sourceText.length,
       preview: sourceText.slice(0, 80),

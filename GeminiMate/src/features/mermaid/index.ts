@@ -11,6 +11,7 @@ const DOWNLOAD_BUTTON_ATTR = 'data-gm-code-download';
 const VIEW_ATTR = 'data-gm-mermaid-view';
 const CODE_ATTR = 'data-gm-mermaid-code';
 const PROCESSING_ATTR = 'data-gm-mermaid-processing';
+const FONT_ATTR = 'data-gm-mermaid-font';
 
 type MermaidModule = Awaited<typeof import('mermaid')>['default'];
 type MermaidView = 'diagram' | 'code';
@@ -24,9 +25,13 @@ let observer: MutationObserver | null = null;
 let debounceTimer: number | null = null;
 const startupTimerIds = new Set<number>();
 let fullscreenModal: HTMLElement | null = null;
+let fullscreenKeydownHandler: ((event: KeyboardEvent) => void) | null = null;
 const TRACE_ENABLED = false;
 const DEFAULT_MERMAID_FONT_FAMILY = 'Google Sans, Roboto, sans-serif';
 let resolvedMermaidFontFamily = DEFAULT_MERMAID_FONT_FAMILY;
+const boundDownloadButtons = new WeakSet<HTMLButtonElement>();
+const boundToggleButtons = new WeakSet<HTMLButtonElement>();
+const boundDiagramContainers = new WeakSet<HTMLElement>();
 
 const GENERIC_LANGUAGE_LABELS = new Set([
   '代码段',
@@ -162,6 +167,15 @@ const resolveMermaidFontFamily = (): string => {
     }
   }
   return DEFAULT_MERMAID_FONT_FAMILY;
+};
+
+const syncResolvedMermaidFontFamily = (): boolean => {
+  const next = resolveMermaidFontFamily();
+  if (next === resolvedMermaidFontFamily) return false;
+  resolvedMermaidFontFamily = next;
+  // Mermaid caches theme variables internally; re-init when runtime font changed.
+  mermaidInitialized = false;
+  return true;
 };
 
 export const isGenericLanguageLabel = (language: string | null): boolean => {
@@ -506,6 +520,17 @@ const getCodeContentContainer = (
 const getDiagramContainer = (codeBlockHost: HTMLElement): HTMLElement | null =>
   codeBlockHost.querySelector(`.${DIAGRAM_CLASS}`) as HTMLElement | null;
 
+const ensureSvgFontStyleTag = (svg: SVGElement): void => {
+  const defs = svg.querySelector('defs') ?? svg.insertBefore(document.createElementNS('http://www.w3.org/2000/svg', 'defs'), svg.firstChild);
+  let style = defs.querySelector('style[data-gm-mermaid-font="1"]') as SVGStyleElement | null;
+  if (!style) {
+    style = document.createElementNS('http://www.w3.org/2000/svg', 'style');
+    style.setAttribute('data-gm-mermaid-font', '1');
+    defs.appendChild(style);
+  }
+  style.textContent = `text, tspan, .label, .nodeLabel, .edgeLabel, foreignObject, foreignObject * { font-family: ${resolvedMermaidFontFamily} !important; }`;
+};
+
 const serializeSvg = (svgElement: SVGElement): string => {
   const clone = svgElement.cloneNode(true);
   if (!(clone instanceof SVGElement)) {
@@ -522,7 +547,7 @@ const serializeSvg = (svgElement: SVGElement): string => {
 
   const defs = clone.querySelector('defs') ?? clone.insertBefore(document.createElementNS('http://www.w3.org/2000/svg', 'defs'), clone.firstChild);
   const style = document.createElementNS('http://www.w3.org/2000/svg', 'style');
-  style.textContent = `text, tspan { font-family: ${resolvedMermaidFontFamily}; }`;
+  style.textContent = `text, tspan, .label, .nodeLabel, .edgeLabel, foreignObject, foreignObject * { font-family: ${resolvedMermaidFontFamily} !important; }`;
   defs.appendChild(style);
 
   return new XMLSerializer().serializeToString(clone);
@@ -531,12 +556,52 @@ const serializeSvg = (svgElement: SVGElement): string => {
 const applySvgFontFamily = (container: HTMLElement): void => {
   const svg = container.querySelector('svg');
   if (!(svg instanceof SVGElement)) return;
-  svg.style.fontFamily = resolvedMermaidFontFamily;
-  svg.querySelectorAll('text, tspan').forEach((node) => {
+  svg.style.setProperty('font-family', resolvedMermaidFontFamily, 'important');
+  ensureSvgFontStyleTag(svg);
+  svg.querySelectorAll<Element>('text, tspan, .label, .nodeLabel, .edgeLabel, foreignObject, foreignObject *').forEach((node) => {
     if (node instanceof SVGElement) {
-      node.style.fontFamily = resolvedMermaidFontFamily;
+      node.style.setProperty('font-family', resolvedMermaidFontFamily, 'important');
+      return;
+    }
+    if (node instanceof HTMLElement) {
+      node.style.setProperty('font-family', resolvedMermaidFontFamily, 'important');
     }
   });
+};
+
+const bindDownloadButton = (button: HTMLButtonElement, codeBlockHost: HTMLElement): void => {
+  if (boundDownloadButtons.has(button)) return;
+  button.addEventListener('click', (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    downloadCurrentContent(codeBlockHost);
+  });
+  boundDownloadButtons.add(button);
+};
+
+const bindToggleButton = (
+  button: HTMLButtonElement,
+  codeBlockHost: HTMLElement,
+  view: MermaidView,
+): void => {
+  if (boundToggleButtons.has(button)) return;
+  button.addEventListener('click', (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    updateView(codeBlockHost, view);
+  });
+  boundToggleButtons.add(button);
+};
+
+const bindDiagramContainer = (diagramContainer: HTMLElement): void => {
+  if (boundDiagramContainers.has(diagramContainer)) return;
+  diagramContainer.addEventListener('click', () => {
+    const svg = diagramContainer.querySelector('svg');
+    if (svg) {
+      openFullscreen(diagramContainer.innerHTML);
+    }
+  });
+  boundDiagramContainers.add(diagramContainer);
 };
 
 const createTimestamp = (): string =>
@@ -655,11 +720,7 @@ const ensureDownloadButton = (codeBlockHost: HTMLElement): void => {
   if (!button) {
     const copyButton = getCopyButton(codeBlockHost);
     button = createIconButton('下载代码');
-    button.addEventListener('click', (event) => {
-      event.preventDefault();
-      event.stopPropagation();
-      downloadCurrentContent(codeBlockHost);
-    });
+    bindDownloadButton(button, codeBlockHost);
 
     if (copyButton) {
       buttonsContainer.insertBefore(button, copyButton);
@@ -670,6 +731,8 @@ const ensureDownloadButton = (codeBlockHost: HTMLElement): void => {
     logTrace('download-button-inserted', {
       language: getCodeBlockLanguage(getCodeElementFromHost(codeBlockHost) ?? codeBlockHost),
     });
+  } else {
+    bindDownloadButton(button, codeBlockHost);
   }
 
   updateDownloadButtonState(codeBlockHost);
@@ -717,17 +780,13 @@ const ensureDiagramContainer = (
 ): HTMLElement => {
   let diagramContainer = getDiagramContainer(codeBlockHost);
   if (diagramContainer) {
+    bindDiagramContainer(diagramContainer);
     return diagramContainer;
   }
 
   diagramContainer = document.createElement('div');
   diagramContainer.className = DIAGRAM_CLASS;
-  diagramContainer.addEventListener('click', () => {
-    const svg = diagramContainer?.querySelector('svg');
-    if (svg) {
-      openFullscreen(diagramContainer.innerHTML);
-    }
-  });
+  bindDiagramContainer(diagramContainer);
 
   codeContentContainer.parentElement?.insertBefore(diagramContainer, codeContentContainer);
   return diagramContainer;
@@ -737,8 +796,16 @@ const ensureToggleControls = (codeBlockHost: HTMLElement): void => {
   const buttonsContainer = getButtonsContainer(codeBlockHost);
   if (!buttonsContainer) return;
 
-  if (getToggleGroup(codeBlockHost)) {
-    return;
+  const existingGroup = getToggleGroup(codeBlockHost);
+  if (existingGroup) {
+    const diagramButton = existingGroup.querySelector<HTMLButtonElement>(`.${TOGGLE_BUTTON_CLASS}[data-view="diagram"]`);
+    const codeButton = existingGroup.querySelector<HTMLButtonElement>(`.${TOGGLE_BUTTON_CLASS}[data-view="code"]`);
+    if (diagramButton && codeButton) {
+      bindToggleButton(diagramButton, codeBlockHost, 'diagram');
+      bindToggleButton(codeButton, codeBlockHost, 'code');
+      return;
+    }
+    existingGroup.remove();
   }
 
   const group = document.createElement('div');
@@ -756,17 +823,8 @@ const ensureToggleControls = (codeBlockHost: HTMLElement): void => {
   codeButton.dataset.view = 'code';
   codeButton.textContent = '代码';
 
-  diagramButton.addEventListener('click', (event) => {
-    event.preventDefault();
-    event.stopPropagation();
-    updateView(codeBlockHost, 'diagram');
-  });
-
-  codeButton.addEventListener('click', (event) => {
-    event.preventDefault();
-    event.stopPropagation();
-    updateView(codeBlockHost, 'code');
-  });
+  bindToggleButton(diagramButton, codeBlockHost, 'diagram');
+  bindToggleButton(codeButton, codeBlockHost, 'code');
 
   group.append(diagramButton, codeButton);
 
@@ -817,10 +875,15 @@ const teardownMermaidHost = (codeBlockHost: HTMLElement, removeDownloadButton: b
   codeBlockHost.removeAttribute(MERMAID_HOST_ATTR);
   codeBlockHost.removeAttribute(VIEW_ATTR);
   codeBlockHost.removeAttribute(CODE_ATTR);
+  codeBlockHost.removeAttribute(FONT_ATTR);
   codeBlockHost.removeAttribute(PROCESSING_ATTR);
 };
 
 const closeFullscreen = (): void => {
+  if (fullscreenKeydownHandler) {
+    document.removeEventListener('keydown', fullscreenKeydownHandler);
+    fullscreenKeydownHandler = null;
+  }
   if (!fullscreenModal) return;
   const modal = fullscreenModal;
   modal.classList.remove('visible');
@@ -856,10 +919,9 @@ const openFullscreen = (svgHtml: string): void => {
 
   const onKeyDown = (event: KeyboardEvent): void => {
     if (event.key !== 'Escape') return;
-    document.removeEventListener('keydown', onKeyDown);
     closeFullscreen();
   };
-
+  fullscreenKeydownHandler = onKeyDown;
   document.addEventListener('keydown', onKeyDown);
   requestAnimationFrame(() => modal.classList.add('visible'));
 };
@@ -868,8 +930,24 @@ const renderMermaid = async (codeElement: HTMLElement, sourceCode: string): Prom
   const normalizedCode = normalizeWhitespace(sourceCode);
   const codeBlockHost = getCodeBlockHost(codeElement);
   if (!codeBlockHost) return;
-  if (codeBlockHost.getAttribute(CODE_ATTR) === normalizedCode) {
+  const fontChanged = syncResolvedMermaidFontFamily();
+  const previousFont = codeBlockHost.getAttribute(FONT_ATTR) ?? '';
+  const fontMismatch = previousFont !== resolvedMermaidFontFamily;
+  const existingDiagram = getDiagramContainer(codeBlockHost);
+  const hasRenderableDiagram =
+    existingDiagram?.querySelector('svg') instanceof SVGElement;
+  if (
+    codeBlockHost.getAttribute(CODE_ATTR) === normalizedCode &&
+    !fontChanged &&
+    !fontMismatch &&
+    hasRenderableDiagram
+  ) {
     ensureDownloadButton(codeBlockHost);
+    ensureToggleControls(codeBlockHost);
+    if (existingDiagram) {
+      bindDiagramContainer(existingDiagram);
+      applySvgFontFamily(existingDiagram);
+    }
     updateDownloadButtonState(codeBlockHost);
     return;
   }
@@ -907,6 +985,7 @@ const renderMermaid = async (codeElement: HTMLElement, sourceCode: string): Prom
     }
 
     codeBlockHost.setAttribute(CODE_ATTR, normalizedCode);
+    codeBlockHost.setAttribute(FONT_ATTR, resolvedMermaidFontFamily);
     const currentView = codeBlockHost.getAttribute(VIEW_ATTR);
     updateView(codeBlockHost, currentView === 'code' ? 'code' : 'diagram');
   } finally {

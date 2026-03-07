@@ -37,6 +37,10 @@ let bottomCleanupEnabled = false;
 let mermaidEnabled = false;
 let mermaidServiceBootstrapped = false;
 let thoughtTranslationEnabled = false;
+let debugModeEnabled = false;
+let debugCacheCaptureTimer: ReturnType<typeof setInterval> | null = null;
+
+const DEBUG_CACHE_CAPTURE_INTERVAL_MS = 30000;
 
 const resolveEnabledValue = (value: unknown): boolean => value !== false;
 const resolveThoughtTranslationValue = (value: unknown): boolean => {
@@ -49,6 +53,68 @@ const resolveThoughtTranslationValue = (value: unknown): boolean => {
 const traceThoughtTranslation = (event: string, detail?: Record<string, unknown>): void => {
   debugService.log('thought-translation', event, detail);
   console.info('[GM-TRACE][ThoughtTranslation]', event, detail ?? {});
+};
+
+const snapshotWebStorage = (storage: Storage, maxEntries = 80): Record<string, string> => {
+  const snapshot: Record<string, string> = {};
+  const upperBound = Math.min(storage.length, maxEntries);
+  for (let index = 0; index < upperBound; index += 1) {
+    const key = storage.key(index);
+    if (!key) continue;
+    const raw = storage.getItem(key) ?? '';
+    snapshot[key] = raw.length > 1600 ? `${raw.slice(0, 1600)}...<trimmed>` : raw;
+  }
+  if (storage.length > upperBound) {
+    snapshot.__trimmedKeys = String(storage.length - upperBound);
+  }
+  return snapshot;
+};
+
+const sendDebugCacheSnapshot = (reason: string): void => {
+  if (!debugModeEnabled) return;
+
+  const payload = {
+    context: 'content-script',
+    reason,
+    url: window.location.href,
+    ts: new Date().toISOString(),
+    localStorage: snapshotWebStorage(window.localStorage),
+    sessionStorage: snapshotWebStorage(window.sessionStorage),
+  };
+
+  try {
+    chrome.runtime.sendMessage({
+      type: 'gm.debug.captureCache',
+      payload,
+    });
+  } catch {
+    // Ignore messaging failures during navigation/unload transitions.
+  }
+
+  debugService.log('debug', 'cache-snapshot-sent', {
+    reason,
+    localStorageKeys: Object.keys(payload.localStorage).length,
+    sessionStorageKeys: Object.keys(payload.sessionStorage).length,
+  });
+};
+
+const syncDebugModeState = (enabled: boolean): void => {
+  debugModeEnabled = enabled;
+  if (!enabled) {
+    if (debugCacheCaptureTimer !== null) {
+      clearInterval(debugCacheCaptureTimer);
+      debugCacheCaptureTimer = null;
+    }
+    return;
+  }
+
+  sendDebugCacheSnapshot('debug-mode-enabled');
+  if (debugCacheCaptureTimer !== null) {
+    clearInterval(debugCacheCaptureTimer);
+  }
+  debugCacheCaptureTimer = setInterval(() => {
+    sendDebugCacheSnapshot('periodic');
+  }, DEBUG_CACHE_CAPTURE_INTERVAL_MS);
 };
 
 const syncFormulaCopyState = (enabled: boolean): void => {
@@ -240,6 +306,13 @@ const handleStorageChanged = (
     debugService.log('storage', 'thought-translation-enabled-changed', { enabled });
     syncThoughtTranslationState(enabled);
   }
+
+  const debugModeChange = changes[StorageKeys.DEBUG_MODE];
+  if (debugModeChange) {
+    const enabled = debugModeChange.newValue === true;
+    debugService.log('storage', 'debug-mode-enabled-changed', { enabled });
+    syncDebugModeState(enabled);
+  }
 };
 
 const initExtension = async () => {
@@ -258,6 +331,7 @@ const initExtension = async () => {
       StorageKeys.BOTTOM_CLEANUP_ENABLED,
       StorageKeys.MERMAID_RENDER_ENABLED,
       StorageKeys.THOUGHT_TRANSLATION_ENABLED,
+      StorageKeys.DEBUG_MODE,
     ]);
     syncFormulaCopyState(resolveEnabledValue(settings[StorageKeys.FORMULA_COPY_ENABLED]));
     syncQuoteReplyState(resolveEnabledValue(settings[StorageKeys.QUOTE_REPLY_ENABLED]));
@@ -269,6 +343,7 @@ const initExtension = async () => {
       resolved: resolveThoughtTranslationValue(settings[StorageKeys.THOUGHT_TRANSLATION_ENABLED]),
     });
     syncThoughtTranslationState(resolveThoughtTranslationValue(settings[StorageKeys.THOUGHT_TRANSLATION_ENABLED]));
+    syncDebugModeState(settings[StorageKeys.DEBUG_MODE] === true);
 
     // Initialize Timeline with SPA route handling
     startTimeline();
@@ -301,6 +376,10 @@ const initExtension = async () => {
       stopMermaid();
       stopThoughtTranslation();
       stopControlCapsule();
+      if (debugCacheCaptureTimer !== null) {
+        clearInterval(debugCacheCaptureTimer);
+        debugCacheCaptureTimer = null;
+      }
     });
 
     logger.info('GeminiMate Content Script Initialized');

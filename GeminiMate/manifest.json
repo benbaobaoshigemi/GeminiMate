@@ -8,7 +8,8 @@
   },
   "permissions": [
     "storage",
-    "scripting"
+    "scripting",
+    "downloads"
   ],
   "host_permissions": [
     "https://gemini.google.com/*",
