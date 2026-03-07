@@ -14,7 +14,8 @@
     "https://gemini.google.com/*",
     "https://business.gemini.google/*",
     "https://*.googleusercontent.com/*",
-    "https://*.ggpht.com/*"
+    "https://*.ggpht.com/*",
+    "https://translate.googleapis.com/*"
   ],
   "background": {
     "service_worker": "src/pages/background/index.ts",

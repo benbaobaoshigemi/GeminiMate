@@ -13,6 +13,7 @@
   "host_permissions": [
     "https://gemini.google.com/*",
     "https://business.gemini.google/*",
+    "https://translate.googleapis.com/*",
     "https://*.googleusercontent.com/*",
     "https://*.ggpht.com/*"
   ],

@@ -68,7 +68,9 @@ const SKIP_ANCESTOR_SELECTOR = [
   'li', 'ul', 'ol', // 必须跳过列表，否则缩进会使文字脱离前面的序号
   'table', 'blockquote',
   'pre', 'code',
-  'h1', 'h2', 'h3', 'h4', 'h5', 'h6'
+  'h1', 'h2', 'h3', 'h4', 'h5', 'h6',
+  'model-thoughts', '.thoughts-container', '.thoughts-content',
+  '[data-test-id*="thought"]', '[class*="thought"]'
 ].join(', ');
 
 function shouldSkipBlock(el: HTMLElement): boolean {

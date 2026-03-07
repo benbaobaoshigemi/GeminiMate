@@ -8,6 +8,7 @@ const FETCH_INTERCEPTOR_MATCHES = [
   'https://gemini.google.com/*',
   'https://business.gemini.google/*',
 ];
+const THOUGHT_TRANSLATION_TIMEOUT_MS = 12000;
 
 type StarredMessageRequest =
   | { type: 'gv.starred.getAll'; payload?: unknown }
@@ -16,6 +17,11 @@ type StarredMessageRequest =
   | { type: 'gv.starred.remove'; payload?: unknown };
 
 type FetchImageRequest = { type: 'gv.fetchImage'; url?: unknown };
+type ThoughtTranslationRequest = {
+  type: 'gm.translateThought';
+  text?: unknown;
+  targetLang?: unknown;
+};
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === 'object' && value !== null;
@@ -30,6 +36,60 @@ const isStarredMessageRequest = (message: unknown): message is StarredMessageReq
 
 const isFetchImageRequest = (message: unknown): message is FetchImageRequest =>
   isRecord(message) && message.type === 'gv.fetchImage';
+
+const isThoughtTranslationRequest = (message: unknown): message is ThoughtTranslationRequest =>
+  isRecord(message) && message.type === 'gm.translateThought';
+
+const extractTranslatedText = (payload: unknown): string => {
+  if (!Array.isArray(payload)) return '';
+  const segments = payload[0];
+  if (!Array.isArray(segments)) return '';
+  return segments
+    .map((segment) => {
+      if (!Array.isArray(segment)) return '';
+      return typeof segment[0] === 'string' ? segment[0] : '';
+    })
+    .join('')
+    .trim();
+};
+
+async function translateThoughtText(text: string, targetLang: string): Promise<string> {
+  const url = new URL('https://translate.googleapis.com/translate_a/single');
+  url.searchParams.set('client', 'gtx');
+  url.searchParams.set('sl', 'auto');
+  url.searchParams.set('tl', targetLang);
+  url.searchParams.set('dt', 't');
+  url.searchParams.set('q', text);
+
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), THOUGHT_TRANSLATION_TIMEOUT_MS);
+
+  let response: Response;
+  try {
+    response = await fetch(url.toString(), {
+      method: 'GET',
+      redirect: 'follow',
+      signal: controller.signal,
+    });
+  } catch (error) {
+    if (error instanceof DOMException && error.name === 'AbortError') {
+      throw new Error('translation_timeout');
+    }
+    throw error;
+  } finally {
+    clearTimeout(timeoutId);
+  }
+
+  if (!response.ok) {
+    throw new Error(`translation_http_${response.status}`);
+  }
+  const data = (await response.json()) as unknown;
+  const translatedText = extractTranslatedText(data);
+  if (!translatedText) {
+    throw new Error('translation_empty');
+  }
+  return translatedText;
+}
 
 async function registerFetchInterceptor(): Promise<void> {
   if (!chrome.scripting?.registerContentScripts) {
@@ -208,6 +268,35 @@ chrome.runtime.onMessage.addListener((message: unknown, _sender, sendResponse) =
         });
       })
       .catch((error: unknown) => {
+        sendResponse({ ok: false, error: getErrorMessage(error) });
+      });
+
+    return true;
+  }
+
+  if (isThoughtTranslationRequest(message)) {
+    const text = typeof message.text === 'string' ? message.text.trim() : '';
+    const targetLang = typeof message.targetLang === 'string' ? message.targetLang : 'zh-CN';
+    if (!text) {
+      sendResponse({ ok: false, error: 'missing_text' });
+      return;
+    }
+
+    translateThoughtText(text, targetLang)
+      .then((translatedText) => {
+        debugService.log('background', 'thought-translation-success', {
+          targetLang,
+          sourceLength: text.length,
+          translatedLength: translatedText.length,
+        });
+        sendResponse({ ok: true, translatedText });
+      })
+      .catch((error: unknown) => {
+        debugService.log('background', 'thought-translation-failed', {
+          targetLang,
+          sourceLength: text.length,
+          error: getErrorMessage(error),
+        });
         sendResponse({ ok: false, error: getErrorMessage(error) });
       });
 

@@ -24,6 +24,35 @@ export default defineConfig({
       input: {
         popup: resolve(__dirname, 'src/pages/popup/index.html'),
       },
+      output: {
+        manualChunks(id) {
+          if (id.includes('node_modules/react') || id.includes('node_modules/react-dom')) {
+            return 'vendor-react';
+          }
+          if (id.includes('node_modules/jszip') || id.includes('node_modules/html-to-image')) {
+            return 'vendor-export';
+          }
+          if (id.includes('node_modules/mermaid')) {
+            return 'vendor-mermaid';
+          }
+          if (id.includes('/src/locales/')) {
+            return 'app-locales';
+          }
+          if (id.includes('/src/features/export/')) {
+            return 'feature-export';
+          }
+          if (id.includes('/src/features/layout/')) {
+            return 'feature-layout';
+          }
+          if (id.includes('/src/features/mermaid/') || id.includes('/src/features/thoughtTranslation/')) {
+            return 'feature-reading';
+          }
+          if (id.includes('/src/features/timeline/')) {
+            return 'feature-timeline';
+          }
+          return undefined;
+        },
+      },
     },
   },
 });

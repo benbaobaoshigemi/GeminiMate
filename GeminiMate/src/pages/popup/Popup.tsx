@@ -112,6 +112,21 @@ const normalizeSansPresetValue = (fontFamilyValue: unknown, presetValue: unknown
 
 const normalizeSerifPresetValue = (value: unknown): string => String(value || DEFAULT_SERIF_PRESET);
 
+const resolveToggleValue = (value: unknown, fallback = true): boolean => {
+  if (value === undefined) return fallback;
+  if (typeof value === 'string') {
+    const normalized = value.trim().toLowerCase();
+    if (normalized === 'true') return true;
+    if (normalized === 'false') return false;
+    if (normalized === '0') return false;
+    if (normalized === '1') return true;
+  }
+  if (typeof value === 'number') {
+    return value !== 0;
+  }
+  return value !== false;
+};
+
 const Toggle = ({
   checked,
   onChange,
@@ -291,7 +306,7 @@ const SectionHeader = ({ icon: Icon, title }: { icon: React.ElementType; title: 
 );
 
 export default function Popup() {
-  const BUILD_MARK = 'build-20260306-s11-acronym-indent-font-presets-clean-logs';
+  const BUILD_MARK = 'build-20260307-s20-mermaid-scan-boost';
 
   // View routing: 'main' or 'settings'
   const [view, setView] = useState<'main' | 'settings'>('main');
@@ -306,6 +321,7 @@ export default function Popup() {
   const [latexEnabled, setLatexEnabled] = useState(true);
   const [markdownEnabled, setMarkdownEnabled] = useState(true);
   const [mermaidEnabled, setMermaidEnabled] = useState(true);
+  const [thoughtTranslationEnabled, setThoughtTranslationEnabled] = useState(false);
 
   const [formulaCopyEnabled, setFormulaCopyEnabled] = useState(true);
   const [formulaCopyFormat, setFormulaCopyFormat] = useState<FormulaCopyFormat>('latex');
@@ -340,7 +356,8 @@ export default function Popup() {
     const keys = [
       StorageKeys.LATEX_FIXER_ENABLED,
       StorageKeys.MARKDOWN_REPAIR_ENABLED,
-      'geminimate_mermaid_enabled',
+      StorageKeys.MERMAID_RENDER_ENABLED,
+      StorageKeys.THOUGHT_TRANSLATION_ENABLED,
       StorageKeys.FORMULA_COPY_ENABLED,
       StorageKeys.FORMULA_COPY_FORMAT,
       StorageKeys.WATERMARK_REMOVER_ENABLED,
@@ -368,9 +385,10 @@ export default function Popup() {
     ];
 
     const applyResult = (result: Record<string, unknown>): void => {
-      setLatexEnabled(result[StorageKeys.LATEX_FIXER_ENABLED] ?? true);
-      setMarkdownEnabled(result[StorageKeys.MARKDOWN_REPAIR_ENABLED] ?? true);
-      setMermaidEnabled((result as Record<string, unknown>)['geminimate_mermaid_enabled'] ?? true);
+      setLatexEnabled(resolveToggleValue(result[StorageKeys.LATEX_FIXER_ENABLED]));
+      setMarkdownEnabled(resolveToggleValue(result[StorageKeys.MARKDOWN_REPAIR_ENABLED]));
+      setMermaidEnabled(resolveToggleValue(result[StorageKeys.MERMAID_RENDER_ENABLED]));
+      setThoughtTranslationEnabled(resolveToggleValue(result[StorageKeys.THOUGHT_TRANSLATION_ENABLED], false));
 
       setFormulaCopyEnabled(result[StorageKeys.FORMULA_COPY_ENABLED] ?? true);
       const rawFormat = result[StorageKeys.FORMULA_COPY_FORMAT];
@@ -378,20 +396,20 @@ export default function Popup() {
         rawFormat === 'unicodemath' || rawFormat === 'no-dollar' ? rawFormat as FormulaCopyFormat : 'latex',
       );
 
-      setWatermarkRemoverEnabled(result[StorageKeys.WATERMARK_REMOVER_ENABLED] ?? true);
-      setQuoteReplyEnabled(result[StorageKeys.QUOTE_REPLY_ENABLED] ?? true);
-      setBottomCleanupEnabled(result[StorageKeys.BOTTOM_CLEANUP_ENABLED] === true);
+      setWatermarkRemoverEnabled(resolveToggleValue(result[StorageKeys.WATERMARK_REMOVER_ENABLED]));
+      setQuoteReplyEnabled(resolveToggleValue(result[StorageKeys.QUOTE_REPLY_ENABLED]));
+      setBottomCleanupEnabled(resolveToggleValue(result[StorageKeys.BOTTOM_CLEANUP_ENABLED], false));
 
-      setTimelineEnabled(result[StorageKeys.TIMELINE_ENABLED] ?? true);
+      setTimelineEnabled(resolveToggleValue(result[StorageKeys.TIMELINE_ENABLED]));
       setTimelineWidth(Number(result[StorageKeys.TIMELINE_WIDTH]) || 24);
       setTimelineScrollMode((result as Record<string, unknown>)['geminiTimelineScrollMode'] as string ?? 'flow');
-      setTimelineHideContainer((result as Record<string, unknown>)['geminiTimelineHideContainer'] ?? false);
-      setTimelineAutoHide(result[StorageKeys.TIMELINE_AUTO_HIDE] ?? false);
+      setTimelineHideContainer(resolveToggleValue((result as Record<string, unknown>)['geminiTimelineHideContainer'], false));
+      setTimelineAutoHide(resolveToggleValue(result[StorageKeys.TIMELINE_AUTO_HIDE], false));
 
       setChatWidth(Number(result[StorageKeys.GEMINI_CHAT_WIDTH]) || 70);
       setEditInputWidth(Number(result[StorageKeys.GEMINI_EDIT_INPUT_WIDTH]) || 60);
       setSidebarWidth(Number(result[StorageKeys.GEMINI_SIDEBAR_WIDTH]) || 312);
-      setSidebarAutoHide(result[StorageKeys.GEMINI_SIDEBAR_AUTO_HIDE] ?? false);
+      setSidebarAutoHide(resolveToggleValue(result[StorageKeys.GEMINI_SIDEBAR_AUTO_HIDE], false));
 
       setFontSizeScale(Number(result[StorageKeys.GEMINI_FONT_SIZE_SCALE]) || 100);
       const rawFontFamily = result[StorageKeys.GEMINI_FONT_FAMILY];
@@ -402,19 +420,22 @@ export default function Popup() {
       setCustomFonts(result[StorageKeys.GEMINI_CUSTOM_FONTS] as typeof customFonts ?? []);
       setLetterSpacing(Number(result[StorageKeys.GEMINI_LETTER_SPACING]) || 0);
       setLineHeight(Number(result[StorageKeys.GEMINI_LINE_HEIGHT]) || 0);
-      setParagraphIndentEnabled(result[StorageKeys.GEMINI_PARAGRAPH_INDENT_ENABLED] === true);
+      setParagraphIndentEnabled(resolveToggleValue(result[StorageKeys.GEMINI_PARAGRAPH_INDENT_ENABLED], false));
       setEmphasisMode(result[StorageKeys.GEMINI_EMPHASIS_MODE] === 'underline' ? 'underline' : 'bold');
     };
 
     const applyStorageChanges = (changes: Record<string, chrome.storage.StorageChange>): void => {
       if (changes[StorageKeys.LATEX_FIXER_ENABLED]) {
-        setLatexEnabled(changes[StorageKeys.LATEX_FIXER_ENABLED].newValue ?? true);
+        setLatexEnabled(resolveToggleValue(changes[StorageKeys.LATEX_FIXER_ENABLED].newValue));
       }
       if (changes[StorageKeys.MARKDOWN_REPAIR_ENABLED]) {
-        setMarkdownEnabled(changes[StorageKeys.MARKDOWN_REPAIR_ENABLED].newValue ?? true);
+        setMarkdownEnabled(resolveToggleValue(changes[StorageKeys.MARKDOWN_REPAIR_ENABLED].newValue));
       }
-      if (changes.geminimate_mermaid_enabled) {
-        setMermaidEnabled(changes.geminimate_mermaid_enabled.newValue ?? true);
+      if (changes[StorageKeys.MERMAID_RENDER_ENABLED]) {
+        setMermaidEnabled(resolveToggleValue(changes[StorageKeys.MERMAID_RENDER_ENABLED].newValue));
+      }
+      if (changes[StorageKeys.THOUGHT_TRANSLATION_ENABLED]) {
+        setThoughtTranslationEnabled(resolveToggleValue(changes[StorageKeys.THOUGHT_TRANSLATION_ENABLED].newValue, false));
       }
       if (changes[StorageKeys.FORMULA_COPY_ENABLED]) {
         setFormulaCopyEnabled(changes[StorageKeys.FORMULA_COPY_ENABLED].newValue ?? true);
@@ -424,13 +445,13 @@ export default function Popup() {
         setFormulaCopyFormat(next === 'unicodemath' || next === 'no-dollar' ? next : 'latex');
       }
       if (changes[StorageKeys.WATERMARK_REMOVER_ENABLED]) {
-        setWatermarkRemoverEnabled(changes[StorageKeys.WATERMARK_REMOVER_ENABLED].newValue ?? true);
+        setWatermarkRemoverEnabled(resolveToggleValue(changes[StorageKeys.WATERMARK_REMOVER_ENABLED].newValue));
       }
       if (changes[StorageKeys.QUOTE_REPLY_ENABLED]) {
-        setQuoteReplyEnabled(changes[StorageKeys.QUOTE_REPLY_ENABLED].newValue ?? true);
+        setQuoteReplyEnabled(resolveToggleValue(changes[StorageKeys.QUOTE_REPLY_ENABLED].newValue));
       }
       if (changes[StorageKeys.BOTTOM_CLEANUP_ENABLED]) {
-        setBottomCleanupEnabled(changes[StorageKeys.BOTTOM_CLEANUP_ENABLED].newValue === true);
+        setBottomCleanupEnabled(resolveToggleValue(changes[StorageKeys.BOTTOM_CLEANUP_ENABLED].newValue, false));
       }
       if (changes[StorageKeys.TIMELINE_ENABLED]) {
         setTimelineEnabled(changes[StorageKeys.TIMELINE_ENABLED].newValue ?? true);
@@ -773,8 +794,20 @@ export default function Popup() {
               title="Mermaid 图表渲染"
               description="将代码块转为可视化流程图"
               checked={mermaidEnabled}
-              onChange={(v) => updateSetting('geminimate_mermaid_enabled', v, setMermaidEnabled)}
-              disabled={true}
+              onChange={(v) => updateSetting(StorageKeys.MERMAID_RENDER_ENABLED, v, setMermaidEnabled)}
+            />
+            <SettingRow
+              icon={PenTool}
+              title="思维链翻译"
+              description="仅翻译 reasoning / thoughts 面板为中文"
+              checked={thoughtTranslationEnabled}
+              onChange={(v) =>
+                updateSetting(
+                  StorageKeys.THOUGHT_TRANSLATION_ENABLED,
+                  v,
+                  setThoughtTranslationEnabled,
+                )
+              }
             />
           </div>
 

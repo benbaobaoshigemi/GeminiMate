@@ -2,8 +2,7 @@
 import { StorageKeys } from '@/core/types/common';
 import { isSafari } from '@/core/utils/browser';
 import { type AppLanguage, normalizeLanguage } from '@/utils/language';
-import { extractMessageDictionary } from '@/utils/localeMessages';
-import type { TranslationKey } from '@/utils/translations';
+import { TRANSLATIONS, type TranslationKey } from '@/utils/translations';
 
 import { ConversationExportService } from '../../../features/export/services/ConversationExportService';
 import { ImageExportService } from '../../../features/export/services/ImageExportService';
@@ -583,47 +582,7 @@ function ensureDropdownInjected(logoElement: Element): HTMLButtonElement | null 
 }
 
 async function loadDictionaries(): Promise<Record<AppLanguage, Record<string, string>>> {
-  try {
-    const [enRaw, zhRaw, zhTWRaw, jaRaw, frRaw, esRaw, ptRaw, arRaw, ruRaw, koRaw] =
-      await Promise.all([
-        import(/* @vite-ignore */ '../../../locales/en/messages.json'),
-        import(/* @vite-ignore */ '../../../locales/zh/messages.json'),
-        import(/* @vite-ignore */ '../../../locales/zh_TW/messages.json'),
-        import(/* @vite-ignore */ '../../../locales/ja/messages.json'),
-        import(/* @vite-ignore */ '../../../locales/fr/messages.json'),
-        import(/* @vite-ignore */ '../../../locales/es/messages.json'),
-        import(/* @vite-ignore */ '../../../locales/pt/messages.json'),
-        import(/* @vite-ignore */ '../../../locales/ar/messages.json'),
-        import(/* @vite-ignore */ '../../../locales/ru/messages.json'),
-        import(/* @vite-ignore */ '../../../locales/ko/messages.json'),
-      ]);
-
-    return {
-      en: extractMessageDictionary(enRaw),
-      zh: extractMessageDictionary(zhRaw),
-      zh_TW: extractMessageDictionary(zhTWRaw),
-      ja: extractMessageDictionary(jaRaw),
-      fr: extractMessageDictionary(frRaw),
-      es: extractMessageDictionary(esRaw),
-      pt: extractMessageDictionary(ptRaw),
-      ar: extractMessageDictionary(arRaw),
-      ru: extractMessageDictionary(ruRaw),
-      ko: extractMessageDictionary(koRaw),
-    };
-  } catch {
-    return {
-      en: {},
-      zh: {},
-      zh_TW: {},
-      ja: {},
-      fr: {},
-      es: {},
-      pt: {},
-      ar: {},
-      ru: {},
-      ko: {},
-    };
-  }
+  return TRANSLATIONS;
 }
 
 /**

@@ -4,6 +4,8 @@ import { logger } from '../../core/services/LoggerService';
 import { StorageKeys } from '../../core/types/common';
 import { getFormulaCopyService, startFormulaCopy, stopFormulaCopy } from '../../features/formulaCopy';
 import { startQuoteReply } from '../../features/quoteReply';
+import { setMermaidRenderEnabled, startMermaid, stopMermaid } from '../../features/mermaid';
+import { startThoughtTranslation, stopThoughtTranslation } from '../../features/thoughtTranslation';
 import { startTimeline } from '../../features/timeline';
 import { startBottomCleanup, stopBottomCleanup } from '../../features/uiCleanup';
 import { startWatermarkRemover, stopWatermarkRemover } from '../../features/watermarkRemover';
@@ -32,8 +34,22 @@ let quoteReplyCleanup: (() => void) | null = null;
 let folderManagerInstance: Awaited<ReturnType<typeof startFolderManager>> | null = null;
 let watermarkEnabled = false;
 let bottomCleanupEnabled = false;
+let mermaidEnabled = false;
+let mermaidServiceBootstrapped = false;
+let thoughtTranslationEnabled = false;
 
 const resolveEnabledValue = (value: unknown): boolean => value !== false;
+const resolveThoughtTranslationValue = (value: unknown): boolean => {
+  if (value === false || value === 'false' || value === 0 || value === '0' || value === null) {
+    return false;
+  }
+  return true;
+};
+
+const traceThoughtTranslation = (event: string, detail?: Record<string, unknown>): void => {
+  debugService.log('thought-translation', event, detail);
+  console.info('[GM-TRACE][ThoughtTranslation]', event, detail ?? {});
+};
 
 const syncFormulaCopyState = (enabled: boolean): void => {
   const service = getFormulaCopyService();
@@ -110,6 +126,36 @@ const syncBottomCleanupState = (enabled: boolean): void => {
   debugService.log('bottom-cleanup', 'toggle-off');
 };
 
+const syncMermaidState = (enabled: boolean): void => {
+  mermaidEnabled = enabled;
+  if (!mermaidServiceBootstrapped) {
+    mermaidServiceBootstrapped = true;
+    void startMermaid().then(() => {
+      setMermaidRenderEnabled(mermaidEnabled);
+      debugService.log('mermaid', 'service-bootstrapped', { renderEnabled: mermaidEnabled });
+    });
+    return;
+  }
+  setMermaidRenderEnabled(enabled);
+  debugService.log('mermaid', enabled ? 'toggle-on' : 'toggle-off');
+};
+
+const syncThoughtTranslationState = (enabled: boolean): void => {
+  if (enabled === thoughtTranslationEnabled) {
+    return;
+  }
+  thoughtTranslationEnabled = enabled;
+  if (enabled) {
+    traceThoughtTranslation('toggle-on');
+    startThoughtTranslation();
+    debugService.log('thought-translation', 'toggle-on');
+    return;
+  }
+  traceThoughtTranslation('toggle-off');
+  stopThoughtTranslation();
+  debugService.log('thought-translation', 'toggle-off');
+};
+
 const describeClickTarget = (target: EventTarget | null): Record<string, unknown> => {
   if (!(target instanceof Element)) {
     return { tag: 'unknown' };
@@ -180,6 +226,20 @@ const handleStorageChanged = (
     });
     syncBottomCleanupState(enabled);
   }
+
+  const mermaidChange = changes[StorageKeys.MERMAID_RENDER_ENABLED];
+  if (mermaidChange) {
+    const enabled = resolveEnabledValue(mermaidChange.newValue);
+    debugService.log('storage', 'mermaid-enabled-changed', { enabled });
+    syncMermaidState(enabled);
+  }
+
+  const thoughtTranslationChange = changes[StorageKeys.THOUGHT_TRANSLATION_ENABLED];
+  if (thoughtTranslationChange) {
+    const enabled = resolveThoughtTranslationValue(thoughtTranslationChange.newValue);
+    debugService.log('storage', 'thought-translation-enabled-changed', { enabled });
+    syncThoughtTranslationState(enabled);
+  }
 };
 
 const initExtension = async () => {
@@ -196,11 +256,19 @@ const initExtension = async () => {
       StorageKeys.QUOTE_REPLY_ENABLED,
       StorageKeys.WATERMARK_REMOVER_ENABLED,
       StorageKeys.BOTTOM_CLEANUP_ENABLED,
+      StorageKeys.MERMAID_RENDER_ENABLED,
+      StorageKeys.THOUGHT_TRANSLATION_ENABLED,
     ]);
     syncFormulaCopyState(resolveEnabledValue(settings[StorageKeys.FORMULA_COPY_ENABLED]));
     syncQuoteReplyState(resolveEnabledValue(settings[StorageKeys.QUOTE_REPLY_ENABLED]));
     syncWatermarkRemoverState(resolveEnabledValue(settings[StorageKeys.WATERMARK_REMOVER_ENABLED]));
     syncBottomCleanupState(resolveEnabledValue(settings[StorageKeys.BOTTOM_CLEANUP_ENABLED]));
+    syncMermaidState(resolveEnabledValue(settings[StorageKeys.MERMAID_RENDER_ENABLED]));
+    traceThoughtTranslation('initial-setting', {
+      rawValue: settings[StorageKeys.THOUGHT_TRANSLATION_ENABLED],
+      resolved: resolveThoughtTranslationValue(settings[StorageKeys.THOUGHT_TRANSLATION_ENABLED]),
+    });
+    syncThoughtTranslationState(resolveThoughtTranslationValue(settings[StorageKeys.THOUGHT_TRANSLATION_ENABLED]));
 
     // Initialize Timeline with SPA route handling
     startTimeline();
@@ -230,6 +298,8 @@ const initExtension = async () => {
       }
       stopWatermarkRemover();
       stopBottomCleanup();
+      stopMermaid();
+      stopThoughtTranslation();
       stopControlCapsule();
     });
 

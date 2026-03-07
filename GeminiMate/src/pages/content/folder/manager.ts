@@ -5723,7 +5723,7 @@ export class FolderManager {
       this.tooltipElement.style.top = `${top}px`;
 
       // Trigger reflow for animation
-      this.tooltipElement.offsetHeight;
+      void this.tooltipElement.offsetHeight;
       this.tooltipElement.classList.add('show');
     }, 200);
   }

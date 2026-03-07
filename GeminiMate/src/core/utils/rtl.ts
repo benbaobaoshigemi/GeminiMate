@@ -4,6 +4,6 @@ export function detectRTL(): boolean {
     return false;
 }
 
-export function applyRTLClass(lang?: string | null | undefined): boolean {
+export function applyRTLClass(_lang?: string | null | undefined): boolean {
     return false;
 }

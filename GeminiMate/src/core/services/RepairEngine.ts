@@ -363,19 +363,27 @@ export class RepairEngine {
   private processContainerFromSource(container: HTMLElement): void {
     const source = this.sourceSnapshots.get(container) ?? container.innerHTML;
     const currentInnerHTML = container.innerHTML;
-    if (currentInnerHTML !== source) {
-      const hasPatchMarkers = this.containsOwnPatchMarkers(currentInnerHTML);
-      const shouldRebuildMarkdown =
-        this.forceMarkdownRefresh &&
-        this.config.markdownEnabled &&
-        (currentInnerHTML.includes(MD_FIX_CLASS) || currentInnerHTML.includes(MD_MARK_CLASS));
+    const hasPatchMarkers = this.containsOwnPatchMarkers(currentInnerHTML);
+    const shouldRebuildMarkdown =
+      this.forceMarkdownRefresh &&
+      this.config.markdownEnabled &&
+      (currentInnerHTML.includes(MD_FIX_CLASS) || currentInnerHTML.includes(MD_MARK_CLASS));
+
+    if (shouldRebuildMarkdown) {
+      // Rebuild from current patched DOM even when snapshot === current HTML.
+      // This guarantees emphasis mode toggles reflow all old markdown repairs.
+      const rebuiltSource = this.extractSourceFromPatchedHtml(currentInnerHTML);
+      this.sourceSnapshots.set(container, rebuiltSource);
+      if (currentInnerHTML !== rebuiltSource) {
+        this.safeSetInnerHTML(container, rebuiltSource);
+      }
+    } else if (currentInnerHTML !== source) {
       // Reset to source when:
       // (a) no patch markers at all (external update), OR
       // (b) latex is now disabled but our rendered math markers are still present
       const shouldReset =
         !hasPatchMarkers ||
-        (!this.config.latexEnabled && currentInnerHTML.includes(DONE_CLASS)) ||
-        shouldRebuildMarkdown;
+        (!this.config.latexEnabled && currentInnerHTML.includes(DONE_CLASS));
       if (shouldReset) {
         this.safeSetInnerHTML(container, source);
       }
@@ -457,6 +465,7 @@ export class RepairEngine {
       root.querySelectorAll(`b.${MD_MARK_CLASS}:not(.${MD_FIX_CLASS}), strong.${MD_MARK_CLASS}:not(.${MD_FIX_CLASS})`),
     ).forEach((element) => {
       element.classList.remove(MD_MARK_CLASS);
+      element.classList.remove(MD_UNDERLINE_CLASS);
       element.removeAttribute('style');
       element.removeAttribute('title');
     });
@@ -578,9 +587,32 @@ export class RepairEngine {
   }
 
   private getMarkdownEmphasisStyle(): string {
+    // Bold mode: just bold weight, NO underline decoration.
+    // Underline mode: yellow dashed underline, normal weight.
     return this.config.emphasisMode === 'underline'
       ? 'border-bottom: 2px dashed #ffd400; font-weight: inherit !important;'
-      : 'border-bottom: 2px dashed #ffd400; font-weight: bold;';
+      : 'font-weight: bold;';
+  }
+
+  private applyEmphasisToElement(el: HTMLElement, repaired: boolean, styleText: string): void {
+    el.setAttribute('style', styleText);
+
+    if (this.config.emphasisMode === 'underline') {
+      el.classList.add(MD_UNDERLINE_CLASS);
+      if (!repaired) {
+        el.classList.add(MD_MARK_CLASS);
+        el.setAttribute('title', 'Markdown Emphasis Adjusted');
+      }
+      return;
+    }
+
+    el.classList.remove(MD_UNDERLINE_CLASS);
+    if (!repaired) {
+      el.classList.remove(MD_MARK_CLASS);
+      if (el.getAttribute('title') === 'Markdown Emphasis Adjusted') {
+        el.removeAttribute('title');
+      }
+    }
   }
 
   private repairMarkdown(container: HTMLElement): void {
@@ -589,7 +621,9 @@ export class RepairEngine {
 
     blocks.forEach((block) => {
       const b = block as HTMLElement;
-      if (b.closest(`pre, code, .${DONE_CLASS}`)) return;
+      // Skip any element that is inside a code block or IS the code block container.
+      // Without this, the **text** regex matches **kwargs across Python code lines.
+      if (b.closest(`pre, code, .code-block, code-block, .${DONE_CLASS}`)) return;
       if (b.querySelector('table, h1, h2, h3')) return;
 
       const originalHTML = b.innerHTML;
@@ -619,32 +653,25 @@ export class RepairEngine {
       }
     });
 
+    // Normalize all previously repaired markdown nodes to the current emphasis mode.
+    // This avoids stale underline/bold mix when users switch modes repeatedly.
+    const repairedBolds = container.querySelectorAll(`b.${MD_FIX_CLASS}, strong.${MD_FIX_CLASS}`);
+    repairedBolds.forEach((el) => {
+      const b = el as HTMLElement;
+      this.applyEmphasisToElement(b, true, boldStyle);
+    });
+
     const bolds = container.querySelectorAll(`b:not(.${MD_FIX_CLASS}), strong:not(.${MD_FIX_CLASS})`);
     bolds.forEach((el) => {
       const b = el as HTMLElement;
       if (b.closest('h1, h2, h3, h4, h5, h6')) return;
+      if (b.closest('pre, code, .code-block, code-block')) return;
       const orig = b.textContent || '';
       const trimmed = orig.trim();
       if (trimmed !== orig) {
         b.textContent = trimmed;
       }
-
-      if (this.config.emphasisMode === 'underline') {
-        b.style.borderBottom = '2px dashed #ffd400';
-        b.style.setProperty('font-weight', 'inherit', 'important');
-        b.classList.add(MD_MARK_CLASS);
-        b.classList.add(MD_UNDERLINE_CLASS);
-        b.setAttribute('title', 'Markdown Emphasis Adjusted');
-        return;
-      }
-
-      b.style.borderBottom = '';
-      b.style.removeProperty('font-weight');
-      b.classList.remove(MD_MARK_CLASS);
-      b.classList.remove(MD_UNDERLINE_CLASS);
-      if (b.getAttribute('title') === 'Markdown Emphasis Adjusted') {
-        b.removeAttribute('title');
-      }
+      this.applyEmphasisToElement(b, false, boldStyle);
     });
   }
 

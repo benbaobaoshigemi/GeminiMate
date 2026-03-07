@@ -1,8 +1,12 @@
 import { keyboardShortcutService } from '../../core/services/KeyboardShortcutService';
+import {
+  getPendingConversationLoad,
+  progressivelyLoadConversationContent,
+} from '@/features/conversationLoading/loader';
 import { StorageKeys } from '@/core/types/common';
 import { GV_RTL_CLASS, applyRTLClass } from '@/core/utils/rtl';
 
-import { getTranslationSync, initI18n } from '@/utils/i18n';
+import { getTranslationSync, getTranslationSyncUnsafe, initI18n } from '@/utils/i18n';
 import { eventBus } from './EventBus';
 import { StarredMessagesService } from './StarredMessagesService';
 import { TimelinePreviewPanel } from './TimelinePreviewPanel';
@@ -74,6 +78,10 @@ export class TimelineManager {
     trackContent?: HTMLElement | null;
     slider?: HTMLElement | null;
     sliderHandle?: HTMLElement | null;
+    topButton?: HTMLButtonElement | null;
+    refreshButton?: HTMLButtonElement | null;
+    bottomButton?: HTMLButtonElement | null;
+    statusBadge?: HTMLElement | null;
   } = { timelineBar: null, tooltip: null };
   private isScrolling = false;
 
@@ -82,6 +90,9 @@ export class TimelineManager {
   private intersectionObserver: IntersectionObserver | null = null;
   private visibleUserTurns: Set<Element> = new Set();
   private onTimelineBarClick: ((e: Event) => void) | null = null;
+  private onTopButtonClick: ((e: Event) => void) | null = null;
+  private onRefreshButtonClick: ((e: Event) => void) | null = null;
+  private onBottomButtonClick: ((e: Event) => void) | null = null;
   private onScroll: (() => void) | null = null;
   private onTimelineWheel: ((e: WheelEvent) => void) | null = null;
   private onWindowResize: (() => void) | null = null;
@@ -199,6 +210,11 @@ export class TimelineManager {
   private isNavigating: boolean = false;
   private previewPanel: TimelinePreviewPanel | null = null;
   private rtl = false;
+  private fullConversationLoadInProgress = false;
+  private topButtonResetTimer: number | null = null;
+  private refreshButtonResetTimer: number | null = null;
+  private bottomButtonResetTimer: number | null = null;
+  private statusBadgeResetTimer: number | null = null;
 
   async init(): Promise<void> {
     await initI18n();
@@ -215,6 +231,7 @@ export class TimelineManager {
     this.loadCollapsedMarkers();
     // Ensure initial render even when Gemini DOM is already stable (no mutations after observer attaches)
     this.recalculateAndRenderMarkers();
+    void this.resumePendingConversationHistoryLoad();
     // Handle URL hash for starred message navigation
     this.handleStarredMessageNavigation();
     // Initialize keyboard shortcuts
@@ -795,6 +812,49 @@ export class TimelineManager {
       document.body.appendChild(bar);
     }
     this.ui.timelineBar = bar;
+    let topButton = bar.querySelector('.timeline-top-btn') as HTMLButtonElement | null;
+    if (!topButton) {
+      topButton = document.createElement('button');
+      topButton.type = 'button';
+      topButton.className = 'timeline-action-btn timeline-top-btn';
+      topButton.innerHTML =
+        `<span class="timeline-action-icon" data-icon="vertical_align_top" aria-hidden="true">${this.getTimelineActionIconSvg('vertical_align_top')}</span>`;
+      bar.appendChild(topButton);
+    }
+    this.ui.topButton = topButton;
+    let refreshButton = bar.querySelector('.timeline-refresh-btn') as HTMLButtonElement | null;
+    if (!refreshButton) {
+      refreshButton = document.createElement('button');
+      refreshButton.type = 'button';
+      refreshButton.className = 'timeline-action-btn timeline-refresh-btn';
+      refreshButton.innerHTML =
+        `<span class="timeline-action-icon" data-icon="refresh" aria-hidden="true">${this.getTimelineActionIconSvg('refresh')}</span>`;
+      bar.appendChild(refreshButton);
+    }
+    this.ui.refreshButton = refreshButton;
+    let bottomButton = bar.querySelector('.timeline-bottom-btn') as HTMLButtonElement | null;
+    if (!bottomButton) {
+      bottomButton = document.createElement('button');
+      bottomButton.type = 'button';
+      bottomButton.className = 'timeline-action-btn timeline-bottom-btn';
+      bottomButton.innerHTML =
+        `<span class="timeline-action-icon" data-icon="vertical_align_bottom" aria-hidden="true">${this.getTimelineActionIconSvg('vertical_align_bottom')}</span>`;
+      bar.appendChild(bottomButton);
+    }
+    this.ui.bottomButton = bottomButton;
+    let statusBadge = bar.querySelector('.timeline-status-badge') as HTMLElement | null;
+    if (!statusBadge) {
+      statusBadge = document.createElement('div');
+      statusBadge.className = 'timeline-status-badge';
+      statusBadge.setAttribute('role', 'status');
+      statusBadge.setAttribute('aria-live', 'polite');
+      bar.appendChild(statusBadge);
+    }
+    this.ui.statusBadge = statusBadge;
+    this.updateTimelineTopButton('idle');
+    this.updateTimelineRefreshButton('idle');
+    this.updateTimelineBottomButton('idle');
+
     let track = bar.querySelector('.timeline-track') as HTMLElement | null;
     if (!track) {
       track = document.createElement('div');
@@ -883,6 +943,478 @@ export class TimelineManager {
         (query) => this.highlightSearchInDOM(query),
       );
     }
+  }
+
+  private getTimelineRefreshTaskId(): string {
+    return this.conversationId ? `timeline-refresh:${this.conversationId}` : 'timeline-refresh';
+  }
+
+  private clearTimelineButtonResetTimer(
+    timerKey: 'topButtonResetTimer' | 'refreshButtonResetTimer' | 'bottomButtonResetTimer',
+  ): void {
+    const timerId = this[timerKey];
+    if (timerId !== null) {
+      clearTimeout(timerId);
+      this[timerKey] = null;
+    }
+  }
+
+  private scheduleTimelineButtonReset(
+    timerKey: 'topButtonResetTimer' | 'refreshButtonResetTimer' | 'bottomButtonResetTimer',
+    callback: () => void,
+    delayMs = 1800,
+  ): void {
+    this.clearTimelineButtonResetTimer(timerKey);
+    this[timerKey] = window.setTimeout(() => {
+      this[timerKey] = null;
+      callback();
+    }, delayMs);
+  }
+
+  private getTimelineRefreshText(key: string, fallback: string): string {
+    const translated = getTranslationSyncUnsafe(key);
+    return translated === key ? fallback : translated;
+  }
+
+  private showTimelineStatus(
+    message: string,
+    tone: 'info' | 'success' | 'warning' | 'error',
+    durationMs: number = 2200,
+  ): void {
+    const badge = this.ui.statusBadge;
+    if (!badge) return;
+    if (this.statusBadgeResetTimer !== null) {
+      clearTimeout(this.statusBadgeResetTimer);
+      this.statusBadgeResetTimer = null;
+    }
+    badge.textContent = message;
+    badge.dataset.tone = tone;
+    badge.classList.add('visible');
+
+    if (durationMs > 0) {
+      this.statusBadgeResetTimer = window.setTimeout(() => {
+        this.statusBadgeResetTimer = null;
+        this.hideTimelineStatus();
+      }, durationMs);
+    }
+  }
+
+  private hideTimelineStatus(): void {
+    if (this.statusBadgeResetTimer !== null) {
+      clearTimeout(this.statusBadgeResetTimer);
+      this.statusBadgeResetTimer = null;
+    }
+    const badge = this.ui.statusBadge;
+    if (!badge) return;
+    badge.classList.remove('visible');
+    badge.textContent = '';
+    delete badge.dataset.tone;
+  }
+
+  private updateTimelineButton(
+    button: HTMLButtonElement | null | undefined,
+    state: 'idle' | 'loading' | 'success' | 'noop' | 'error',
+    options: {
+      idleLabel: string;
+      loadingLabel: string;
+      successLabel: string;
+      noopLabel: string;
+      errorLabel: string;
+      idleIcon: string;
+      successIcon?: string;
+      noopIcon?: string;
+      errorIcon?: string;
+    },
+    timerKey: 'topButtonResetTimer' | 'refreshButtonResetTimer' | 'bottomButtonResetTimer',
+    onReset: () => void,
+  ): void {
+    if (!button) return;
+
+    if (state !== 'loading') {
+      this.clearTimelineButtonResetTimer(timerKey);
+    }
+
+    const icon = button.querySelector('.timeline-action-icon, .google-symbols') as HTMLElement | null;
+    let label = options.idleLabel;
+    let iconName = options.idleIcon;
+    let busy = false;
+
+    if (state === 'loading') {
+      label = options.loadingLabel;
+      iconName = 'sync';
+      busy = true;
+    } else if (state === 'success') {
+      label = options.successLabel;
+      iconName = options.successIcon ?? 'check';
+    } else if (state === 'noop') {
+      label = options.noopLabel;
+      iconName = options.noopIcon ?? options.successIcon ?? 'done_all';
+    } else if (state === 'error') {
+      label = options.errorLabel;
+      iconName = options.errorIcon ?? 'error';
+    }
+
+    button.title = label;
+    button.setAttribute('aria-label', label);
+    button.dataset.state = state;
+    button.classList.toggle('is-loading', busy);
+    button.classList.toggle('is-success', state === 'success');
+    button.classList.toggle('is-noop', state === 'noop');
+    button.classList.toggle('is-error', state === 'error');
+    button.disabled = busy;
+    button.setAttribute('aria-busy', busy ? 'true' : 'false');
+    if (icon) {
+      icon.dataset.icon = iconName;
+      icon.classList.add('timeline-action-icon');
+      icon.innerHTML = this.getTimelineActionIconSvg(iconName);
+    }
+
+    if (state !== 'idle' && state !== 'loading') {
+      this.scheduleTimelineButtonReset(timerKey, onReset);
+    }
+  }
+
+  private getTimelineActionIconSvg(iconName: string): string {
+    const common = 'width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"';
+    switch (iconName) {
+      case 'vertical_align_top':
+        return `<svg ${common}><path d="M12 6v12"/><path d="m8 10 4-4 4 4"/><path d="M4 4h16"/></svg>`;
+      case 'vertical_align_bottom':
+        return `<svg ${common}><path d="M12 6v12"/><path d="m8 14 4 4 4-4"/><path d="M4 20h16"/></svg>`;
+      case 'north':
+        return `<svg ${common}><path d="M12 19V5"/><path d="m5 12 7-7 7 7"/></svg>`;
+      case 'south':
+        return `<svg ${common}><path d="M12 5v14"/><path d="m5 12 7 7 7-7"/></svg>`;
+      case 'sync':
+      case 'refresh':
+        return `<svg ${common}><path d="M21 12a9 9 0 1 1-2.64-6.36"/><path d="M21 3v6h-6"/></svg>`;
+      case 'check':
+      case 'done_all':
+        return `<svg ${common}><path d="m20 6-11 11-5-5"/></svg>`;
+      case 'error':
+        return `<svg ${common}><circle cx="12" cy="12" r="9"/><path d="M12 8v5"/><path d="M12 16h.01"/></svg>`;
+      default:
+        return `<svg ${common}><circle cx="12" cy="12" r="9"/></svg>`;
+    }
+  }
+
+  private updateTimelineTopButton(state: 'idle' | 'loading' | 'success' | 'noop' | 'error'): void {
+    this.updateTimelineButton(
+      this.ui.topButton,
+      state,
+      {
+        idleLabel: this.getTimelineRefreshText('timelineLoadAllToTop', 'Load all history to the top'),
+        loadingLabel: this.getTimelineRefreshText('timelineLoadAllToTopLoading', 'Loading all history to the top'),
+        successLabel: this.getTimelineRefreshText('timelineLoadAllToTopDone', 'Loaded conversation to the top'),
+        noopLabel: this.getTimelineRefreshText('timelineLoadAllToTopNoMore', 'Already at the earliest available message'),
+        errorLabel: this.getTimelineRefreshText('timelineLoadAllToTopFailed', 'Failed to load history to the top'),
+        idleIcon: 'vertical_align_top',
+        successIcon: 'done_all',
+        noopIcon: 'north',
+      },
+      'topButtonResetTimer',
+      () => this.updateTimelineTopButton('idle'),
+    );
+  }
+
+  private updateTimelineRefreshButton(
+    state: 'idle' | 'loading' | 'success' | 'noop' | 'error',
+  ): void {
+    this.updateTimelineButton(
+      this.ui.refreshButton,
+      state,
+      {
+        idleLabel: this.getTimelineRefreshText('timelineRefreshSingleBatch', 'Request one earlier batch'),
+        loadingLabel: this.getTimelineRefreshText('timelineRefreshSingleBatchLoading', 'Requesting one earlier batch'),
+        successLabel: this.getTimelineRefreshText('timelineRefreshSingleBatchDone', 'Loaded one earlier batch'),
+        noopLabel: this.getTimelineRefreshText('timelineRefreshSingleBatchNoMore', 'No earlier batch was detected this time'),
+        errorLabel: this.getTimelineRefreshText('timelineRefreshSingleBatchFailed', 'Failed to request one earlier batch'),
+        idleIcon: 'refresh',
+        successIcon: 'check',
+        noopIcon: 'refresh',
+      },
+      'refreshButtonResetTimer',
+      () => this.updateTimelineRefreshButton('idle'),
+    );
+  }
+
+  private updateTimelineBottomButton(state: 'idle' | 'loading' | 'success' | 'noop' | 'error'): void {
+    this.updateTimelineButton(
+      this.ui.bottomButton,
+      state,
+      {
+        idleLabel: this.getTimelineRefreshText('timelineJumpToBottom', 'Jump to the latest message'),
+        loadingLabel: this.getTimelineRefreshText('timelineJumpToBottomLoading', 'Moving to the latest message'),
+        successLabel: this.getTimelineRefreshText('timelineJumpToBottomDone', 'Moved to the latest message'),
+        noopLabel: this.getTimelineRefreshText('timelineJumpToBottomNoop', 'Already at the latest message'),
+        errorLabel: this.getTimelineRefreshText('timelineJumpToBottomFailed', 'Failed to move to the latest message'),
+        idleIcon: 'vertical_align_bottom',
+        successIcon: 'south',
+        noopIcon: 'south',
+      },
+      'bottomButtonResetTimer',
+      () => this.updateTimelineBottomButton('idle'),
+    );
+  }
+
+  private getConversationLoadUserSelectors(): string[] {
+    if (!this.userTurnSelector) return [];
+    return this.userTurnSelector
+      .split(',')
+      .map((selector) => selector.trim())
+      .filter(Boolean);
+  }
+
+  private getTimelineRefreshDebugContext(): Record<string, unknown> {
+    const scrollContainer = this.scrollContainer;
+    return {
+      conversationId: this.conversationId,
+      pathname: location.pathname,
+      userTurnSelector: this.userTurnSelector,
+      scrollContainer: scrollContainer
+        ? {
+          tagName: scrollContainer.tagName,
+          className: scrollContainer.className,
+          id: scrollContainer.id || '',
+          scrollTop: Math.round(scrollContainer.scrollTop || 0),
+          clientHeight: Math.round(scrollContainer.clientHeight || 0),
+          scrollHeight: Math.round(scrollContainer.scrollHeight || 0),
+        }
+        : null,
+      markerCount: this.markers.length,
+    };
+  }
+
+  private handleBusyTimelineAction(actionLabel: string): void {
+    console.info('[Timeline] Ignoring action because a conversation load is already in progress', {
+      actionLabel,
+      ...this.getTimelineRefreshDebugContext(),
+    });
+    this.showTimelineStatus(
+      this.getTimelineRefreshText('timelineActionBusy', 'Another history action is already running'),
+      'warning',
+    );
+  }
+
+  private async refreshConversationHistorySingleBatch(): Promise<void> {
+    if (this.fullConversationLoadInProgress) {
+      this.handleBusyTimelineAction('single-refresh');
+      return;
+    }
+
+    const userSelectors = this.getConversationLoadUserSelectors();
+    if (userSelectors.length === 0) {
+      console.warn('[Timeline] Cannot request one earlier batch because no user selectors are available', {
+        conversationId: this.conversationId,
+        pathname: location.pathname,
+        userTurnSelector: this.userTurnSelector,
+      });
+      this.updateTimelineRefreshButton('error');
+      this.showTimelineStatus(
+        this.getTimelineRefreshText('timelineRefreshSingleBatchFailed', 'Failed to request one earlier batch'),
+        'error',
+      );
+      return;
+    }
+
+    this.fullConversationLoadInProgress = true;
+    this.updateTimelineRefreshButton('loading');
+    this.updateTimelineTopButton('idle');
+    this.showTimelineStatus(
+      this.getTimelineRefreshText('timelineRefreshSingleBatchLoading', 'Requesting one earlier batch'),
+      'info',
+      0,
+    );
+
+    try {
+      const result = await progressivelyLoadConversationContent({
+        userSelectors,
+        scrollContainer: this.scrollContainer,
+        maxAttempts: 1,
+        maxStableAttempts: 1,
+        lateChangeWaitMs: 0,
+      });
+
+      this.refreshCriticalElementsFromDocument();
+      this.recalculateAndRenderMarkers();
+
+      if (result.loadedMore) {
+        this.updateTimelineRefreshButton('success');
+        this.showTimelineStatus(
+          this.getTimelineRefreshText('timelineRefreshSingleBatchDone', 'Loaded one earlier batch'),
+          'success',
+        );
+      } else if (result.status === 'stable') {
+        this.updateTimelineRefreshButton('noop');
+        this.showTimelineStatus(
+          this.getTimelineRefreshText('timelineRefreshSingleBatchNoMore', 'No earlier batch was detected this time'),
+          'warning',
+        );
+      } else {
+        this.updateTimelineRefreshButton('error');
+        this.showTimelineStatus(
+          this.getTimelineRefreshText('timelineRefreshSingleBatchFailed', 'Failed to request one earlier batch'),
+          'error',
+        );
+      }
+    } catch (error) {
+      console.error('[Timeline] Failed to request one earlier history batch:', error);
+      this.updateTimelineRefreshButton('error');
+      this.showTimelineStatus(
+        this.getTimelineRefreshText('timelineRefreshSingleBatchFailed', 'Failed to request one earlier batch'),
+        'error',
+      );
+    } finally {
+      this.fullConversationLoadInProgress = false;
+    }
+  }
+
+  private async refreshConversationHistory(options?: { initialAttempt?: number }): Promise<void> {
+    if (this.fullConversationLoadInProgress) {
+      this.handleBusyTimelineAction('full-refresh');
+      return;
+    }
+
+    const userSelectors = this.getConversationLoadUserSelectors();
+    if (userSelectors.length === 0) {
+      console.warn('[Timeline] Cannot refresh full conversation because no user selectors are available', {
+        conversationId: this.conversationId,
+        pathname: location.pathname,
+        userTurnSelector: this.userTurnSelector,
+      });
+      this.updateTimelineRefreshButton('error');
+      this.updateTimelineTopButton('error');
+      this.showTimelineStatus(
+        this.getTimelineRefreshText('timelineLoadAllToTopFailed', 'Failed to load history to the top'),
+        'error',
+      );
+      return;
+    }
+
+    this.fullConversationLoadInProgress = true;
+    this.updateTimelineTopButton('loading');
+    this.updateTimelineRefreshButton('loading');
+    this.showTimelineStatus(
+      this.getTimelineRefreshText('timelineLoadAllToTopLoading', 'Loading all history to the top'),
+      'info',
+      0,
+    );
+    console.info('[Timeline] Starting full conversation refresh from timeline', {
+      ...this.getTimelineRefreshDebugContext(),
+      initialAttempt: options?.initialAttempt ?? 0,
+      userSelectors,
+    });
+
+    try {
+      const result = await progressivelyLoadConversationContent({
+        taskId: this.getTimelineRefreshTaskId(),
+        userSelectors,
+        scrollContainer: this.scrollContainer,
+        initialAttempt: options?.initialAttempt,
+      });
+
+      console.info('[Timeline] Conversation refresh finished', {
+        ...this.getTimelineRefreshDebugContext(),
+        initialAttempt: options?.initialAttempt ?? 0,
+        result,
+      });
+
+      this.refreshCriticalElementsFromDocument();
+      this.recalculateAndRenderMarkers();
+
+      if (result.status === 'stable') {
+        this.updateTimelineTopButton(result.loadedMore ? 'success' : 'noop');
+        this.updateTimelineRefreshButton(result.loadedMore ? 'success' : 'idle');
+        this.showTimelineStatus(
+          result.loadedMore
+            ? this.getTimelineRefreshText('timelineLoadAllToTopDone', 'Loaded conversation to the top')
+            : this.getTimelineRefreshText('timelineLoadAllToTopNoMore', 'Already at the earliest available message'),
+          result.loadedMore ? 'success' : 'warning',
+        );
+      } else if (result.status === 'max-attempts') {
+        this.updateTimelineTopButton(result.loadedMore ? 'success' : 'error');
+        this.updateTimelineRefreshButton(result.loadedMore ? 'success' : 'idle');
+        this.showTimelineStatus(
+          result.loadedMore
+            ? this.getTimelineRefreshText('timelineLoadAllToTopDone', 'Loaded conversation to the top')
+            : this.getTimelineRefreshText('timelineLoadAllToTopFailed', 'Failed to load history to the top'),
+          result.loadedMore ? 'success' : 'error',
+        );
+      } else {
+        this.updateTimelineTopButton('error');
+        this.updateTimelineRefreshButton('idle');
+        this.showTimelineStatus(
+          this.getTimelineRefreshText('timelineLoadAllToTopFailed', 'Failed to load history to the top'),
+          'error',
+        );
+      }
+    } catch (error) {
+      console.error('[Timeline] Failed to refresh full conversation content:', error);
+      this.updateTimelineTopButton('error');
+      this.updateTimelineRefreshButton('error');
+      this.showTimelineStatus(
+        this.getTimelineRefreshText('timelineLoadAllToTopFailed', 'Failed to load history to the top'),
+        'error',
+      );
+    } finally {
+      console.info('[Timeline] Full conversation refresh flow ended', {
+        ...this.getTimelineRefreshDebugContext(),
+        initialAttempt: options?.initialAttempt ?? 0,
+      });
+      this.fullConversationLoadInProgress = false;
+    }
+  }
+
+  private jumpToConversationBottom(): void {
+    if (this.fullConversationLoadInProgress) {
+      this.handleBusyTimelineAction('jump-bottom');
+      return;
+    }
+    if (!this.scrollContainer) {
+      this.updateTimelineBottomButton('error');
+      this.showTimelineStatus(
+        this.getTimelineRefreshText('timelineJumpToBottomFailed', 'Failed to move to the latest message'),
+        'error',
+      );
+      return;
+    }
+
+    const target = Math.max(0, this.scrollContainer.scrollHeight - this.scrollContainer.clientHeight);
+    const current = Math.max(0, this.scrollContainer.scrollTop);
+    if (Math.abs(target - current) <= 2) {
+      this.updateTimelineBottomButton('noop');
+      this.showTimelineStatus(
+        this.getTimelineRefreshText('timelineJumpToBottomNoop', 'Already at the latest message'),
+        'warning',
+      );
+      return;
+    }
+
+    try {
+      this.scrollContainer.scrollTo({ top: target, behavior: 'smooth' });
+    } catch {
+      this.scrollContainer.scrollTop = target;
+    }
+    this.scheduleScrollSync();
+    this.updateTimelineBottomButton('success');
+    this.showTimelineStatus(
+      this.getTimelineRefreshText('timelineJumpToBottomDone', 'Moved to the latest message'),
+      'success',
+    );
+  }
+
+  private async resumePendingConversationHistoryLoad(): Promise<void> {
+    const pending = getPendingConversationLoad(this.getTimelineRefreshTaskId());
+    if (!pending) return;
+
+    console.info('[Timeline] Resuming pending conversation refresh after page update', {
+      ...this.getTimelineRefreshDebugContext(),
+      pendingAttempt: pending.attempt,
+      pendingTimestamp: pending.timestamp,
+      pendingUrl: pending.url,
+    });
+
+    await this.refreshConversationHistory({ initialAttempt: pending.attempt });
   }
 
   private updateIntersectionObserverTargets(): void {
@@ -1307,6 +1839,27 @@ export class TimelineManager {
   }
 
   private setupEventListeners(): void {
+    this.onTopButtonClick = (event: Event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      void this.refreshConversationHistory();
+    };
+    this.ui.topButton?.addEventListener('click', this.onTopButtonClick);
+
+    this.onRefreshButtonClick = (event: Event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      void this.refreshConversationHistorySingleBatch();
+    };
+    this.ui.refreshButton?.addEventListener('click', this.onRefreshButtonClick);
+
+    this.onBottomButtonClick = (event: Event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      this.jumpToConversationBottom();
+    };
+    this.ui.bottomButton?.addEventListener('click', this.onBottomButtonClick);
+
     this.onTimelineBarClick = (e: Event) => {
       const dot = (e.target as HTMLElement).closest('.timeline-dot') as DotElement | null;
       if (!dot) return;
@@ -2190,12 +2743,11 @@ export class TimelineManager {
     this.sliderAlwaysVisible = true;
     const railLen = Math.max(120, Math.min(240, Math.floor(barH * 0.45)));
     const railTop = Math.round(barRect.top + pad + (innerH - railLen) / 2);
-    const railLeftGap = 8;
     const sliderWidth = 12;
-    // In RTL, bar is on the left side — position slider to its right instead
+    const sliderGap = 8;
     const left = this.rtl
-      ? Math.round(barRect.right + railLeftGap)
-      : Math.round(barRect.left - railLeftGap - sliderWidth);
+      ? Math.round(barRect.left - sliderGap - sliderWidth)
+      : Math.round(barRect.right + sliderGap);
     this.ui.slider.style.left = `${left}px`;
     this.ui.slider.style.top = `${railTop}px`;
     this.ui.slider.style.height = `${railLen}px`;
@@ -2305,6 +2857,7 @@ export class TimelineManager {
     const viewportWidth = window.innerWidth;
     const viewportHeight = window.innerHeight;
     const barWidth = this.ui.timelineBar?.offsetWidth || this.timelineWidth || 24;
+    const rightAccessoryLane = this.rtl ? 4 : 28;
 
     // X-axis anchor: align timeline center to the avatar center line.
     const xAnchor = this.timelineXAxisAnchorSelectors
@@ -2313,7 +2866,7 @@ export class TimelineManager {
     const xAnchorRect = xAnchor?.getBoundingClientRect();
     const desiredLeft = xAnchorRect
       ? (xAnchorRect.left + xAnchorRect.width / 2) - barWidth / 2
-      : viewportWidth - barWidth - 4;
+      : viewportWidth - barWidth - rightAccessoryLane;
 
     const bottomAnchor = document.querySelector(
       this.timelineBottomBoundaryAnchorSelector,
@@ -2336,7 +2889,7 @@ export class TimelineManager {
     );
     const clampedLeft = Math.max(
       padding,
-      Math.min(desiredLeft, viewportWidth - barWidth - 4),
+      Math.min(desiredLeft, viewportWidth - barWidth - rightAccessoryLane),
     );
 
     return {
@@ -2380,11 +2933,15 @@ export class TimelineManager {
     const barHeight = this.ui.timelineBar.offsetHeight || 100;
     const viewportWidth = window.innerWidth;
     const viewportHeight = window.innerHeight;
+    const rightAccessoryLane = this.rtl ? 4 : 28;
 
     // Clamp to viewport bounds (4 px gap from right edge)
     const padding = 10;
     const clampedTop = Math.max(padding, Math.min(top, viewportHeight - barHeight - padding));
-    const clampedLeft = Math.max(padding, Math.min(left, viewportWidth - barWidth - 4));
+    const clampedLeft = Math.max(
+      padding,
+      Math.min(left, viewportWidth - barWidth - rightAccessoryLane),
+    );
 
     this.ui.timelineBar.style.top = `${clampedTop}px`;
     this.ui.timelineBar.style.left = `${clampedLeft}px`;
@@ -3321,6 +3878,15 @@ export class TimelineManager {
       } catch { }
     }
     try {
+      this.ui.topButton?.removeEventListener('click', this.onTopButtonClick!);
+    } catch { }
+    try {
+      this.ui.refreshButton?.removeEventListener('click', this.onRefreshButtonClick!);
+    } catch { }
+    try {
+      this.ui.bottomButton?.removeEventListener('click', this.onBottomButtonClick!);
+    } catch { }
+    try {
       window.removeEventListener('storage', this.onStorage!);
     } catch { }
     if (this.onChromeStorageChanged && typeof chrome !== 'undefined' && chrome.storage?.onChanged) {
@@ -3448,6 +4014,25 @@ export class TimelineManager {
       clearTimeout(this.sliderFadeTimer);
       this.sliderFadeTimer = null;
     }
+    if (this.refreshButtonResetTimer) {
+      clearTimeout(this.refreshButtonResetTimer);
+      this.refreshButtonResetTimer = null;
+    }
+    if (this.topButtonResetTimer) {
+      clearTimeout(this.topButtonResetTimer);
+      this.topButtonResetTimer = null;
+    }
+    if (this.bottomButtonResetTimer) {
+      clearTimeout(this.bottomButtonResetTimer);
+      this.bottomButtonResetTimer = null;
+    }
+    if (this.statusBadgeResetTimer) {
+      clearTimeout(this.statusBadgeResetTimer);
+      this.statusBadgeResetTimer = null;
+    }
+    try {
+      this.ui.refreshButton?.removeEventListener('click', this.onRefreshButtonClick!);
+    } catch { }
     this.pendingActiveId = null;
   }
 }
