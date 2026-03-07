@@ -6,6 +6,7 @@ import type { CustomFont } from '@/features/layout/customFont';
 
 type FormulaCopyFormat = 'latex' | 'unicodemath' | 'no-dollar';
 type WordResponseExportMode = 'default' | 'academic';
+type ThoughtTranslationMode = 'compare' | 'replace';
 
 const SANS_PRESET_OPTIONS = [
   {
@@ -117,15 +118,20 @@ const MAX_FONT_WEIGHT = 900;
 const clampFontWeight = (value: number): number =>
   Math.max(MIN_FONT_WEIGHT, Math.min(MAX_FONT_WEIGHT, Math.round(value)));
 const MIN_LAYOUT_SCALE = 100;
+const MIN_EDIT_INPUT_LAYOUT_SCALE = 50;
 const MAX_LAYOUT_SCALE = 170;
 const clampLayoutScale = (value: number): number =>
   Math.max(MIN_LAYOUT_SCALE, Math.min(MAX_LAYOUT_SCALE, Math.round(value)));
+const clampEditInputLayoutScale = (value: number): number =>
+  Math.max(MIN_EDIT_INPUT_LAYOUT_SCALE, Math.min(MAX_LAYOUT_SCALE, Math.round(value)));
 const CHAT_WIDTH_LEGACY_MIN = 30;
 const CHAT_WIDTH_LEGACY_DEFAULT = 70;
 const CHAT_WIDTH_LEGACY_MAX = 100;
 const EDIT_WIDTH_LEGACY_MIN = 30;
 const EDIT_WIDTH_LEGACY_DEFAULT = 60;
 const EDIT_WIDTH_LEGACY_MAX = 100;
+const normalizeThoughtTranslationMode = (value: unknown): ThoughtTranslationMode =>
+  value === 'replace' ? 'replace' : 'compare';
 
 const legacyWidthToUiScale = (value: number, legacyDefault: number, legacyMax: number): number => {
   if (legacyMax <= legacyDefault) return MIN_LAYOUT_SCALE;
@@ -139,16 +145,20 @@ const normalizeLayoutScale = (
   legacyMin: number,
   legacyDefault: number,
   legacyMax: number,
+  minScale = MIN_LAYOUT_SCALE,
 ): number => {
   const numeric = Number(raw);
-  if (!Number.isFinite(numeric)) return MIN_LAYOUT_SCALE;
-  if (numeric >= MIN_LAYOUT_SCALE && numeric <= MAX_LAYOUT_SCALE) {
-    return clampLayoutScale(numeric);
+  const clamp = minScale === MIN_EDIT_INPUT_LAYOUT_SCALE
+    ? clampEditInputLayoutScale
+    : clampLayoutScale;
+  if (!Number.isFinite(numeric)) return minScale;
+  if (numeric >= minScale && numeric <= MAX_LAYOUT_SCALE) {
+    return clamp(numeric);
   }
   if (numeric >= legacyMin && numeric <= legacyMax) {
     return legacyWidthToUiScale(numeric, legacyDefault, legacyMax);
   }
-  return MIN_LAYOUT_SCALE;
+  return minScale;
 };
 
 const resolveToggleValue = (value: unknown, fallback = true): boolean => {
@@ -371,6 +381,7 @@ export default function Popup() {
   const [mermaidEnabled, setMermaidEnabled] = useState(true);
   const [svgRenderEnabled, setSvgRenderEnabled] = useState(true);
   const [thoughtTranslationEnabled, setThoughtTranslationEnabled] = useState(false);
+  const [thoughtTranslationMode, setThoughtTranslationMode] = useState<ThoughtTranslationMode>('compare');
 
   const [formulaCopyEnabled, setFormulaCopyEnabled] = useState(true);
   const [formulaCopyFormat, setFormulaCopyFormat] = useState<FormulaCopyFormat>('latex');
@@ -415,6 +426,7 @@ export default function Popup() {
       StorageKeys.MERMAID_RENDER_ENABLED,
       StorageKeys.SVG_RENDER_ENABLED,
       StorageKeys.THOUGHT_TRANSLATION_ENABLED,
+      StorageKeys.THOUGHT_TRANSLATION_MODE,
       StorageKeys.FORMULA_COPY_ENABLED,
       StorageKeys.FORMULA_COPY_FORMAT,
       StorageKeys.WATERMARK_REMOVER_ENABLED,
@@ -452,6 +464,7 @@ export default function Popup() {
       setMermaidEnabled(resolveToggleValue(result[StorageKeys.MERMAID_RENDER_ENABLED]));
       setSvgRenderEnabled(resolveToggleValue(result[StorageKeys.SVG_RENDER_ENABLED]));
       setThoughtTranslationEnabled(resolveToggleValue(result[StorageKeys.THOUGHT_TRANSLATION_ENABLED], false));
+      setThoughtTranslationMode(normalizeThoughtTranslationMode(result[StorageKeys.THOUGHT_TRANSLATION_MODE]));
 
       setFormulaCopyEnabled(result[StorageKeys.FORMULA_COPY_ENABLED] ?? true);
       const rawFormat = result[StorageKeys.FORMULA_COPY_FORMAT];
@@ -483,6 +496,7 @@ export default function Popup() {
           EDIT_WIDTH_LEGACY_MIN,
           EDIT_WIDTH_LEGACY_DEFAULT,
           EDIT_WIDTH_LEGACY_MAX,
+          MIN_EDIT_INPUT_LAYOUT_SCALE,
         ),
       );
       setSidebarWidth(Number(result[StorageKeys.GEMINI_SIDEBAR_WIDTH]) || 312);
@@ -523,6 +537,11 @@ export default function Popup() {
       }
       if (changes[StorageKeys.THOUGHT_TRANSLATION_ENABLED]) {
         setThoughtTranslationEnabled(resolveToggleValue(changes[StorageKeys.THOUGHT_TRANSLATION_ENABLED].newValue, false));
+      }
+      if (changes[StorageKeys.THOUGHT_TRANSLATION_MODE]) {
+        setThoughtTranslationMode(
+          normalizeThoughtTranslationMode(changes[StorageKeys.THOUGHT_TRANSLATION_MODE].newValue),
+        );
       }
       if (changes[StorageKeys.FORMULA_COPY_ENABLED]) {
         setFormulaCopyEnabled(changes[StorageKeys.FORMULA_COPY_ENABLED].newValue ?? true);
@@ -572,6 +591,7 @@ export default function Popup() {
             EDIT_WIDTH_LEGACY_MIN,
             EDIT_WIDTH_LEGACY_DEFAULT,
             EDIT_WIDTH_LEGACY_MAX,
+            MIN_EDIT_INPUT_LAYOUT_SCALE,
           ),
         );
       }
@@ -1102,6 +1122,40 @@ export default function Popup() {
                 )
               }
             />
+            <div className="p-3 rounded-xl bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/5">
+              <div className="flex items-center gap-3 mb-3">
+                <div className="p-2 rounded-lg bg-blue-500/20 text-blue-400 shrink-0">
+                  <PenTool size={16} />
+                </div>
+                <div>
+                  <p className="text-sm font-medium text-slate-800 dark:text-white/90">思维链翻译模式</p>
+                  <p className="text-xs text-slate-500 dark:text-white/50">对照显示中英双栏，替换仅显示中文</p>
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-1.5">
+                {([
+                  { value: 'compare' as const, label: '对照模式', desc: '中英左右分栏' },
+                  { value: 'replace' as const, label: '替换模式', desc: '隐藏英文，仅显示中文' },
+                ] as { value: ThoughtTranslationMode; label: string; desc: string }[]).map((opt) => (
+                  <button
+                    key={opt.value}
+                    type="button"
+                    onClick={() => {
+                      setThoughtTranslationMode(opt.value);
+                      chrome.storage.local.set({ [StorageKeys.THOUGHT_TRANSLATION_MODE]: opt.value });
+                    }}
+                    className={`py-2 px-3 rounded-lg border text-xs transition-all text-left ${
+                      thoughtTranslationMode === opt.value
+                        ? 'border-blue-400/60 bg-blue-500/15 text-blue-400'
+                        : 'border-slate-200 dark:border-white/10 bg-white dark:bg-white/5 hover:bg-slate-100 dark:hover:bg-white/10 text-slate-600 dark:text-white/70'
+                    }`}
+                  >
+                    <span className="block font-medium">{opt.label}</span>
+                    <span className="block text-[10px] opacity-60 mt-0.5">{opt.desc}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
           </div>
 
           <SectionHeader icon={Layout} title="页面布局" />
@@ -1129,9 +1183,9 @@ export default function Popup() {
             <Slider
               icon={Layout}
               title="编辑输入框宽度"
-              description="以原生 100% 为基线，仅向更宽方向调节"
+              description="以原生 100% 为基线，可收窄至 50% 或扩展至 170%"
               value={editInputWidth}
-              min={100}
+              min={50}
               max={170}
               step={1}
               unit="%"
@@ -1141,7 +1195,7 @@ export default function Popup() {
                 chrome.storage.local.remove(StorageKeys.GEMINI_EDIT_INPUT_WIDTH);
               }}
               onChange={(v) => {
-                const next = clampLayoutScale(v);
+                const next = clampEditInputLayoutScale(v);
                 setEditInputWidth(next);
                 chrome.storage.local.set({ [StorageKeys.GEMINI_EDIT_INPUT_WIDTH]: next });
               }}

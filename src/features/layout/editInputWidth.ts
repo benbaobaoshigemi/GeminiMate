@@ -7,7 +7,7 @@ import { debugService } from '@/core/services/DebugService';
 
 const STYLE_ID = 'geminimate-edit-input-width';
 const UI_DEFAULT_PERCENT = 100;
-const UI_MIN_PERCENT = 100;
+const UI_MIN_PERCENT = 50;
 const UI_MAX_PERCENT = 170;
 const FALLBACK_NATIVE_VW = 60;
 let nativeBaseVw = FALLBACK_NATIVE_VW;

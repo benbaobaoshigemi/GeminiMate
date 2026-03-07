@@ -9,8 +9,8 @@ const STYLE_ID = 'geminimate-chat-width';
 const UI_DEFAULT_PERCENT = 100;
 const UI_MIN_PERCENT = 100;
 const UI_MAX_PERCENT = 170;
-const FALLBACK_NATIVE_VW = 70;
-let nativeBaseVw = FALLBACK_NATIVE_VW;
+const FALLBACK_NATIVE_PX = 960;
+let nativeBasePx = FALLBACK_NATIVE_PX;
 const WIDTH_DIAG_PREFIX = '[GM-ChatWidth]';
 
 const traceWidth = (event: string, detail: Record<string, unknown> = {}): void => {
@@ -104,7 +104,7 @@ const parsePx = (value: string): number | null => {
     return parsed;
 };
 
-const measureComputedMaxWidthVw = (selectors: string[]): number | null => {
+const measureComputedMaxWidthPx = (selectors: string[]): number | null => {
     const samples: number[] = [];
     for (const selector of selectors) {
         const elements = Array.from(document.querySelectorAll<HTMLElement>(selector));
@@ -116,7 +116,7 @@ const measureComputedMaxWidthVw = (selectors: string[]): number | null => {
             const maxWidthPx = parsePx(style.maxWidth);
             if (maxWidthPx === null) continue;
             if (maxWidthPx < 120 || maxWidthPx > window.innerWidth) continue;
-            samples.push(toVw(maxWidthPx));
+            samples.push(maxWidthPx);
         }
     }
     if (samples.length === 0) return null;
@@ -124,7 +124,7 @@ const measureComputedMaxWidthVw = (selectors: string[]): number | null => {
     return samples[Math.floor(samples.length / 2)] ?? null;
 };
 
-const measureVisibleWidthVw = (selectors: string[]): number | null => {
+const measureVisibleWidthPx = (selectors: string[]): number | null => {
     for (const selector of selectors) {
         const elements = Array.from(document.querySelectorAll<HTMLElement>(selector));
         for (const element of elements) {
@@ -132,28 +132,31 @@ const measureVisibleWidthVw = (selectors: string[]): number | null => {
             if (rect.width < 120 || rect.height < 16) continue;
             const style = window.getComputedStyle(element);
             if (style.display === 'none' || style.visibility === 'hidden') continue;
-            return toVw(rect.width);
+            return rect.width;
         }
     }
     return null;
 };
 
-const refreshNativeBaseVw = (): void => {
+const refreshNativeBasePx = (): void => {
     const style = document.getElementById(STYLE_ID);
     const previousCssText = style?.textContent ?? null;
     if (style) style.textContent = '';
     const measured =
-        measureComputedMaxWidthVw(getAssistantSelectors()) ??
-        measureComputedMaxWidthVw(getUserSelectors()) ??
-        measureVisibleWidthVw(getAssistantSelectors()) ??
-        measureVisibleWidthVw(getUserSelectors()) ??
-        measureVisibleWidthVw(['.presented-response-container', 'model-response', '.response-container']);
+        measureVisibleWidthPx(getAssistantSelectors()) ??
+        measureVisibleWidthPx(getUserSelectors()) ??
+        measureComputedMaxWidthPx(getAssistantSelectors()) ??
+        measureComputedMaxWidthPx(getUserSelectors()) ??
+        measureVisibleWidthPx(['.presented-response-container', 'model-response', '.response-container']);
     if (style && previousCssText !== null) {
         style.textContent = previousCssText;
     }
-    if (measured && Number.isFinite(measured) && measured > 20 && measured <= 100) {
-        nativeBaseVw = measured;
-        traceWidth('native-base-measured', { nativeBaseVw });
+    if (measured && Number.isFinite(measured) && measured > 120 && measured <= window.innerWidth) {
+        nativeBasePx = measured;
+        traceWidth('native-base-measured', {
+            nativeBasePx,
+            nativeBaseVw: Number(toVw(nativeBasePx).toFixed(3)),
+        });
     } else {
         traceWidth('native-base-measure-fallback', {
             measured,
@@ -174,16 +177,16 @@ const toUiPercent = (value: unknown): number => {
     }
 
     if (numeric > 0) {
-        const mapped = (numeric / Math.max(nativeBaseVw, 1)) * 100;
+        const mapped = (numeric / Math.max(nativeBasePx, 1)) * 100;
         return clampPercent(mapped, UI_MIN_PERCENT, UI_MAX_PERCENT);
     }
 
     return UI_DEFAULT_PERCENT;
 };
 
-const uiPercentToTargetVw = (uiPercent: number): number => {
+const uiPercentToTargetPx = (uiPercent: number): number => {
     const normalizedUi = clampPercent(uiPercent, UI_MIN_PERCENT, UI_MAX_PERCENT);
-    return (nativeBaseVw * normalizedUi) / 100;
+    return (nativeBasePx * normalizedUi) / 100;
 };
 
 function applyWidth(uiPercent: number) {
@@ -191,16 +194,22 @@ function applyWidth(uiPercent: number) {
     if (normalizedPercent === UI_DEFAULT_PERCENT) {
         const existingStyle = document.getElementById(STYLE_ID);
         if (existingStyle) existingStyle.remove();
-        traceWidth('apply-native', { uiPercent: normalizedPercent, nativeBaseVw });
+        traceWidth('apply-native', {
+            uiPercent: normalizedPercent,
+            nativeBasePx,
+            nativeBaseVw: Number(toVw(nativeBasePx).toFixed(3)),
+        });
         return;
     }
-    const targetWidthVw = uiPercentToTargetVw(normalizedPercent);
+    const targetWidthPx = uiPercentToTargetPx(normalizedPercent);
     traceWidth('apply-scaled', {
         uiPercent: normalizedPercent,
-        nativeBaseVw,
-        targetWidthVw,
+        nativeBasePx,
+        nativeBaseVw: Number(toVw(nativeBasePx).toFixed(3)),
+        targetWidthPx,
+        targetWidthVw: Number(toVw(targetWidthPx).toFixed(3)),
     });
-    const widthValue = `${targetWidthVw.toFixed(3)}vw`;
+    const widthValue = `${targetWidthPx.toFixed(3)}px`;
     let style = document.getElementById(STYLE_ID) as HTMLStyleElement;
     if (!style) {
         style = document.createElement('style');
@@ -272,7 +281,7 @@ function applyWidth(uiPercent: number) {
 
 export function startChatWidthAdjuster() {
     let currentWidthPercent = UI_DEFAULT_PERCENT;
-    refreshNativeBaseVw();
+    refreshNativeBasePx();
 
     chrome.storage.local.get([StorageKeys.GEMINI_CHAT_WIDTH], (res) => {
         const raw = res[StorageKeys.GEMINI_CHAT_WIDTH];
@@ -293,7 +302,7 @@ export function startChatWidthAdjuster() {
         if (debounceTimer !== null) clearTimeout(debounceTimer);
         debounceTimer = window.setTimeout(() => {
             if (currentWidthPercent === UI_DEFAULT_PERCENT) {
-                refreshNativeBaseVw();
+                refreshNativeBasePx();
             }
             applyWidth(currentWidthPercent);
             debounceTimer = null;
@@ -304,6 +313,11 @@ export function startChatWidthAdjuster() {
     if (main) {
         observer.observe(main, { childList: true, subtree: true });
     }
+
+    window.addEventListener('resize', () => {
+        refreshNativeBasePx();
+        applyWidth(currentWidthPercent);
+    });
 
     window.addEventListener('beforeunload', () => {
         observer.disconnect();

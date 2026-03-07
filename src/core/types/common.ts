@@ -20,6 +20,7 @@ export const StorageKeys = {
     MERMAID_RENDER_ENABLED: 'geminimate_mermaid_enabled',
     SVG_RENDER_ENABLED: 'geminimate_svg_render_enabled',
     THOUGHT_TRANSLATION_ENABLED: 'geminimate_thought_translation_enabled',
+    THOUGHT_TRANSLATION_MODE: 'geminimate_thought_translation_mode',
     FORMULA_COPY_ENABLED: 'geminimate_formula_copy_enabled',
     FORMULA_COPY_FORMAT: 'geminimate_formula_copy_format',
     WATERMARK_REMOVER_ENABLED: 'geminiWatermarkRemoverEnabled',
