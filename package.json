@@ -1,0 +1,44 @@
+{
+  "name": "geminimate",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "lint": "eslint .",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "clsx": "^2.1.1",
+    "html-to-image": "^1.11.13",
+    "jspdf": "^2.5.2",
+    "jszip": "^3.10.1",
+    "katex": "^0.16.11",
+    "lucide-react": "^0.468.0",
+    "mermaid": "^11.12.3",
+    "react": "^19.1.0",
+    "react-dom": "^19.1.0",
+    "tailwind-merge": "^2.5.5",
+    "temml": "^0.13.1",
+    "webextension-polyfill": "^0.12.0"
+  },
+  "devDependencies": {
+    "@crxjs/vite-plugin": "^2.2.1",
+    "@tailwindcss/vite": "^4.1.15",
+    "@types/chrome": "^0.0.301",
+    "@types/jszip": "^3.4.1",
+    "@types/katex": "^0.16.8",
+    "@types/node": "^25.3.3",
+    "@types/react": "^19.0.1",
+    "@types/react-dom": "^19.0.1",
+    "@types/webextension-polyfill": "^0.12.1",
+    "@vitejs/plugin-react": "^5.1.0",
+    "eslint": "^9.39.1",
+    "globals": "^17.4.0",
+    "tailwindcss": "^4.1.15",
+    "typescript": "^5.8.3",
+    "typescript-eslint": "^8.56.1",
+    "vite": "^7.1.11"
+  }
+}
