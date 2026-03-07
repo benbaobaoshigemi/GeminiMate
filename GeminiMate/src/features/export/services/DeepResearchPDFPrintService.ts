@@ -1,4 +1,4 @@
-import { isSafari } from '@/core/utils/browser';
+﻿import { isSafari } from '@/core/utils/browser';
 
 import type { PrintableDocumentContent } from './PDFPrintService';
 
@@ -171,7 +171,7 @@ export class DeepResearchPDFPrintService {
           <div class="gv-dr-print-report">${bodyHtml}</div>
         </div>
         <div class="gv-dr-print-footer">
-          <p>Exported from <a href="https://github.com/Nagi-ovo/gemini-voyager">Gemini Voyager</a></p>
+          <p>Exported from <a href="https://github.com/Nagi-ovo/gemini-voyager">GeminiMate</a></p>
           <p>Generated on ${this.escapeHTML(date)}</p>
         </div>
       </div>
@@ -595,3 +595,4 @@ export class DeepResearchPDFPrintService {
     return this.escapeHTML(text).replace(/"/g, '&quot;');
   }
 }
+

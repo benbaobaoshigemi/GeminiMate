@@ -15,7 +15,12 @@ const CANDIDATE_SELECTOR = [
   'model-response message-content p',
   'model-response .markdown p',
   'model-response .markdown-main-panel p',
+  'model-response .model-response-text .markdown p',
+  '.model-response-text .markdown p',
+  'message-content .markdown p',
+  '.response-content .markdown p',
   'structured-content-container message-content p',
+  'structured-content-container .markdown p',
   '[data-test-id="message-content"] p',
 ].join(', ');
 const SECTION_HEADING_RE = /^(?:第\s*[一二三四五六七八九十百千万\d]+\s*[章节部分节讲]|[一二三四五六七八九十百千万]+\s*[、.．:：-])\s*/;
@@ -68,9 +73,12 @@ const SKIP_ANCESTOR_SELECTOR = [
   'li', 'ul', 'ol', // 必须跳过列表，否则缩进会使文字脱离前面的序号
   'table', 'blockquote',
   'pre', 'code',
+  '.code-block', 'code-block',
+  '.gm-mermaid-diagram',
+  '[data-gm-mermaid-host="1"]',
   'h1', 'h2', 'h3', 'h4', 'h5', 'h6',
   'model-thoughts', '.thoughts-container', '.thoughts-content',
-  '[data-test-id*="thought"]', '[class*="thought"]'
+  '[data-test-id*="thought"]'
 ].join(', ');
 
 function shouldSkipBlock(el: HTMLElement): boolean {

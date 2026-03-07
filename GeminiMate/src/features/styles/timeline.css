@@ -135,8 +135,8 @@
   position: absolute;
   left: 50%;
   transform: translateX(-50%);
-  width: 32px;
-  height: 32px;
+  width: 36px;
+  height: 36px;
   border: 1px solid var(--timeline-control-border);
   border-radius: 999px;
   background: var(--timeline-control-bg);
@@ -168,6 +168,56 @@
   top: calc(100% + 12px);
 }
 
+.timeline-toolbox-btn {
+  top: calc(100% + 56px);
+}
+
+.timeline-toolbox-menu {
+  position: absolute;
+  top: calc(100% + 54px);
+  right: calc(100% + 14px);
+  min-width: 162px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px;
+  border-radius: 12px;
+  border: 1px solid var(--timeline-control-border);
+  background: var(--timeline-control-bg);
+  box-shadow: var(--timeline-control-shadow);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  opacity: 0;
+  transform: translateX(6px) scale(0.98);
+  pointer-events: none;
+  transition: opacity 0.14s ease, transform 0.14s ease;
+}
+
+.gemini-timeline-bar.toolbox-open .timeline-toolbox-menu,
+.timeline-toolbox-menu.visible {
+  opacity: 1;
+  transform: translateX(0) scale(1);
+  pointer-events: auto;
+}
+
+.timeline-toolbox-item {
+  width: 100%;
+  border: 1px solid transparent;
+  border-radius: 9px;
+  background: transparent;
+  color: var(--timeline-tooltip-text);
+  font-size: 12px;
+  line-height: 1.35;
+  text-align: left;
+  padding: 8px 10px;
+  cursor: pointer;
+}
+
+.timeline-toolbox-item:hover {
+  background: var(--timeline-control-hover-bg);
+  border-color: var(--timeline-control-border);
+}
+
 .timeline-action-btn:hover {
   transform: translateX(-50%) translateY(-1px);
   background: var(--timeline-control-hover-bg);
@@ -181,8 +231,8 @@
 
 .timeline-action-btn .timeline-action-icon,
 .timeline-action-btn .google-symbols {
-  width: 18px;
-  height: 18px;
+  width: 20px;
+  height: 20px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -190,8 +240,8 @@
 }
 
 .timeline-action-btn .timeline-action-icon svg {
-  width: 18px;
-  height: 18px;
+  width: 20px;
+  height: 20px;
 }
 
 .timeline-action-btn.is-success {
@@ -700,39 +750,41 @@ html.dark .timeline-left-slider::before {
 .timeline-preview-toggle {
   position: fixed;
   width: 24px;
-  height: 24px;
+  height: 44px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  background: var(--timeline-toggle-bg), var(--timeline-bar-bg);
-  border: 1px solid var(--timeline-toggle-border);
-  box-shadow: var(--timeline-toggle-shadow);
+  background: var(--timeline-control-bg);
+  border: 1px solid var(--timeline-control-border);
+  box-shadow: none;
   cursor: pointer;
   padding: 0;
-  color: var(--timeline-dot-color);
-  border-radius: 6px;
+  color: var(--timeline-dot-active-color);
+  border-radius: 9999px;
   transition:
     color 0.15s ease,
     background-color 0.15s ease,
-    opacity 0.15s ease;
+    border-color 0.15s ease,
+    opacity 0.18s ease;
   z-index: 981;
-  opacity: 0;
+  opacity: 1;
 }
 
-.gemini-timeline-bar:hover~.timeline-preview-toggle,
-.timeline-preview-toggle:hover,
-.timeline-preview-toggle.active {
-  opacity: 1;
+.timeline-preview-toggle svg {
+  width: 14px;
+  height: 14px;
 }
 
 .timeline-preview-toggle:hover {
   color: var(--timeline-dot-active-color);
-  background: var(--timeline-toggle-hover-bg), var(--timeline-tooltip-bg);
+  background: var(--timeline-control-hover-bg);
+  border-color: var(--timeline-control-border);
 }
 
 .timeline-preview-toggle.active {
   color: var(--timeline-dot-active-color);
-  background: var(--timeline-toggle-hover-bg), var(--timeline-tooltip-bg);
+  background: var(--timeline-control-hover-bg);
+  border-color: var(--timeline-control-border);
 }
 
 .timeline-preview-panel {

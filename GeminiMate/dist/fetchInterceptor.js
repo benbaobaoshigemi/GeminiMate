@@ -1,4 +1,4 @@
-/* global window, document, console, Response, Request, MutationObserver, fetch, FileReader, setTimeout */
+﻿/* global window, document, console, Response, Request, MutationObserver, fetch, FileReader, setTimeout */
 /**
  * Fetch Interceptor - Injected into MAIN world
  *
@@ -19,12 +19,12 @@
 
   // Prevent double injection
   if (window.__gvFetchInterceptorInstalled) {
-    console.log('[Gemini Voyager] Fetch interceptor already installed, skipping');
+    console.log('[GeminiMate] Fetch interceptor already installed, skipping');
     return;
   }
   window.__gvFetchInterceptorInstalled = true;
 
-  console.log('[Gemini Voyager] Fetch interceptor loading (MAIN world)...');
+  console.log('[GeminiMate] Fetch interceptor loading (MAIN world)...');
 
   /**
    * Pattern to match Gemini download URLs
@@ -138,7 +138,7 @@
       // Only process watermark removal if enabled — use async IIFE only for this path
       if (isWatermarkRemoverEnabled()) {
         return (async () => {
-          console.log('[Gemini Voyager] Intercepting download for watermark removal');
+          console.log('[GeminiMate] Intercepting download for watermark removal');
 
           // Declare response and blob outside try block so they're accessible in catch
           let response, blob;
@@ -191,7 +191,7 @@
                           .catch(reject);
                     }
                   } catch (e) {
-                    console.warn('[Gemini Voyager] Failed to parse bridge response:', e);
+                    console.warn('[GeminiMate] Failed to parse bridge response:', e);
                   }
                 }
               });
@@ -221,7 +221,7 @@
               headers: response.headers,
             });
           } catch (error) {
-            console.warn('[Gemini Voyager] Watermark processing failed, using original:', error);
+            console.warn('[GeminiMate] Watermark processing failed, using original:', error);
             updateStatus('ERROR', { message: error.message || 'Unknown error' });
             // Return the original blob if available, otherwise fall through to originalFetch
             if (blob && response) {
@@ -242,5 +242,6 @@
     return originalFetch.apply(this, args);
   };
 
-  console.log('[Gemini Voyager] Fetch interceptor active');
+  console.log('[GeminiMate] Fetch interceptor active');
 })();
+

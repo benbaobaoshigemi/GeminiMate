@@ -81,6 +81,8 @@ export class TimelineManager {
     topButton?: HTMLButtonElement | null;
     refreshButton?: HTMLButtonElement | null;
     bottomButton?: HTMLButtonElement | null;
+    toolboxButton?: HTMLButtonElement | null;
+    toolboxMenu?: HTMLElement | null;
     statusBadge?: HTMLElement | null;
   } = { timelineBar: null, tooltip: null };
   private isScrolling = false;
@@ -93,6 +95,9 @@ export class TimelineManager {
   private onTopButtonClick: ((e: Event) => void) | null = null;
   private onRefreshButtonClick: ((e: Event) => void) | null = null;
   private onBottomButtonClick: ((e: Event) => void) | null = null;
+  private onToolboxButtonClick: ((e: Event) => void) | null = null;
+  private onToolboxMenuClick: ((e: Event) => void) | null = null;
+  private onToolboxOutsidePointerDown: ((e: Event) => void) | null = null;
   private onScroll: (() => void) | null = null;
   private onTimelineWheel: ((e: WheelEvent) => void) | null = null;
   private onWindowResize: (() => void) | null = null;
@@ -188,7 +193,7 @@ export class TimelineManager {
     'a.gb_B.gb_Oa.gb_1',
     // Fallback if class names shift slightly.
     'a[aria-label*="Google"][aria-label*="Account"]',
-    'a[aria-label*="Google"][aria-label*="账号"]',
+    'a[aria-label*="Google"][aria-label*="闂佽崵濮甸崝褏绮婚幋锝冧汗?]',
     // Last-resort fallback to previous logo anchor.
     '#app-root > main > div > bard-mode-switcher > a > bard-logo > div > span',
   ];
@@ -214,6 +219,8 @@ export class TimelineManager {
   private topButtonResetTimer: number | null = null;
   private refreshButtonResetTimer: number | null = null;
   private bottomButtonResetTimer: number | null = null;
+  private toolboxOpen = false;
+  private toolboxBusy = false;
   private statusBadgeResetTimer: number | null = null;
 
   async init(): Promise<void> {
@@ -580,9 +587,7 @@ export class TimelineManager {
         title &&
         title !== 'Gemini' &&
         title !== 'Google Gemini' &&
-        title !== 'Google AI Studio' &&
         !title.startsWith('Gemini -') &&
-        !title.startsWith('Google AI Studio -') &&
         title.length > 0
       ) {
         return title;
@@ -597,7 +602,6 @@ export class TimelineManager {
         // Gemini sidebar active conversation
         'mat-list-item.mdc-list-item--activated [mat-line]',
         'mat-list-item[aria-current="page"] [mat-line]',
-        // AI Studio active conversation
         '.conversation-list-item.active .conversation-title',
         '.active-conversation .title',
       ];
@@ -842,6 +846,33 @@ export class TimelineManager {
       bar.appendChild(bottomButton);
     }
     this.ui.bottomButton = bottomButton;
+    let toolboxButton = bar.querySelector('.timeline-toolbox-btn') as HTMLButtonElement | null;
+    if (!toolboxButton) {
+      toolboxButton = document.createElement('button');
+      toolboxButton.type = 'button';
+      toolboxButton.className = 'timeline-action-btn timeline-toolbox-btn';
+      toolboxButton.innerHTML =
+        `<span class="timeline-action-icon" data-icon="construction" aria-hidden="true">${this.getTimelineActionIconSvg('construction')}</span>`;
+      toolboxButton.title = 'PDF \u5de5\u5177\u7bb1';
+      toolboxButton.setAttribute('aria-label', 'PDF \u5de5\u5177\u7bb1');
+      toolboxButton.setAttribute('aria-haspopup', 'menu');
+      toolboxButton.setAttribute('aria-expanded', 'false');
+      bar.appendChild(toolboxButton);
+    }
+    this.ui.toolboxButton = toolboxButton;
+    let toolboxMenu = bar.querySelector('.timeline-toolbox-menu') as HTMLElement | null;
+    if (!toolboxMenu) {
+      toolboxMenu = document.createElement('div');
+      toolboxMenu.className = 'timeline-toolbox-menu';
+      toolboxMenu.setAttribute('role', 'menu');
+      toolboxMenu.innerHTML = `
+        <button type="button" class="timeline-toolbox-item" data-action="long-image" role="menuitem">\u957f\u56fe\u8f6c PDF</button>
+        <button type="button" class="timeline-toolbox-item" data-action="merge-images" role="menuitem">\u591a\u56fe\u5408\u5e76 PDF</button>
+      `;
+      bar.appendChild(toolboxMenu);
+    }
+    this.ui.toolboxMenu = toolboxMenu;
+    this.setToolboxOpen(false);
     let statusBadge = bar.querySelector('.timeline-status-badge') as HTMLElement | null;
     if (!statusBadge) {
       statusBadge = document.createElement('div');
@@ -1088,6 +1119,9 @@ export class TimelineManager {
       case 'sync':
       case 'refresh':
         return `<svg ${common}><path d="M21 12a9 9 0 1 1-2.64-6.36"/><path d="M21 3v6h-6"/></svg>`;
+      case 'construction':
+      case 'toolbox':
+        return `<svg ${common}><path d="M3 21h18"/><path d="M6 17h12l1-7H5l1 7Z"/><path d="M9 10V7a3 3 0 0 1 6 0v3"/></svg>`;
       case 'check':
       case 'done_all':
         return `<svg ${common}><path d="m20 6-11 11-5-5"/></svg>`;
@@ -1155,6 +1189,92 @@ export class TimelineManager {
       'bottomButtonResetTimer',
       () => this.updateTimelineBottomButton('idle'),
     );
+  }
+
+  private setToolboxOpen(open: boolean): void {
+    this.toolboxOpen = open;
+    this.ui.timelineBar?.classList.toggle('toolbox-open', open);
+    this.ui.toolboxMenu?.classList.toggle('visible', open);
+    this.ui.toolboxButton?.setAttribute('aria-expanded', open ? 'true' : 'false');
+  }
+
+  private pickImageFiles(multiple: boolean): Promise<File[]> {
+    return new Promise((resolve) => {
+      const input = document.createElement('input');
+      input.type = 'file';
+      input.accept = 'image/png,image/jpeg,image/webp,image/jpg';
+      input.multiple = multiple;
+      input.style.display = 'none';
+      input.onchange = () => {
+        const files = Array.from(input.files ?? []);
+        input.remove();
+        resolve(files);
+      };
+      document.body.appendChild(input);
+      input.click();
+    });
+  }
+
+  private createPdfFileName(mode: 'long-image' | 'merge-images', files: File[]): string {
+    const stamp = new Date().toISOString().slice(0, 19).replace(/[T:]/g, '-');
+    if (mode === 'long-image') {
+      const first = files[0]?.name?.replace(/\.[^.]+$/, '') || 'long-image';
+      return `${first}-to-pdf-${stamp}.pdf`;
+    }
+    return `merged-images-${files.length}-${stamp}.pdf`;
+  }
+
+  private async runPdfClipboardTool(mode: 'long-image' | 'merge-images'): Promise<void> {
+    if (this.toolboxBusy) {
+      this.showTimelineStatus('PDF \u5de5\u5177\u5904\u7406\u4e2d\uff0c\u8bf7\u7a0d\u5019', 'warning', 1800);
+      return;
+    }
+    this.toolboxBusy = true;
+    this.setToolboxOpen(false);
+    const files = await this.pickImageFiles(mode === 'merge-images');
+    if (!files.length) {
+      this.toolboxBusy = false;
+      return;
+    }
+
+    try {
+      this.showTimelineStatus('\u6b63\u5728\u751f\u6210 PDF...','info', 1800);
+      const { convertLongImageToPdfBlob, mergeImagesToPdfBlob, deliverPdfBlob } = await import(
+        './pdfClipboardTools'
+      );
+      const pdfBlob =
+        mode === 'long-image'
+          ? await convertLongImageToPdfBlob(files[0])
+          : await mergeImagesToPdfBlob(files);
+
+      const name = this.createPdfFileName(mode, files);
+      const delivery = await deliverPdfBlob(pdfBlob, name);
+      if (delivery.mode === 'download-path') {
+        if (delivery.copiedToClipboard) {
+          this.showTimelineStatus(
+            `PDF \u5df2\u4e0b\u8f7d\uff0c\u6587\u4ef6\u8def\u5f84\u5df2\u590d\u5236\u5230\u526a\u8d34\u677f`,
+            'success',
+            3200,
+          );
+        } else {
+          this.showTimelineStatus(
+            `PDF \u5df2\u4e0b\u8f7d\uff0c\u4f46\u6587\u4ef6\u8def\u5f84\u590d\u5236\u5931\u8d25`,
+            'warning',
+            3200,
+          );
+        }
+      } else {
+        this.showTimelineStatus(
+          `PDF \u5df2\u4e0b\u8f7d\uff0c\u4f46\u65e0\u6cd5\u83b7\u53d6\u672c\u5730\u8def\u5f84: ${delivery.error}`,
+          'warning',
+          3800,
+        );
+      }
+    } catch (error) {
+      this.showTimelineStatus(`PDF \u5904\u7406\u5931\u8d25: ${String(error)}`, 'error', 3200);
+    } finally {
+      this.toolboxBusy = false;
+    }
   }
 
   private getConversationLoadUserSelectors(): string[] {
@@ -1472,7 +1592,7 @@ export class TimelineManager {
   /**
    * Performance-optimized filter to remove nested elements.
    * Sorts elements by depth first, which can prune the search space in the average case.
-   * Worst-case complexity: O(n²), but average case is improved over naive implementation.
+   * Worst-case complexity: O(n闂?, but average case is improved over naive implementation.
    */
   private filterTopLevel(elements: Element[]): HTMLElement[] {
     const arr = elements.map((e) => e as HTMLElement);
@@ -1859,6 +1979,33 @@ export class TimelineManager {
       this.jumpToConversationBottom();
     };
     this.ui.bottomButton?.addEventListener('click', this.onBottomButtonClick);
+    this.onToolboxButtonClick = (event: Event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      if (this.toolboxBusy) return;
+      this.setToolboxOpen(!this.toolboxOpen);
+    };
+    this.ui.toolboxButton?.addEventListener('click', this.onToolboxButtonClick);
+    this.onToolboxMenuClick = (event: Event) => {
+      const target = event.target as HTMLElement | null;
+      const action = target?.closest<HTMLElement>('.timeline-toolbox-item')?.dataset.action;
+      if (!action) return;
+      event.preventDefault();
+      event.stopPropagation();
+      if (action === 'long-image' || action === 'merge-images') {
+        void this.runPdfClipboardTool(action);
+      }
+    };
+    this.ui.toolboxMenu?.addEventListener('click', this.onToolboxMenuClick);
+    this.onToolboxOutsidePointerDown = (event: Event) => {
+      if (!this.toolboxOpen) return;
+      const target = event.target as Node | null;
+      if (!target) return;
+      const bar = this.ui.timelineBar;
+      if (bar?.contains(target)) return;
+      this.setToolboxOpen(false);
+    };
+    document.addEventListener('pointerdown', this.onToolboxOutsidePointerDown, true);
 
     this.onTimelineBarClick = (e: Event) => {
       const dot = (e.target as HTMLElement).closest('.timeline-dot') as DotElement | null;
@@ -2376,7 +2523,7 @@ export class TimelineManager {
     const padY = this.getCSSVarNumber(tip, '--timeline-tooltip-pad-y', 10);
     const borderW = this.getCSSVarNumber(tip, '--timeline-tooltip-border-w', 1);
     const maxH = Math.round(3 * lineH + 2 * padY + 2 * borderW);
-    const ell = '…';
+    const ell = '...';
     const el = this.measureEl;
     el.style.width = `${Math.max(0, Math.floor(targetWidth))}px`;
     el.textContent = String(text || '')
@@ -2450,7 +2597,7 @@ export class TimelineManager {
     tip.classList.remove('visible');
     let fullText = (dot.getAttribute('aria-label') || '').trim();
     const id = dot.dataset.targetTurnId!;
-    if (id && this.starred.has(id)) fullText = `★ ${fullText}`;
+    if (id && this.starred.has(id)) fullText = `闂?${fullText}`;
     const p = this.computePlacementInfo(dot);
     const layout = this.truncateToThreeLines(fullText, p.width);
     tip.textContent = layout.text;
@@ -2527,7 +2674,7 @@ export class TimelineManager {
     if (!tip.classList.contains('visible')) return;
     let fullText = (dot.getAttribute('aria-label') || '').trim();
     const id = dot.dataset.targetTurnId!;
-    if (id && this.starred.has(id)) fullText = `★ ${fullText}`;
+    if (id && this.starred.has(id)) fullText = `闂?${fullText}`;
     const p = this.computePlacementInfo(dot);
     const layout = this.truncateToThreeLines(fullText, p.width);
     tip.textContent = layout.text;
@@ -3417,7 +3564,7 @@ export class TimelineManager {
 
       const icon = document.createElement('span');
       icon.className = 'collapse-icon';
-      icon.textContent = isCollapsed ? '▶' : '▼';
+      icon.textContent = isCollapsed ? '\u25b6' : '\u25bc';
       collapseItem.appendChild(icon);
 
       const collapseLabel = document.createElement('span');
@@ -3887,6 +4034,15 @@ export class TimelineManager {
       this.ui.bottomButton?.removeEventListener('click', this.onBottomButtonClick!);
     } catch { }
     try {
+      this.ui.toolboxButton?.removeEventListener('click', this.onToolboxButtonClick!);
+    } catch { }
+    try {
+      this.ui.toolboxMenu?.removeEventListener('click', this.onToolboxMenuClick!);
+    } catch { }
+    try {
+      document.removeEventListener('pointerdown', this.onToolboxOutsidePointerDown!, true);
+    } catch { }
+    try {
       window.removeEventListener('storage', this.onStorage!);
     } catch { }
     if (this.onChromeStorageChanged && typeof chrome !== 'undefined' && chrome.storage?.onChanged) {
@@ -4036,3 +4192,4 @@ export class TimelineManager {
     this.pendingActiveId = null;
   }
 }
+

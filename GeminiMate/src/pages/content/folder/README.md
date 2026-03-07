@@ -1,6 +1,6 @@
-# Folder Manager
+﻿# Folder Manager
 
-This folder contains the implementation of the conversation folder management feature for Gemini Voyager.
+This folder contains the implementation of the conversation folder management feature for GeminiMate.
 
 ## Overview
 
@@ -114,3 +114,4 @@ Potential improvements that could be contributed:
 - Support for more than 2 levels of folder nesting
 - Import/export folder structure
 - Folder sharing across devices
+

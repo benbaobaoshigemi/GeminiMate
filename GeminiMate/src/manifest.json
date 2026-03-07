@@ -8,7 +8,8 @@
   },
   "permissions": [
     "storage",
-    "scripting"
+    "scripting",
+    "downloads"
   ],
   "host_permissions": [
     "https://gemini.google.com/*",
@@ -20,6 +21,14 @@
   "background": {
     "service_worker": "src/pages/background/index.ts",
     "type": "module"
+  },
+  "sandbox": {
+    "pages": [
+      "sandbox/runner.html"
+    ]
+  },
+  "content_security_policy": {
+    "sandbox": "sandbox allow-scripts allow-forms allow-modals allow-popups; script-src 'self' 'unsafe-inline' 'unsafe-eval'; child-src 'self' data: blob:;"
   },
   "content_scripts": [
     {
@@ -41,7 +50,8 @@
       "resources": [
         "contentStyle.css",
         "assets/*",
-        "fetchInterceptor.js"
+        "fetchInterceptor.js",
+        "sandbox/*"
       ],
       "matches": [
         "<all_urls>"

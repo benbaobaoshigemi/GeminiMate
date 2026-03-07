@@ -5,6 +5,7 @@ import { StorageKeys } from '@/core/types/common';
 import type { CustomFont } from '@/features/layout/customFont';
 
 type FormulaCopyFormat = 'latex' | 'unicodemath' | 'no-dollar';
+type WordResponseExportMode = 'default' | 'academic';
 
 const SANS_PRESET_OPTIONS = [
   {
@@ -111,6 +112,44 @@ const normalizeSansPresetValue = (fontFamilyValue: unknown, presetValue: unknown
 };
 
 const normalizeSerifPresetValue = (value: unknown): string => String(value || DEFAULT_SERIF_PRESET);
+const MIN_FONT_WEIGHT = 200;
+const MAX_FONT_WEIGHT = 900;
+const clampFontWeight = (value: number): number =>
+  Math.max(MIN_FONT_WEIGHT, Math.min(MAX_FONT_WEIGHT, Math.round(value)));
+const MIN_LAYOUT_SCALE = 100;
+const MAX_LAYOUT_SCALE = 170;
+const clampLayoutScale = (value: number): number =>
+  Math.max(MIN_LAYOUT_SCALE, Math.min(MAX_LAYOUT_SCALE, Math.round(value)));
+const CHAT_WIDTH_LEGACY_MIN = 30;
+const CHAT_WIDTH_LEGACY_DEFAULT = 70;
+const CHAT_WIDTH_LEGACY_MAX = 100;
+const EDIT_WIDTH_LEGACY_MIN = 30;
+const EDIT_WIDTH_LEGACY_DEFAULT = 60;
+const EDIT_WIDTH_LEGACY_MAX = 100;
+
+const legacyWidthToUiScale = (value: number, legacyDefault: number, legacyMax: number): number => {
+  if (legacyMax <= legacyDefault) return MIN_LAYOUT_SCALE;
+  const ratio = (value - legacyDefault) / (legacyMax - legacyDefault);
+  const mapped = MIN_LAYOUT_SCALE + ratio * (MAX_LAYOUT_SCALE - MIN_LAYOUT_SCALE);
+  return clampLayoutScale(mapped);
+};
+
+const normalizeLayoutScale = (
+  raw: unknown,
+  legacyMin: number,
+  legacyDefault: number,
+  legacyMax: number,
+): number => {
+  const numeric = Number(raw);
+  if (!Number.isFinite(numeric)) return MIN_LAYOUT_SCALE;
+  if (numeric >= MIN_LAYOUT_SCALE && numeric <= MAX_LAYOUT_SCALE) {
+    return clampLayoutScale(numeric);
+  }
+  if (numeric >= legacyMin && numeric <= legacyMax) {
+    return legacyWidthToUiScale(numeric, legacyDefault, legacyMax);
+  }
+  return MIN_LAYOUT_SCALE;
+};
 
 const resolveToggleValue = (value: unknown, fallback = true): boolean => {
   if (value === undefined) return fallback;
@@ -213,6 +252,7 @@ interface SliderProps {
   icon: React.ElementType;
   unit?: string;
   defaultValue?: number;
+  onReset?: () => void;
 }
 
 const Slider = ({
@@ -227,6 +267,7 @@ const Slider = ({
   icon: Icon,
   unit = 'px',
   defaultValue,
+  onReset,
 }: SliderProps) => {
   const percentage = ((value - min) / (max - min)) * 100;
   const isAtDefault = defaultValue !== undefined && value === defaultValue;
@@ -244,7 +285,14 @@ const Slider = ({
           {defaultValue !== undefined && (
             <button
               type="button"
-              onClick={() => !disabled && onChange(defaultValue)}
+              onClick={() => {
+                if (disabled) return;
+                if (onReset) {
+                  onReset();
+                  return;
+                }
+                onChange(defaultValue);
+              }}
               disabled={disabled || isAtDefault}
               title="恢复默认值"
               className={`w-6 h-6 flex items-center justify-center rounded-md text-base leading-none transition-all
@@ -337,8 +385,8 @@ export default function Popup() {
   const [timelineAutoHide, setTimelineAutoHide] = useState(false);
 
   // Layout features
-  const [chatWidth, setChatWidth] = useState(70);
-  const [editInputWidth, setEditInputWidth] = useState(60);
+  const [chatWidth, setChatWidth] = useState(100);
+  const [editInputWidth, setEditInputWidth] = useState(100);
   const [sidebarWidth, setSidebarWidth] = useState(312);
   const [sidebarAutoHide, setSidebarAutoHide] = useState(false);
 
@@ -356,6 +404,9 @@ export default function Popup() {
   const [debugFileLogEnabled, setDebugFileLogEnabled] = useState(true);
   const [debugCacheCaptureEnabled, setDebugCacheCaptureEnabled] = useState(true);
   const [debugActionStatus, setDebugActionStatus] = useState('');
+  const [wordResponseExportEnabled, setWordResponseExportEnabled] = useState(true);
+  const [wordResponseExportMode, setWordResponseExportMode] =
+    useState<WordResponseExportMode>('default');
 
   useEffect(() => {
     const keys = [
@@ -391,6 +442,8 @@ export default function Popup() {
       StorageKeys.DEBUG_MODE,
       StorageKeys.DEBUG_FILE_LOG_ENABLED,
       StorageKeys.DEBUG_CACHE_CAPTURE_ENABLED,
+      StorageKeys.WORD_RESPONSE_EXPORT_ENABLED,
+      StorageKeys.WORD_RESPONSE_EXPORT_MODE,
     ];
 
     const applyResult = (result: Record<string, unknown>): void => {
@@ -416,14 +469,28 @@ export default function Popup() {
       setTimelineHideContainer(resolveToggleValue((result as Record<string, unknown>)['geminiTimelineHideContainer'], false));
       setTimelineAutoHide(resolveToggleValue(result[StorageKeys.TIMELINE_AUTO_HIDE], false));
 
-      setChatWidth(Number(result[StorageKeys.GEMINI_CHAT_WIDTH]) || 70);
-      setEditInputWidth(Number(result[StorageKeys.GEMINI_EDIT_INPUT_WIDTH]) || 60);
+      setChatWidth(
+        normalizeLayoutScale(
+          result[StorageKeys.GEMINI_CHAT_WIDTH],
+          CHAT_WIDTH_LEGACY_MIN,
+          CHAT_WIDTH_LEGACY_DEFAULT,
+          CHAT_WIDTH_LEGACY_MAX,
+        ),
+      );
+      setEditInputWidth(
+        normalizeLayoutScale(
+          result[StorageKeys.GEMINI_EDIT_INPUT_WIDTH],
+          EDIT_WIDTH_LEGACY_MIN,
+          EDIT_WIDTH_LEGACY_DEFAULT,
+          EDIT_WIDTH_LEGACY_MAX,
+        ),
+      );
       setSidebarWidth(Number(result[StorageKeys.GEMINI_SIDEBAR_WIDTH]) || 312);
       setSidebarAutoHide(resolveToggleValue(result[StorageKeys.GEMINI_SIDEBAR_AUTO_HIDE], false));
 
       setFontSizeScale(Number(result[StorageKeys.GEMINI_FONT_SIZE_SCALE]) || 100);
       const rawFontFamily = result[StorageKeys.GEMINI_FONT_FAMILY];
-      setFontWeight(Number(result[StorageKeys.GEMINI_FONT_WEIGHT]) || 400);
+      setFontWeight(clampFontWeight(Number(result[StorageKeys.GEMINI_FONT_WEIGHT]) || 400));
       setFontFamily(normalizeFontFamilyValue(rawFontFamily));
       setSansPreset(normalizeSansPresetValue(rawFontFamily, result[StorageKeys.GEMINI_SANS_PRESET]));
       setSerifPreset(normalizeSerifPresetValue(result[StorageKeys.GEMINI_SERIF_PRESET]));
@@ -435,6 +502,10 @@ export default function Popup() {
       setDebugModeEnabled(result[StorageKeys.DEBUG_MODE] === true);
       setDebugFileLogEnabled(resolveToggleValue(result[StorageKeys.DEBUG_FILE_LOG_ENABLED], true));
       setDebugCacheCaptureEnabled(resolveToggleValue(result[StorageKeys.DEBUG_CACHE_CAPTURE_ENABLED], true));
+      setWordResponseExportEnabled(resolveToggleValue(result[StorageKeys.WORD_RESPONSE_EXPORT_ENABLED], true));
+      setWordResponseExportMode(
+        result[StorageKeys.WORD_RESPONSE_EXPORT_MODE] === 'academic' ? 'academic' : 'default',
+      );
     };
 
     const applyStorageChanges = (changes: Record<string, chrome.storage.StorageChange>): void => {
@@ -485,10 +556,24 @@ export default function Popup() {
         setTimelineAutoHide(changes[StorageKeys.TIMELINE_AUTO_HIDE].newValue ?? false);
       }
       if (changes[StorageKeys.GEMINI_CHAT_WIDTH]) {
-        setChatWidth(Number(changes[StorageKeys.GEMINI_CHAT_WIDTH].newValue) || 70);
+        setChatWidth(
+          normalizeLayoutScale(
+            changes[StorageKeys.GEMINI_CHAT_WIDTH].newValue,
+            CHAT_WIDTH_LEGACY_MIN,
+            CHAT_WIDTH_LEGACY_DEFAULT,
+            CHAT_WIDTH_LEGACY_MAX,
+          ),
+        );
       }
       if (changes[StorageKeys.GEMINI_EDIT_INPUT_WIDTH]) {
-        setEditInputWidth(Number(changes[StorageKeys.GEMINI_EDIT_INPUT_WIDTH].newValue) || 60);
+        setEditInputWidth(
+          normalizeLayoutScale(
+            changes[StorageKeys.GEMINI_EDIT_INPUT_WIDTH].newValue,
+            EDIT_WIDTH_LEGACY_MIN,
+            EDIT_WIDTH_LEGACY_DEFAULT,
+            EDIT_WIDTH_LEGACY_MAX,
+          ),
+        );
       }
       if (changes[StorageKeys.GEMINI_SIDEBAR_WIDTH]) {
         setSidebarWidth(Number(changes[StorageKeys.GEMINI_SIDEBAR_WIDTH].newValue) || 312);
@@ -500,7 +585,7 @@ export default function Popup() {
         setFontSizeScale(Number(changes[StorageKeys.GEMINI_FONT_SIZE_SCALE].newValue) || 100);
       }
       if (changes[StorageKeys.GEMINI_FONT_WEIGHT]) {
-        setFontWeight(Number(changes[StorageKeys.GEMINI_FONT_WEIGHT].newValue) || 400);
+        setFontWeight(clampFontWeight(Number(changes[StorageKeys.GEMINI_FONT_WEIGHT].newValue) || 400));
       }
       if (changes[StorageKeys.GEMINI_FONT_FAMILY]) {
         const rawFontFamily = changes[StorageKeys.GEMINI_FONT_FAMILY].newValue;
@@ -539,6 +624,18 @@ export default function Popup() {
       }
       if (changes[StorageKeys.DEBUG_CACHE_CAPTURE_ENABLED]) {
         setDebugCacheCaptureEnabled(resolveToggleValue(changes[StorageKeys.DEBUG_CACHE_CAPTURE_ENABLED].newValue, true));
+      }
+      if (changes[StorageKeys.WORD_RESPONSE_EXPORT_ENABLED]) {
+        setWordResponseExportEnabled(
+          resolveToggleValue(changes[StorageKeys.WORD_RESPONSE_EXPORT_ENABLED].newValue, true),
+        );
+      }
+      if (changes[StorageKeys.WORD_RESPONSE_EXPORT_MODE]) {
+        setWordResponseExportMode(
+          changes[StorageKeys.WORD_RESPONSE_EXPORT_MODE].newValue === 'academic'
+            ? 'academic'
+            : 'default',
+        );
       }
     };
 
@@ -659,10 +756,10 @@ export default function Popup() {
           </div>
 
           <div className="bg-white dark:bg-white/[0.02] backdrop-blur-xl border border-slate-200 dark:border-white/10 rounded-2xl p-4 mb-4">
-            <SectionHeader icon={Type} title="预置字体" />
+            <SectionHeader icon={Type} title="预置字体方案" />
             <div className="space-y-4">
               <div>
-                <p className="text-[11px] text-slate-400 dark:text-white/40 uppercase tracking-wider mb-2 px-0.5">非衬线预设</p>
+                <p className="text-[11px] text-slate-400 dark:text-white/40 uppercase tracking-wider mb-2 px-0.5">非衬线方案</p>
                 <div className="space-y-2">
                   {SANS_PRESET_OPTIONS.map((option) => (
                     <button
@@ -683,7 +780,7 @@ export default function Popup() {
               </div>
 
               <div>
-                <p className="text-[11px] text-slate-400 dark:text-white/40 uppercase tracking-wider mb-2 px-0.5">衬线预设</p>
+                <p className="text-[11px] text-slate-400 dark:text-white/40 uppercase tracking-wider mb-2 px-0.5">衬线方案</p>
                 <div className="space-y-2">
                   {SERIF_PRESET_OPTIONS.map((option) => (
                     <button
@@ -706,9 +803,9 @@ export default function Popup() {
           </div>
 
           <div className="bg-white dark:bg-white/[0.02] backdrop-blur-xl border border-slate-200 dark:border-white/10 rounded-2xl p-4">
-            <SectionHeader icon={Type} title="本地字体加载" />
+            <SectionHeader icon={Type} title="本地字体导入" />
             <p className="text-xs text-slate-500 dark:text-white/50 mb-4 px-1">
-              加载本地字体文件（.ttf / .woff / .woff2），加载后可在主界面字体族选项中选用。
+              支持导入 .ttf / .woff / .woff2 / .otf，导入后可在主面板的“字重与字体”中直接选择。
             </p>
 
             <div className="space-y-3">
@@ -719,7 +816,7 @@ export default function Popup() {
               >
                 <Upload size={16} className="text-slate-400 dark:text-white/40 shrink-0" />
                 <span className={`text-sm truncate ${fontFileLabel ? 'text-slate-700 dark:text-white/80' : 'text-slate-400 dark:text-white/40'}`}>
-                  {fontFileLabel || '点击选择字体文件 (.ttf / .woff / .woff2)'}
+                  {fontFileLabel || '点击选择字体文件（.ttf / .woff / .woff2 / .otf）'}
                 </span>
               </div>
               <input
@@ -736,7 +833,7 @@ export default function Popup() {
                   type="text"
                   value={pendingFontName}
                   onChange={(e) => setPendingFontName(e.target.value)}
-                  placeholder="字体名称（用于选择时显示）"
+                  placeholder="输入字体名称（用于列表显示）"
                   className="flex-1 px-3 py-2 rounded-lg border border-slate-200 dark:border-white/10 bg-white dark:bg-white/5 text-sm text-slate-800 dark:text-white/90 placeholder:text-slate-400 dark:placeholder:text-white/30 outline-none focus:border-blue-400/70 transition-colors"
                 />
                 <button
@@ -745,14 +842,14 @@ export default function Popup() {
                   disabled={!pendingFontName.trim() || !pendingFontData}
                   className="px-4 py-2 rounded-lg bg-blue-500 disabled:opacity-40 disabled:cursor-not-allowed hover:bg-blue-400 transition-colors text-white text-sm font-medium shrink-0"
                 >
-                  添加
+                  导入
                 </button>
               </div>
 
               {/* Loaded fonts list */}
               {customFonts.length > 0 && (
                 <div className="mt-2 space-y-1.5">
-                  <p className="text-[11px] text-slate-400 dark:text-white/40 uppercase tracking-wider px-0.5">已加载字体</p>
+                  <p className="text-[11px] text-slate-400 dark:text-white/40 uppercase tracking-wider px-0.5">已导入字体</p>
                   {customFonts.map((font) => (
                     <div
                       key={font.name}
@@ -774,18 +871,104 @@ export default function Popup() {
               )}
 
               {customFonts.length === 0 && (
-                <p className="text-xs text-slate-400 dark:text-white/30 text-center py-2">暂无已加载字体</p>
+                <p className="text-xs text-slate-400 dark:text-white/30 text-center py-2">暂未导入字体</p>
               )}
             </div>
           </div>
 
           <div className="bg-white dark:bg-white/[0.02] backdrop-blur-xl border border-slate-200 dark:border-white/10 rounded-2xl p-4 mt-4">
-            <SectionHeader icon={Settings} title="调试设置" />
+            <SectionHeader icon={PenTool} title="图表与图形显示" />
+            <div className="space-y-2">
+              <SettingRow
+                icon={PenTool}
+                title="Mermaid 图表渲染"
+                description="将 Mermaid 代码块渲染为图表（页面内可随时切回代码）"
+                checked={mermaidEnabled}
+                onChange={(v) => updateSetting(StorageKeys.MERMAID_RENDER_ENABLED, v, setMermaidEnabled)}
+              />
+              <SettingRow
+                icon={PenTool}
+                title="SVG 图形渲染"
+                description="将 SVG 源码渲染为预览图（页面内可切回源码）"
+                checked={svgRenderEnabled}
+                onChange={(v) => updateSetting(StorageKeys.SVG_RENDER_ENABLED, v, setSvgRenderEnabled)}
+              />
+            </div>
+          </div>
+
+          <div className="bg-white dark:bg-white/[0.02] backdrop-blur-xl border border-slate-200 dark:border-white/10 rounded-2xl p-4 mt-4">
+            <SectionHeader icon={Zap} title="导出功能" />
+            <div className="space-y-2">
+              <SettingRow
+                icon={Zap}
+                title="单条回复 Word 导出"
+                description="在每条助手回复下显示“导出为 Word”按钮"
+                checked={wordResponseExportEnabled}
+                onChange={(v) =>
+                  updateSetting(
+                    StorageKeys.WORD_RESPONSE_EXPORT_ENABLED,
+                    v,
+                    setWordResponseExportEnabled,
+                  )
+                }
+              />
+              <div
+                className={`p-3 rounded-xl bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/5 ${
+                  !wordResponseExportEnabled ? 'opacity-60' : ''
+                }`}
+              >
+                <div className="flex items-center gap-3 mb-3">
+                  <div className="p-2 rounded-lg bg-blue-500/20 text-blue-400 shrink-0">
+                    <Type size={16} />
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium text-slate-800 dark:text-white/90">Word 样式模式</p>
+                    <p className="text-xs text-slate-500 dark:text-white/50">
+                      默认模式跟随当前排版；学术模式使用固定论文风格
+                    </p>
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-1.5">
+                  {([
+                    { value: 'default' as const, label: '默认模式', desc: '继承当前字号、字重、缩进设置' },
+                    { value: 'academic' as const, label: '学术模式', desc: '固定 Times 风格与更宽行距' },
+                  ] as {
+                    value: WordResponseExportMode;
+                    label: string;
+                    desc: string;
+                  }[]).map((opt) => (
+                    <button
+                      key={opt.value}
+                      type="button"
+                      disabled={!wordResponseExportEnabled}
+                      onClick={() => {
+                        setWordResponseExportMode(opt.value);
+                        chrome.storage.local.set({
+                          [StorageKeys.WORD_RESPONSE_EXPORT_MODE]: opt.value,
+                        });
+                      }}
+                      className={`py-2 px-3 rounded-lg border text-xs transition-all text-left ${
+                        wordResponseExportMode === opt.value
+                          ? 'border-blue-400/60 bg-blue-500/15 text-blue-400'
+                          : 'border-slate-200 dark:border-white/10 bg-white dark:bg-white/5 hover:bg-slate-100 dark:hover:bg-white/10 text-slate-600 dark:text-white/70'
+                      } ${!wordResponseExportEnabled ? 'cursor-not-allowed' : ''}`}
+                    >
+                      <span className="block font-medium">{opt.label}</span>
+                      <span className="block text-[10px] opacity-60 mt-0.5">{opt.desc}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div className="bg-white dark:bg-white/[0.02] backdrop-blur-xl border border-slate-200 dark:border-white/10 rounded-2xl p-4 mt-4">
+            <SectionHeader icon={Settings} title="调试与诊断" />
             <div className="space-y-2">
               <SettingRow
                 icon={Settings}
                 title="调试模式"
-                description="开启后持续记录运行日志并落盘到本地 .log 目录"
+                description="开启后记录运行日志，便于定位异常"
                 checked={debugModeEnabled}
                 onChange={(v) => updateSetting(StorageKeys.DEBUG_MODE, v, setDebugModeEnabled)}
                 badge="DEBUG"
@@ -793,7 +976,7 @@ export default function Popup() {
               <SettingRow
                 icon={Settings}
                 title="日志落盘"
-                description="将运行日志持续写入 .log/geminimate-runtime.log"
+                description="将日志写入 .log/geminimate-runtime.log"
                 checked={debugFileLogEnabled}
                 onChange={(v) =>
                   updateSetting(
@@ -819,7 +1002,7 @@ export default function Popup() {
                 disabled={!debugModeEnabled}
               />
               <div className="p-3 rounded-xl bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/5">
-                <p className="text-sm font-medium text-slate-800 dark:text-white/90 mb-2">调试操作</p>
+                <p className="text-sm font-medium text-slate-800 dark:text-white/90 mb-2">诊断操作</p>
                 <div className="grid grid-cols-2 gap-2">
                   <button
                     type="button"
@@ -845,7 +1028,7 @@ export default function Popup() {
                     disabled={!debugModeEnabled || !debugCacheCaptureEnabled}
                     className="px-3 py-2 rounded-lg text-xs font-medium border border-slate-200 dark:border-white/10 bg-white dark:bg-white/5 hover:bg-slate-100 dark:hover:bg-white/10 disabled:opacity-50 disabled:cursor-not-allowed"
                   >
-                    立即抓缓存
+                    立即抓取缓存
                   </button>
                 </div>
                 {debugActionStatus ? (
@@ -872,7 +1055,7 @@ export default function Popup() {
               <span className="text-white font-bold text-lg">G</span>
             </div>
             <div>
-              <h1 className="text-lg font-bold bg-clip-text text-transparent bg-gradient-to-r from-slate-800 dark:from-white to-slate-500 dark:to-white/70">
+              <h1 className="text-lg font-bold text-slate-800 dark:text-white/90">
                 GeminiMate
               </h1>
               <p className="text-[10px] text-blue-400 font-medium tracking-wide uppercase">GeminiMate Core</p>
@@ -888,12 +1071,12 @@ export default function Popup() {
         </div>
 
         <div className="relative z-10 bg-white dark:bg-white/[0.02] backdrop-blur-xl border border-slate-200 dark:border-white/10 rounded-2xl p-4 shadow-sm dark:shadow-none">
-          <SectionHeader icon={PenTool} title="文字修复类" />
+          <SectionHeader icon={PenTool} title="内容渲染与修复" />
           <div className="space-y-2">
             <SettingRow
               icon={PenTool}
-              title="LaTeX 修补引擎"
-              description="修复公式乱码与中文间距"
+              title="LaTeX 公式修复"
+              description="修复公式乱码、符号丢失与中英混排间距"
               checked={latexEnabled}
               onChange={(v) => updateSetting(StorageKeys.LATEX_FIXER_ENABLED, v, setLatexEnabled)}
               badge="Active"
@@ -901,29 +1084,15 @@ export default function Popup() {
             <SettingRow
               icon={PenTool}
               title="Markdown 修复"
-              description="修复加粗标签破损"
+              description="修复标题、加粗、列表等常见渲染异常"
               checked={markdownEnabled}
               onChange={(v) => updateSetting(StorageKeys.MARKDOWN_REPAIR_ENABLED, v, setMarkdownEnabled)}
               badge="Active"
             />
             <SettingRow
               icon={PenTool}
-              title="Mermaid 图表渲染"
-              description="将代码块转为可视化流程图"
-              checked={mermaidEnabled}
-              onChange={(v) => updateSetting(StorageKeys.MERMAID_RENDER_ENABLED, v, setMermaidEnabled)}
-            />
-            <SettingRow
-              icon={PenTool}
-              title="SVG 图形渲染"
-              description="将 SVG 源码实时渲染为图形预览"
-              checked={svgRenderEnabled}
-              onChange={(v) => updateSetting(StorageKeys.SVG_RENDER_ENABLED, v, setSvgRenderEnabled)}
-            />
-            <SettingRow
-              icon={PenTool}
               title="思维链翻译"
-              description="仅翻译 reasoning / thoughts 面板为中文"
+              description="仅翻译 reasoning / thoughts 面板，不改正文"
               checked={thoughtTranslationEnabled}
               onChange={(v) =>
                 updateSetting(
@@ -935,48 +1104,62 @@ export default function Popup() {
             />
           </div>
 
-          <SectionHeader icon={Layout} title="UI增强类" />
+          <SectionHeader icon={Layout} title="页面布局" />
           <div className="space-y-4">
             <Slider
               icon={Layout}
               title="对话区域宽度"
-              description="限制聊天气泡在此宽度内 (窄 <--> 宽)"
+              description="以原生 100% 为基线，仅向更宽方向调节"
               value={chatWidth}
-              min={30}
-              max={100}
+              min={100}
+              max={170}
               step={1}
               unit="%"
-              defaultValue={70}
+              defaultValue={100}
+              onReset={() => {
+                setChatWidth(100);
+                chrome.storage.local.remove(StorageKeys.GEMINI_CHAT_WIDTH);
+              }}
               onChange={(v) => {
-                setChatWidth(v);
-                chrome.storage.local.set({ [StorageKeys.GEMINI_CHAT_WIDTH]: v });
+                const next = clampLayoutScale(v);
+                setChatWidth(next);
+                chrome.storage.local.set({ [StorageKeys.GEMINI_CHAT_WIDTH]: next });
               }}
             />
             <Slider
               icon={Layout}
               title="编辑输入框宽度"
-              description="对话修改框的水平伸缩比例 (窄 <--> 宽)"
+              description="以原生 100% 为基线，仅向更宽方向调节"
               value={editInputWidth}
-              min={30}
-              max={100}
+              min={100}
+              max={170}
               step={1}
               unit="%"
-              defaultValue={60}
+              defaultValue={100}
+              onReset={() => {
+                setEditInputWidth(100);
+                chrome.storage.local.remove(StorageKeys.GEMINI_EDIT_INPUT_WIDTH);
+              }}
               onChange={(v) => {
-                setEditInputWidth(v);
-                chrome.storage.local.set({ [StorageKeys.GEMINI_EDIT_INPUT_WIDTH]: v });
+                const next = clampLayoutScale(v);
+                setEditInputWidth(next);
+                chrome.storage.local.set({ [StorageKeys.GEMINI_EDIT_INPUT_WIDTH]: next });
               }}
             />
             <Slider
               icon={Layout}
               title="侧边栏宽度"
-              description="原生菜单导航列的像素宽度"
+              description="调整左侧导航栏宽度"
               value={sidebarWidth}
               min={180}
               max={540}
               step={10}
               unit="px"
               defaultValue={312}
+              onReset={() => {
+                setSidebarWidth(312);
+                chrome.storage.local.remove(StorageKeys.GEMINI_SIDEBAR_WIDTH);
+              }}
               onChange={(v) => {
                 setSidebarWidth(v);
                 chrome.storage.local.set({ [StorageKeys.GEMINI_SIDEBAR_WIDTH]: v });
@@ -985,14 +1168,14 @@ export default function Popup() {
             <SettingRow
               icon={Layout}
               title="侧栏自动收起"
-              description="鼠标离开时自动收起侧边栏，鼠标进入时展开"
+              description="鼠标离开收起，移入展开"
               checked={sidebarAutoHide}
               onChange={(v) => updateSetting(StorageKeys.GEMINI_SIDEBAR_AUTO_HIDE, v, setSidebarAutoHide)}
             />
             <SettingRow
               icon={Layout}
               title="全景模式"
-              description="隐藏底部免责声明、去除输入区阴影及两侧黑色渐变遮罩"
+              description="精简底部说明与遮罩，提升可视区域"
               checked={bottomCleanupEnabled}
               onChange={(v) =>
                 updateSetting(StorageKeys.BOTTOM_CLEANUP_ENABLED, v, setBottomCleanupEnabled)
@@ -1000,12 +1183,12 @@ export default function Popup() {
             />
           </div>
 
-          <SectionHeader icon={Type} title="排版调节" />
+          <SectionHeader icon={Type} title="阅读排版" />
           <div className="space-y-4">
             <Slider
               icon={Type}
               title="字体大小"
-              description="仅缩放消息内容与公式，UI 尺寸不变"
+              description="仅调整正文与公式大小，不改变界面控件"
               value={fontSizeScale}
               min={80}
               max={130}
@@ -1020,7 +1203,7 @@ export default function Popup() {
             <Slider
               icon={Type}
               title="字间距"
-              description="字母间距调节 (0 = 默认，每格 +0.01em)"
+              description="0 为默认，每格增加 0.01em"
               value={letterSpacing}
               min={0}
               max={15}
@@ -1035,7 +1218,7 @@ export default function Popup() {
             <Slider
               icon={Type}
               title="行间距"
-              description="行高调节 (0 = 默认，每格 +0.1 倍行高)"
+              description="0 为默认，每格增加 0.1 倍行高"
               value={lineHeight}
               min={0}
               max={8}
@@ -1050,7 +1233,7 @@ export default function Popup() {
             <SettingRow
               icon={Type}
               title="首行缩进"
-              description="响应区内的非空段落统一应用首行缩进"
+              description="仅对正文段落生效，代码块与图表不应用"
               checked={paragraphIndentEnabled}
               onChange={(v) =>
                 updateSetting(
@@ -1066,14 +1249,14 @@ export default function Popup() {
                   <PenTool size={16} />
                 </div>
                 <div>
-                  <p className="text-sm font-medium text-slate-800 dark:text-white/90">强调显示方式</p>
-                  <p className="text-xs text-slate-500 dark:text-white/50">Markdown 加粗标记的视觉呈现</p>
+                  <p className="text-sm font-medium text-slate-800 dark:text-white/90">强调文本样式</p>
+                  <p className="text-xs text-slate-500 dark:text-white/50">设置 Markdown 加粗的显示方式</p>
                 </div>
               </div>
               <div className="grid grid-cols-2 gap-1.5">
                 {([
-                  { value: 'bold' as const, label: '加粗', desc: '默认' },
-                  { value: 'underline' as const, label: '下划线', desc: '去除加粗，保留虚线' },
+                  { value: 'bold' as const, label: '加粗', desc: '保持原生加粗' },
+                  { value: 'underline' as const, label: '下划线', desc: '改为下划线强调' },
                 ] as { value: 'bold' | 'underline'; label: string; desc: string }[]).map((opt) => (
                   <button
                     key={opt.value}
@@ -1100,29 +1283,30 @@ export default function Popup() {
                   <Type size={16} />
                 </div>
                 <div>
-                  <p className="text-sm font-medium text-slate-800 dark:text-white/90">字重与字体族</p>
-                  <p className="text-xs text-slate-500 dark:text-white/50">调整消息文字的粗细与字体风格</p>
+                  <p className="text-sm font-medium text-slate-800 dark:text-white/90">字重与字体</p>
+                  <p className="text-xs text-slate-500 dark:text-white/50">统一控制正文与公式的字重和字体风格</p>
                 </div>
               </div>
               <Slider
                 icon={Type}
-                title="字重精细调节"
-                description="更细步进地调整正文粗细（25 为一档）"
+                title="字重调节"
+                description="范围 200-900，步进 50（正文与公式同步）"
                 value={fontWeight}
-                min={250}
-                max={800}
-                step={25}
+                min={200}
+                max={900}
+                step={50}
                 unit=""
                 defaultValue={400}
                 onChange={(v) => {
-                  setFontWeight(v);
-                  chrome.storage.local.set({ [StorageKeys.GEMINI_FONT_WEIGHT]: v });
+                  const next = clampFontWeight(v);
+                  setFontWeight(next);
+                  chrome.storage.local.set({ [StorageKeys.GEMINI_FONT_WEIGHT]: next });
                 }}
               />
-              <p className="text-[11px] text-slate-400 dark:text-white/40 uppercase tracking-wider mb-1.5">字体族</p>
+              <p className="text-[11px] text-slate-400 dark:text-white/40 uppercase tracking-wider mb-1.5">字体类型</p>
               <div className="grid grid-cols-3 gap-1.5">
                 {([
-                  { value: 'default', label: '默认', fontFamily: 'inherit', description: 'Gemini 原生' },
+                  { value: 'default', label: '默认', fontFamily: 'inherit', description: '跟随 Gemini 原生' },
                   { value: 'sans', label: '非衬线', fontFamily: currentSansPreset.fontFamily, description: currentSansPreset.label },
                   { value: 'serif', label: '衬线', fontFamily: currentSerifPreset.fontFamily, description: currentSerifPreset.label },
                   ...customFonts.map((f) => ({ value: f.name, label: f.name, fontFamily: f.name, description: '本地字体' })),
@@ -1152,7 +1336,7 @@ export default function Popup() {
             </div>
           </div>
 
-          <SectionHeader icon={Zap} title="功能增强类" />
+          <SectionHeader icon={Zap} title="文本交互" />
           <div className="space-y-2">
             <div className="p-3 rounded-xl bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/5 transition-all">
               <div className="flex items-center justify-between">
@@ -1162,7 +1346,7 @@ export default function Popup() {
                   </div>
                   <div>
                     <p className="text-sm font-medium text-slate-800 dark:text-white/90">公式点击复制</p>
-                    <p className="text-xs text-slate-500 dark:text-white/50">支持 LaTeX/MathML/纯文本</p>
+                    <p className="text-xs text-slate-500 dark:text-white/50">点击公式即可复制（支持 LaTeX / MathML / 纯文本）</p>
                   </div>
                 </div>
                 <Toggle
@@ -1173,7 +1357,7 @@ export default function Popup() {
 
               <div className={`mt-3 pt-3 border-t border-slate-200 dark:border-white/10 ${!formulaCopyEnabled ? 'opacity-60' : ''}`}>
                 <p className="text-sm font-medium text-slate-800 dark:text-white/90">公式复制格式</p>
-                <p className="text-xs text-slate-500 dark:text-white/50 mt-1 mb-3">选择点击公式时复制的格式</p>
+                <p className="text-xs text-slate-500 dark:text-white/50 mt-1 mb-3">选择点击公式时的默认复制格式</p>
                 <div className="space-y-2">
                   {[
                     { value: 'latex' as const, title: 'LaTeX', desc: '自动按行内/块级补全 $ 符号' },
@@ -1204,91 +1388,85 @@ export default function Popup() {
 
             <SettingRow
               icon={Zap}
-              title="水印移除 (NanoBanana)"
-              description="无损移除背景隐形水印"
-              checked={watermarkRemoverEnabled}
-              onChange={(v) => updateSetting(StorageKeys.WATERMARK_REMOVER_ENABLED, v, setWatermarkRemoverEnabled)}
-            />
-            <SettingRow
-              icon={Zap}
               title="引用回复"
               description="选中文本后自动插入引用回复"
               checked={quoteReplyEnabled}
               onChange={(v) => updateSetting(StorageKeys.QUOTE_REPLY_ENABLED, v, setQuoteReplyEnabled)}
             />
+          </div>
+
+          <SectionHeader icon={Layout} title="图像处理" />
+          <div className="space-y-2">
             <SettingRow
-              icon={Zap}
-              title="高级文件夹功能"
-              description="树形目录管理对话"
-              checked={false}
-              onChange={() => { }}
-              disabled={true}
+              icon={Layout}
+              title="水印移除 (NanoBanana)"
+              description="无损移除背景隐形水印"
+              checked={watermarkRemoverEnabled}
+              onChange={(v) => updateSetting(StorageKeys.WATERMARK_REMOVER_ENABLED, v, setWatermarkRemoverEnabled)}
             />
           </div>
 
-          <SectionHeader icon={Clock} title="时间线 (Timeline)" />
+          <SectionHeader icon={Clock} title="时间线导航" />
           <div className="space-y-2">
             <SettingRow
               icon={Clock}
               title="侧边时间线"
-              description="对话流快速导航"
+              description="在长对话中快速定位到任意轮次"
               checked={timelineEnabled}
               onChange={(v) => updateSetting(StorageKeys.TIMELINE_ENABLED, v, setTimelineEnabled)}
             />
-            <SettingRow
-              icon={Layout}
-              title="平滑滚动模式"
-              description="关闭后使用瞬间跳转"
-              checked={timelineScrollMode === 'flow'}
-              onChange={(v) => {
-                const mode = v ? 'flow' : 'jump';
-                setTimelineScrollMode(mode);
-                chrome.storage.local.set({ geminiTimelineScrollMode: mode });
-              }}
-            />
-            <SettingRow
-              icon={Layout}
-              title="隐藏原生容器"
-              description="防闪跳机制（适合长对话）"
-              checked={timelineHideContainer}
-              onChange={(v) => updateSetting('geminiTimelineHideContainer', v, setTimelineHideContainer)}
-            />
-            <SettingRow
-              icon={Layout}
-              title="侧栏自动隐藏"
-              description="平时贴边缩小，悬浮时展开"
-              checked={timelineAutoHide}
-              onChange={(v) => updateSetting(StorageKeys.TIMELINE_AUTO_HIDE, v, setTimelineAutoHide)}
-            />
-            <Slider
-              icon={Layout}
-              title="时间线粗细调节"
-              description="拖动滑块无级调整点击热区"
-              value={timelineWidth}
-              min={8}
-              max={32}
-              step={2}
-              unit="px"
-              defaultValue={24}
-              onChange={(v) => {
-                setTimelineWidth(v);
-                chrome.storage.local.set({ [StorageKeys.TIMELINE_WIDTH]: v });
-              }}
-            />
+            <div className={`mt-3 pt-3 border-t border-slate-200 dark:border-white/10 ${!timelineEnabled ? 'opacity-60' : ''}`}>
+              <p className="text-sm font-medium text-slate-800 dark:text-white/90">时间线细项</p>
+              <p className="text-xs text-slate-500 dark:text-white/50 mt-1 mb-3">用于控制滚动方式、显示形态和轨道尺寸</p>
+              <div className="space-y-2">
+                <SettingRow
+                  icon={Layout}
+                  title="平滑滚动模式"
+                  description="开启为平滑滚动，关闭为立即跳转"
+                  checked={timelineScrollMode === 'flow'}
+                  disabled={!timelineEnabled}
+                  onChange={(v) => {
+                    const mode = v ? 'flow' : 'jump';
+                    setTimelineScrollMode(mode);
+                    chrome.storage.local.set({ geminiTimelineScrollMode: mode });
+                  }}
+                />
+                <SettingRow
+                  icon={Layout}
+                  title="隐藏原生容器"
+                  description="减少滚动闪跳，长对话更稳定"
+                  checked={timelineHideContainer}
+                  disabled={!timelineEnabled}
+                  onChange={(v) => updateSetting('geminiTimelineHideContainer', v, setTimelineHideContainer)}
+                />
+                <SettingRow
+                  icon={Layout}
+                  title="自动贴边"
+                  description="不操作时自动贴边，悬浮后展开"
+                  checked={timelineAutoHide}
+                  disabled={!timelineEnabled}
+                  onChange={(v) => updateSetting(StorageKeys.TIMELINE_AUTO_HIDE, v, setTimelineAutoHide)}
+                />
+                <Slider
+                  icon={Layout}
+                  title="时间线宽度"
+                  description="调整轨道与点击热区宽度"
+                  value={timelineWidth}
+                  min={8}
+                  max={32}
+                  step={2}
+                  unit="px"
+                  defaultValue={24}
+                  disabled={!timelineEnabled}
+                  onChange={(v) => {
+                    setTimelineWidth(v);
+                    chrome.storage.local.set({ [StorageKeys.TIMELINE_WIDTH]: v });
+                  }}
+                />
+              </div>
+            </div>
           </div>
 
-          <SectionHeader icon={Settings} title="其他" />
-          <div className="space-y-2">
-            <SettingRow
-              icon={Zap}
-              title="Word 一键导出"
-              description="保留公式排版（开发中）"
-              checked={false}
-              onChange={() => { }}
-              disabled={true}
-              badge="WIP"
-            />
-          </div>
         </div>
 
         <div className="mt-4 text-center">

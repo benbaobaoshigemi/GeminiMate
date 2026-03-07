@@ -5,9 +5,11 @@ const DIAGRAM_CLASS = 'gm-mermaid-diagram';
 const TOGGLE_CLASS = 'gm-mermaid-toggle';
 const TOGGLE_BUTTON_CLASS = 'gm-mermaid-toggle-button';
 const DOWNLOAD_BUTTON_CLASS = 'gm-code-download-button';
+const SHARE_BUTTON_CLASS = 'gm-code-share-button';
 const ICON_BUTTON_CLASS = 'gm-code-action-button';
 const MERMAID_HOST_ATTR = 'data-gm-mermaid-host';
 const DOWNLOAD_BUTTON_ATTR = 'data-gm-code-download';
+const SHARE_BUTTON_ATTR = 'data-gm-code-share';
 const VIEW_ATTR = 'data-gm-mermaid-view';
 const CODE_ATTR = 'data-gm-mermaid-code';
 const PROCESSING_ATTR = 'data-gm-mermaid-processing';
@@ -26,12 +28,13 @@ let debounceTimer: number | null = null;
 const startupTimerIds = new Set<number>();
 let fullscreenModal: HTMLElement | null = null;
 let fullscreenKeydownHandler: ((event: KeyboardEvent) => void) | null = null;
-const TRACE_ENABLED = false;
-const DEFAULT_MERMAID_FONT_FAMILY = 'Google Sans, Roboto, sans-serif';
+const TRACE_ENABLED = true;
+const DEFAULT_MERMAID_FONT_FAMILY = "'Google Sans Flex', 'Google Sans', 'Helvetica Neue', sans-serif";
 const STABLE_MERMAID_FONT_FAMILY =
-  "'Google Sans', Roboto, 'PingFang SC', 'Noto Sans CJK SC', 'Microsoft YaHei', sans-serif";
+  "'Google Sans Flex', 'Google Sans', 'Helvetica Neue', Roboto, 'PingFang SC', 'Noto Sans CJK SC', 'Microsoft YaHei', sans-serif";
 let resolvedMermaidFontFamily = STABLE_MERMAID_FONT_FAMILY;
 const boundDownloadButtons = new WeakSet<HTMLButtonElement>();
+const boundShareButtons = new WeakSet<HTMLButtonElement>();
 const boundToggleButtons = new WeakSet<HTMLButtonElement>();
 const boundDiagramContainers = new WeakSet<HTMLElement>();
 
@@ -140,6 +143,12 @@ const DOWNLOAD_ICON = `
     <path d="M12 3a1 1 0 0 1 1 1v8.59l2.3-2.29a1 1 0 1 1 1.4 1.41l-4 4a1 1 0 0 1-1.4 0l-4-4a1 1 0 0 1 1.4-1.41L11 12.59V4a1 1 0 0 1 1-1Zm-7 14a1 1 0 0 1 1 1v1h12v-1a1 1 0 1 1 2 0v2a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1v-2a1 1 0 0 1 1-1Z" fill="currentColor"/>
   </svg>
 `;
+const SHARE_ICON = `
+  <svg viewBox="0 0 24 24" aria-hidden="true">
+    <path d="M14 4h6v6h-2V7.41l-7.29 7.3-1.42-1.42L16.59 6H14V4Z" fill="currentColor"/>
+    <path d="M5 5h6v2H7v10h10v-4h2v6H5V5Z" fill="currentColor"/>
+  </svg>
+`;
 
 const logTrace = (event: string, detail?: Record<string, unknown>): void => {
   if (!TRACE_ENABLED) return;
@@ -158,11 +167,8 @@ export const normalizeWhitespace = (code: string): string =>
     .replace(/[\u00A0\u2002\u2003\u2009\u3000]/g, ' ')
     .replace(/[\u200B\u200C\u200D\uFEFF]/g, '');
 
-const resolveMermaidFontFamily = (): string => {
-  // Keep Mermaid metrics stable and aligned with reference behavior.
-  // Dynamic runtime font switching can cause label overflow/clipping.
-  return STABLE_MERMAID_FONT_FAMILY || DEFAULT_MERMAID_FONT_FAMILY;
-};
+const resolveMermaidFontFamily = (): string =>
+  STABLE_MERMAID_FONT_FAMILY || DEFAULT_MERMAID_FONT_FAMILY;
 
 const syncResolvedMermaidFontFamily = (): boolean => {
   const next = resolveMermaidFontFamily();
@@ -183,6 +189,17 @@ const waitForDocumentFonts = async (): Promise<void> => {
     }),
   ]);
 };
+
+const isDarkContext = (): boolean =>
+  document.body.classList.contains('dark-theme') ||
+  document.body.classList.contains('dark') ||
+  document.body.getAttribute('data-theme') === 'dark' ||
+  document.body.getAttribute('data-color-scheme') === 'dark' ||
+  document.documentElement.classList.contains('dark') ||
+  document.documentElement.classList.contains('dark-theme') ||
+  document.documentElement.getAttribute('data-theme') === 'dark' ||
+  document.documentElement.getAttribute('data-color-scheme') === 'dark' ||
+  window.matchMedia('(prefers-color-scheme: dark)').matches;
 
 export const isGenericLanguageLabel = (language: string | null): boolean => {
   if (!language) return true;
@@ -237,14 +254,19 @@ const ensureStyles = (): void => {
       flex: 0 0 auto;
     }
 
-    .${DOWNLOAD_BUTTON_CLASS} {
+    .${SHARE_BUTTON_CLASS} {
       order: 2;
+      flex: 0 0 auto;
+    }
+
+    .${DOWNLOAD_BUTTON_CLASS} {
+      order: 3;
       flex: 0 0 auto;
     }
 
     .code-block-decoration .buttons > .copy-button,
     .code-block-decoration .buttons > button.copy-button {
-      order: 3;
+      order: 4;
       flex: 0 0 auto;
     }
 
@@ -462,11 +484,7 @@ const initMermaid = async (): Promise<boolean> => {
   const mermaid = await loadMermaid();
   if (!mermaid) return false;
 
-  const isDarkMode =
-    document.body.classList.contains('dark-theme') ||
-    document.body.getAttribute('data-theme') === 'dark' ||
-    document.documentElement.classList.contains('dark') ||
-    window.matchMedia('(prefers-color-scheme: dark)').matches;
+  const isDarkMode = isDarkContext();
 
   resolvedMermaidFontFamily = resolveMermaidFontFamily();
 
@@ -478,6 +496,30 @@ const initMermaid = async (): Promise<boolean> => {
     fontFamily: resolvedMermaidFontFamily,
     themeVariables: {
       fontFamily: resolvedMermaidFontFamily,
+      darkMode: isDarkMode,
+      background: isDarkMode ? '#0b1020' : '#ffffff',
+      primaryColor: isDarkMode ? '#1f2937' : '#eceff5',
+      primaryTextColor: isDarkMode ? '#e5e7eb' : '#1f2937',
+      secondaryColor: isDarkMode ? '#111827' : '#f8fafc',
+      tertiaryColor: isDarkMode ? '#0f172a' : '#ffffff',
+      lineColor: isDarkMode ? '#cbd5e1' : '#374151',
+      clusterBkg: isDarkMode ? '#111827' : '#e0f2fe',
+      clusterBorder: isDarkMode ? '#94a3b8' : '#0f766e',
+      edgeLabelBackground: isDarkMode ? '#111827' : '#f8fafc',
+    },
+    /*
+     * Use pure SVG text labels to avoid runtime CSS pollution from page styles
+     * (preview previously diverged from modal/download due to foreignObject HTML labels).
+     */
+    flowchart: {
+      htmlLabels: false,
+      curve: 'basis',
+    },
+    state: {
+      useMaxWidth: false,
+    },
+    sequence: {
+      useMaxWidth: false,
     },
     logLevel: 5,
   });
@@ -550,6 +592,14 @@ const ensureSvgFontStyleTag = (svg: SVGElement): void => {
       overflow: visible !important;
       line-height: 1.25 !important;
     }
+    foreignObject div, foreignObject span, foreignObject p {
+      margin: 0 !important;
+      padding: 0 !important;
+      background: transparent !important;
+      border: 0 !important;
+      box-shadow: none !important;
+      color: inherit !important;
+    }
   `;
 };
 
@@ -567,9 +617,28 @@ const serializeSvg = (svgElement: SVGElement): string => {
     clone.setAttribute('xmlns:xlink', 'http://www.w3.org/1999/xlink');
   }
 
+  clone.style.setProperty('font-family', resolvedMermaidFontFamily, 'important');
+  clone.style.setProperty('overflow', 'visible', 'important');
+
   const defs = clone.querySelector('defs') ?? clone.insertBefore(document.createElementNS('http://www.w3.org/2000/svg', 'defs'), clone.firstChild);
   const style = document.createElementNS('http://www.w3.org/2000/svg', 'style');
-  style.textContent = `text, tspan, .label, .nodeLabel, .edgeLabel, foreignObject, foreignObject * { font-family: ${resolvedMermaidFontFamily} !important; }`;
+  style.textContent = `
+    text, tspan, .label, .nodeLabel, .edgeLabel, foreignObject, foreignObject * {
+      font-family: ${resolvedMermaidFontFamily} !important;
+    }
+    .label, .edgeLabel, foreignObject, foreignObject * {
+      overflow: visible !important;
+      line-height: 1.25 !important;
+    }
+    foreignObject div, foreignObject span, foreignObject p {
+      margin: 0 !important;
+      padding: 0 !important;
+      background: transparent !important;
+      border: 0 !important;
+      box-shadow: none !important;
+      color: inherit !important;
+    }
+  `;
   defs.appendChild(style);
 
   return new XMLSerializer().serializeToString(clone);
@@ -722,15 +791,188 @@ const downloadCurrentContent = (codeBlockHost: HTMLElement): void => {
   });
 };
 
-const createIconButton = (title: string): HTMLButtonElement => {
+const openShareHtml = (html: string, title: string): boolean => {
+  if (!html.trim()) {
+    logTrace('share-window-open-failed', { reason: 'empty-html' });
+    return false;
+  }
+
+  try {
+    const runnerUrl = chrome.runtime.getURL('sandbox/runner.html');
+    const previewWindow = window.open(runnerUrl, '_blank');
+    if (!previewWindow) {
+      logTrace('share-window-open-failed', { reason: 'window-open-blocked' });
+      return false;
+    }
+
+    const handleMessage = (event: MessageEvent): void => {
+      if (event.source !== previewWindow || event.data?.type !== 'RUNNER_READY') {
+        return;
+      }
+
+      window.removeEventListener('message', handleMessage);
+      previewWindow.postMessage(
+        {
+          type: 'PREVIEW_HTML',
+          html,
+          title,
+        },
+        '*',
+      );
+      logTrace('share-window-opened', { title, htmlLength: html.length });
+    };
+
+    window.addEventListener('message', handleMessage);
+    return true;
+  } catch (error) {
+    logTrace('share-window-open-failed', { reason: 'send-message-exception', error: String(error) });
+    return false;
+  }
+};
+
+const wrapHtmlDocument = (body: string, title: string, bodyStyle: string): string => `<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <title>${title}</title>
+  </head>
+  <body style="${bodyStyle}">${body}</body>
+</html>`;
+
+const looksLikeSvgSource = (sourceCode: string): boolean =>
+  /<\s*svg\b/i.test(sourceCode);
+
+const looksLikeHtmlSource = (sourceCode: string): boolean =>
+  /<\s*(?:!doctype|html|head|body|script|style|div|span|main|section|article|canvas|iframe)\b/i.test(
+    sourceCode,
+  );
+
+const shareCurrentContent = (codeBlockHost: HTMLElement): void => {
+  const codeElement = getCodeElementFromHost(codeBlockHost);
+  const sourceCode = normalizeCodeSource(codeElement?.textContent || '');
+  const language = getCodeBlockLanguage(codeElement ?? codeBlockHost);
+  const isMermaidHost = codeBlockHost.getAttribute(MERMAID_HOST_ATTR) === '1';
+  const svgElement = getDiagramContainer(codeBlockHost)?.querySelector('svg');
+
+  if (isMermaidHost && svgElement instanceof SVGElement) {
+    const svgText = serializeSvg(svgElement);
+    const html = wrapHtmlDocument(
+      svgText,
+      'Mermaid Share',
+      'margin:0;padding:24px;background:#0b1020;display:flex;justify-content:center;align-items:flex-start;',
+    );
+    openShareHtml(html, 'Mermaid Share');
+    return;
+  }
+
+  if (!sourceCode.trim()) {
+    return;
+  }
+  const isSvgSource = language === 'svg' || looksLikeSvgSource(sourceCode);
+  const isHtmlSource = language === 'html' || looksLikeHtmlSource(sourceCode);
+  logTrace('share-detect', {
+    language,
+    isMermaidHost,
+    isSvgSource,
+    isHtmlSource,
+    sourceLength: sourceCode.length,
+  });
+
+  if (isHtmlSource) {
+    const html = /<\s*(?:!doctype|html|head|body)\b/i.test(sourceCode)
+      ? sourceCode
+      : wrapHtmlDocument(
+          sourceCode,
+          'HTML Share',
+          'margin:0;padding:24px;background:#f8fafc;color:#0f172a;',
+        );
+    openShareHtml(html, 'HTML Share');
+    return;
+  }
+  if (isSvgSource) {
+    const html = wrapHtmlDocument(
+      sourceCode,
+      'SVG Share',
+      'margin:0;padding:24px;background:#f8fafc;display:flex;justify-content:center;',
+    );
+    openShareHtml(html, 'SVG Share');
+    return;
+  }
+};
+
+const createIconButton = (
+  title: string,
+  icon: string,
+  attrName: string,
+  extraClassName: string,
+): HTMLButtonElement => {
   const button = document.createElement('button');
   button.type = 'button';
-  button.className = `${ICON_BUTTON_CLASS} ${DOWNLOAD_BUTTON_CLASS}`;
-  button.innerHTML = DOWNLOAD_ICON;
+  button.className = `${ICON_BUTTON_CLASS} ${extraClassName}`;
+  button.innerHTML = icon;
   button.title = title;
   button.setAttribute('aria-label', title);
-  button.setAttribute(DOWNLOAD_BUTTON_ATTR, '1');
+  button.setAttribute(attrName, '1');
   return button;
+};
+
+const bindShareButton = (button: HTMLButtonElement, codeBlockHost: HTMLElement): void => {
+  if (boundShareButtons.has(button)) return;
+  button.addEventListener('click', (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    shareCurrentContent(codeBlockHost);
+  });
+  boundShareButtons.add(button);
+};
+
+const updateShareButtonState = (codeBlockHost: HTMLElement): void => {
+  const button = codeBlockHost.querySelector(`[${SHARE_BUTTON_ATTR}="1"]`) as HTMLButtonElement | null;
+  if (!button) return;
+  const codeElement = getCodeElementFromHost(codeBlockHost);
+  const sourceCode = normalizeCodeSource(codeElement?.textContent || '');
+  const language = getCodeBlockLanguage(codeElement ?? codeBlockHost);
+  const isMermaidHost = codeBlockHost.getAttribute(MERMAID_HOST_ATTR) === '1';
+  const hasMermaidDiagram = getDiagramContainer(codeBlockHost)?.querySelector('svg') instanceof SVGElement;
+  const canShare =
+    (isMermaidHost && hasMermaidDiagram) ||
+    language === 'html' ||
+    language === 'svg' ||
+    looksLikeHtmlSource(sourceCode) ||
+    looksLikeSvgSource(sourceCode);
+  button.disabled = !canShare;
+  button.title = canShare ? '分享到新窗口' : '当前代码类型不支持分享预览';
+  button.setAttribute('aria-label', button.title);
+};
+
+const ensureShareButton = (codeBlockHost: HTMLElement): void => {
+  const buttonsContainer = getButtonsContainer(codeBlockHost);
+  if (!buttonsContainer) return;
+
+  let button = buttonsContainer.querySelector(
+    `[${SHARE_BUTTON_ATTR}="1"]`,
+  ) as HTMLButtonElement | null;
+
+  if (!button) {
+    const copyButton = getCopyButton(codeBlockHost);
+    button = createIconButton('分享到新窗口', SHARE_ICON, SHARE_BUTTON_ATTR, SHARE_BUTTON_CLASS);
+    bindShareButton(button, codeBlockHost);
+
+    if (copyButton) {
+      buttonsContainer.insertBefore(button, copyButton);
+    } else {
+      buttonsContainer.appendChild(button);
+    }
+
+    logTrace('download-button-inserted', {
+      language: getCodeBlockLanguage(getCodeElementFromHost(codeBlockHost) ?? codeBlockHost),
+    });
+  } else {
+    bindShareButton(button, codeBlockHost);
+  }
+
+  updateShareButtonState(codeBlockHost);
 };
 
 const ensureDownloadButton = (codeBlockHost: HTMLElement): void => {
@@ -743,7 +985,7 @@ const ensureDownloadButton = (codeBlockHost: HTMLElement): void => {
 
   if (!button) {
     const copyButton = getCopyButton(codeBlockHost);
-    button = createIconButton('下载代码');
+    button = createIconButton('下载代码', DOWNLOAD_ICON, DOWNLOAD_BUTTON_ATTR, DOWNLOAD_BUTTON_CLASS);
     bindDownloadButton(button, codeBlockHost);
 
     if (copyButton) {
@@ -751,15 +993,12 @@ const ensureDownloadButton = (codeBlockHost: HTMLElement): void => {
     } else {
       buttonsContainer.appendChild(button);
     }
-
-    logTrace('download-button-inserted', {
-      language: getCodeBlockLanguage(getCodeElementFromHost(codeBlockHost) ?? codeBlockHost),
-    });
   } else {
     bindDownloadButton(button, codeBlockHost);
   }
 
   updateDownloadButtonState(codeBlockHost);
+  updateShareButtonState(codeBlockHost);
 };
 
 const getToggleGroup = (codeBlockHost: HTMLElement): HTMLElement | null =>
@@ -883,9 +1122,11 @@ const teardownMermaidHost = (codeBlockHost: HTMLElement, removeDownloadButton: b
   toggleGroup?.remove();
 
   if (removeDownloadButton) {
+    codeBlockHost.querySelector(`[${SHARE_BUTTON_ATTR}="1"]`)?.remove();
     codeBlockHost.querySelector(`[${DOWNLOAD_BUTTON_ATTR}="1"]`)?.remove();
   } else {
     updateDownloadButtonState(codeBlockHost);
+    updateShareButtonState(codeBlockHost);
   }
 
   const codeContentContainer = getCodeContentContainer(
@@ -966,6 +1207,7 @@ const renderMermaid = async (codeElement: HTMLElement, sourceCode: string): Prom
     !fontMismatch &&
     hasRenderableDiagram
   ) {
+    ensureShareButton(codeBlockHost);
     ensureDownloadButton(codeBlockHost);
     ensureToggleControls(codeBlockHost);
     if (existingDiagram) {
@@ -973,6 +1215,7 @@ const renderMermaid = async (codeElement: HTMLElement, sourceCode: string): Prom
       applySvgFontFamily(existingDiagram);
     }
     updateDownloadButtonState(codeBlockHost);
+    updateShareButtonState(codeBlockHost);
     return;
   }
   if (codeBlockHost.getAttribute(PROCESSING_ATTR) === '1') return;
@@ -993,6 +1236,7 @@ const renderMermaid = async (codeElement: HTMLElement, sourceCode: string): Prom
     if (!mermaid) return;
 
     const diagramContainer = ensureDiagramContainer(codeBlockHost, codeContentContainer);
+    ensureShareButton(codeBlockHost);
     ensureDownloadButton(codeBlockHost);
     ensureToggleControls(codeBlockHost);
     codeBlockHost.setAttribute(MERMAID_HOST_ATTR, '1');
@@ -1034,6 +1278,7 @@ const processCodeBlocks = (): void => {
     }
 
     activeHosts.add(codeBlockHost);
+    ensureShareButton(codeBlockHost);
     ensureDownloadButton(codeBlockHost);
 
     const code = normalizeCodeSource(codeElement.textContent || '');
@@ -1060,6 +1305,7 @@ const processCodeBlocks = (): void => {
       });
     } else {
       updateDownloadButtonState(codeBlockHost);
+      updateShareButtonState(codeBlockHost);
     }
   });
 

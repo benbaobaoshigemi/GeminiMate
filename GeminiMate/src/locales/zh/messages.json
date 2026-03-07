@@ -1,6 +1,6 @@
-{
+﻿{
   "extName": {
-    "message": "Gemini Voyager",
+    "message": "GeminiMate",
     "description": "扩展程序名称"
   },
   "extDescription": {
@@ -52,7 +52,7 @@
     "description": "语言标签"
   },
   "pm_title": {
-    "message": "Gemini Voyager",
+    "message": "GeminiMate",
     "description": "面板标题"
   },
   "pm_add": {
@@ -388,7 +388,7 @@
     "description": "LaTeX 格式选项，无美元符号"
   },
   "folder_filter_current_user": {
-    "message": "账号隔离模式",
+    "message": "仅显示当前账号",
     "description": "Show only conversations from the current Google account"
   },
   "folder_export": {
@@ -1280,7 +1280,7 @@
     "description": "Changelog annotation pointing to docs icon"
   },
   "changelog_rate_chrome": {
-    "message": "觉得 Gemini Voyager 好用吗？在 Chrome 应用商店给个好评，能帮助更多人发现它！",
+    "message": "觉得 GeminiMate 好用吗？在 Chrome 应用商店给个好评，能帮助更多人发现它！",
     "description": "Chrome Web Store rating prompt in changelog modal"
   },
   "changelog_rate_chrome_cta": {
@@ -1360,3 +1360,4 @@
     "description": "AI Studio platform label."
   }
 }
+

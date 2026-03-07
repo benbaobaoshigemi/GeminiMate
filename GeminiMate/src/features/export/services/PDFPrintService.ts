@@ -1,4 +1,4 @@
-/**
+﻿/**
  * PDF Print Service
  * Implements elegant "paper book" style PDF export using browser's print function
  * Philosophy: Content over design, readability over fidelity
@@ -304,7 +304,7 @@ export class PDFPrintService {
    * Get conversation title from page
    */
   private static getConversationTitle(): string {
-    // Strategy 1: Get from active conversation in Gemini Voyager Folder UI (most accurate)
+    // Strategy 1: Get from active conversation in GeminiMate Folder UI (most accurate)
     try {
       // Prefer the folder row that is marked as selected for the current conversation
       const activeFolderTitle =
@@ -375,12 +375,11 @@ export class PDFPrintService {
       t === 'Untitled Conversation' ||
       t === 'Gemini' ||
       t === 'Google Gemini' ||
-      t === 'Google AI Studio' ||
       t === 'New chat'
     ) {
       return false;
     }
-    if (t.startsWith('Gemini -') || t.startsWith('Google AI Studio -')) return false;
+    if (t.startsWith('Gemini -')) return false;
     return true;
   }
 
@@ -624,7 +623,7 @@ export class PDFPrintService {
   private static renderFooter(metadata: ConversationMetadata): string {
     return `
       <div class="gv-print-footer">
-        <p>Exported from <a href="https://github.com/Nagi-ovo/gemini-voyager">Gemini Voyager</a> • ${metadata.count} conversation turns</p>
+        <p>Exported from <a href="https://github.com/Nagi-ovo/gemini-voyager">GeminiMate</a> • ${metadata.count} conversation turns</p>
         <p>Generated on ${this.formatDate(metadata.exportedAt)}</p>
       </div>
     `;
@@ -1100,3 +1099,4 @@ export class PDFPrintService {
     return this.escapeHTML(text).replace(/"/g, '&quot;');
   }
 }
+

@@ -6,50 +6,17 @@ const MIN_SCALE = 80;
 const MAX_SCALE = 130;
 
 const DEFAULT_WEIGHT = 400;
+const MIN_WEIGHT = 200;
+const MAX_WEIGHT = 900;
 const DEFAULT_FAMILY = 'default';
 const DEFAULT_SANS_PRESET = 'sans-apple';
 const DEFAULT_SERIF_PRESET = 'serif-source';
+const MIN_LINE_HEIGHT_STEP = 0;
+const MAX_LINE_HEIGHT_STEP = 8;
+const BODY_LINE_HEIGHT_BASE = 1.75;
+const BODY_LINE_HEIGHT_STEP = 0.1;
+const HEADING_LINE_HEIGHT_OFFSET = 0.2;
 
-const SIDEBAR_TEXT_SELECTORS = `
-    .mat-sidenav,
-    .mat-sidenav button,
-    .mat-sidenav a,
-    .mat-sidenav span,
-    .mat-sidenav div,
-    side-navigation-v2,
-    side-navigation-content,
-    side-navigation-content button,
-    side-navigation-content a,
-    side-navigation-content span,
-    side-navigation-content div,
-    .bot-row-container,
-    .bot-row-container .text-container,
-    .bot-row-container .text-container *,
-    .project-sidenav-container,
-    .project-sidenav-container *
-`.trim();
-
-const FORMULA_WEIGHT_SELECTORS = `
-    .katex-display,
-    .katex-display *,
-    .katex,
-    .katex *,
-    ms-katex,
-    ms-katex *,
-    math,
-    math *
-`.trim();
-
-const TIMELINE_TEXT_SELECTORS = `
-    .timeline-preview-panel,
-    .timeline-preview-panel *,
-    .timeline-preview-search input,
-    .timeline-preview-item,
-    .timeline-preview-index,
-    .timeline-preview-text,
-    .timeline-preview-empty,
-    .timeline-tooltip
-`.trim();
 
 function normalizeFontFamilyValue(value: unknown): string {
     const next = String(value || DEFAULT_FAMILY);
@@ -83,6 +50,13 @@ const SERIF_PRESET_FAMILIES: Record<string, string> = {
 };
 
 const clampScale = (value: number) => Math.min(MAX_SCALE, Math.max(MIN_SCALE, Math.round(value)));
+const clampWeight = (value: number) => Math.min(MAX_WEIGHT, Math.max(MIN_WEIGHT, Math.round(value)));
+const clampLineHeightStep = (value: number) =>
+    Math.min(MAX_LINE_HEIGHT_STEP, Math.max(MIN_LINE_HEIGHT_STEP, Math.round(value)));
+
+function resolveBodyLineHeight(step: number): number {
+    return BODY_LINE_HEIGHT_BASE + clampLineHeightStep(step) * BODY_LINE_HEIGHT_STEP;
+}
 
 /*
  * Verified DOM selectors from Gemini HTML analysis:
@@ -108,6 +82,7 @@ const BOLD_SELECTORS = `
   .markdown h4, .markdown h5, .markdown h6,
     .query-text strong:not(.gemini-md-underline), .query-text b:not(.gemini-md-underline),
     .query-text-line strong:not(.gemini-md-underline), .query-text-line b:not(.gemini-md-underline)`.trim();
+const FORMULA_SELECTORS = `.markdown .katex, .query-text .katex, .query-text-line .katex`;
 
 function getFontFamilyCSS(family: string, sansPreset: string, serifPreset: string): string {
     switch (family) {
@@ -153,8 +128,12 @@ function buildCSS(
     const fontFamilyRule = family !== DEFAULT_FAMILY ? `font-family: ${getFontFamilyCSS(family, sansPreset, serifPreset)} !important;` : '';
     // letterSpacing: integer 0–15, each unit = 0.01em; 0 = no override
     const letterSpacingRule = letterSpacing > 0 ? `letter-spacing: ${(letterSpacing * 0.01).toFixed(2)}em !important;` : '';
-    // lineHeight: integer 0–8, each unit = 0.1 above baseline 1.4; 0 = no override
-    const lineHeightRule = lineHeight > 0 ? `line-height: ${(1.4 + lineHeight * 0.1).toFixed(1)} !important;` : '';
+    // Strictly monotonic mapping: each slider step maps to a unique, increasing line-height.
+    const normalizedLineHeightStep = clampLineHeightStep(lineHeight);
+    const bodyLineHeight = resolveBodyLineHeight(normalizedLineHeightStep);
+    const lineHeightRule = normalizedLineHeightStep > 0
+        ? `line-height: ${bodyLineHeight.toFixed(3)} !important;`
+        : '';
 
     const parts: string[] = [];
 
@@ -164,23 +143,6 @@ function buildCSS(
       ${textRules}
     }`);
 
-        if (family !== DEFAULT_FAMILY || weight !== DEFAULT_WEIGHT) {
-                        const chromeUiRules = [fontFamilyRule, fontWeightRule, fontVariationRule].filter(Boolean).join('\n      ');
-                        parts.push(`${SIDEBAR_TEXT_SELECTORS} {
-            ${chromeUiRules}
-        }`);
-                        parts.push(`${TIMELINE_TEXT_SELECTORS} {
-            ${chromeUiRules}
-        }`);
-        }
-
-        if (weight !== DEFAULT_WEIGHT) {
-                        parts.push(`${FORMULA_WEIGHT_SELECTORS} {
-            ${fontWeightRule}
-            ${fontVariationRule}
-        }`);
-        }
-
     /*
      * Explicitly set heading sizes so Gemini's own heading resets don't make them
      * smaller than body text. Sizes are proportional to the scale factor.
@@ -189,7 +151,9 @@ function buildCSS(
     const hLetterRule = letterSpacingRule ? `\n      ${letterSpacingRule}` : '';
     // Headings track the line-height slider (offset by -0.2 vs body, min 1.2), and always have
     // generous margins so they visually breathe from surrounding body text.
-    const hLineHeight = lineHeight > 0 ? Math.max(1.2, (1.4 + lineHeight * 0.1) - 0.2) : 1.25;
+    const hLineHeight = normalizedLineHeightStep > 0
+        ? Math.max(1.2, bodyLineHeight - HEADING_LINE_HEIGHT_OFFSET)
+        : 1.25;
     const hLineHeightRule = `\n      line-height: ${hLineHeight.toFixed(2)} !important;`;
     parts.push(`.markdown h1 { font-size: calc(1.75rem * ${scaleValue}) !important;${hFamilyRule}${hLetterRule}${hLineHeightRule}\n      margin-top: 1.6em !important; margin-bottom: 0.5em !important; }`);
     parts.push(`.markdown h2 { font-size: calc(1.5rem * ${scaleValue}) !important;${hFamilyRule}${hLetterRule}${hLineHeightRule}\n      margin-top: 1.4em !important; margin-bottom: 0.45em !important; }`);
@@ -216,6 +180,20 @@ function buildCSS(
             font-weight: ${boldWeight} !important;${boldFamilyRule ? '\n      ' + boldFamilyRule : ''}\n      ${boldVariationRule}
     }`);
 
+    /*
+     * Keep formula weight in sync with body-weight multiplier, but avoid compounding
+     * on KaTeX internals. We set the weight once at the formula root and let children
+     * inherit that exact value.
+     */
+    parts.push(`${FORMULA_SELECTORS} {
+      font-weight: ${weight} !important;
+      font-variation-settings: normal !important;
+    }`);
+    parts.push(`${FORMULA_SELECTORS} * {
+      font-weight: inherit !important;
+      font-variation-settings: normal !important;
+    }`);
+
     const css = parts.join('\n');
     return css;
 }
@@ -238,7 +216,7 @@ export function startFontSizeAdjuster(): void {
         }
         if (changes[StorageKeys.GEMINI_FONT_WEIGHT]) {
             const w = Number(changes[StorageKeys.GEMINI_FONT_WEIGHT].newValue);
-            if (Number.isFinite(w)) { currentWeight = w; changed = true; }
+            if (Number.isFinite(w)) { currentWeight = clampWeight(w); changed = true; }
         }
         if (changes[StorageKeys.GEMINI_FONT_FAMILY]) {
             const f = normalizeFontFamilyValue(changes[StorageKeys.GEMINI_FONT_FAMILY].newValue);
@@ -262,7 +240,7 @@ export function startFontSizeAdjuster(): void {
         }
         if (changes[StorageKeys.GEMINI_LINE_HEIGHT]) {
             const lh = Number(changes[StorageKeys.GEMINI_LINE_HEIGHT].newValue);
-            if (Number.isFinite(lh)) { currentLineHeight = lh; changed = true; }
+            if (Number.isFinite(lh)) { currentLineHeight = clampLineHeightStep(lh); changed = true; }
         }
 
         if (changed) apply();
@@ -299,12 +277,12 @@ export function startFontSizeAdjuster(): void {
         ],
         (res) => {
             currentScale = clampScale(Number(res[StorageKeys.GEMINI_FONT_SIZE_SCALE]) || DEFAULT_SCALE);
-            currentWeight = Number(res[StorageKeys.GEMINI_FONT_WEIGHT]) || DEFAULT_WEIGHT;
+            currentWeight = clampWeight(Number(res[StorageKeys.GEMINI_FONT_WEIGHT]) || DEFAULT_WEIGHT);
             currentFamily = normalizeFontFamilyValue(res[StorageKeys.GEMINI_FONT_FAMILY]);
             currentSansPreset = normalizeSansPresetValue(res[StorageKeys.GEMINI_FONT_FAMILY], res[StorageKeys.GEMINI_SANS_PRESET]);
             currentSerifPreset = String(res[StorageKeys.GEMINI_SERIF_PRESET] || DEFAULT_SERIF_PRESET);
             currentLetterSpacing = Number(res[StorageKeys.GEMINI_LETTER_SPACING]) || 0;
-            currentLineHeight = Number(res[StorageKeys.GEMINI_LINE_HEIGHT]) || 0;
+            currentLineHeight = clampLineHeightStep(Number(res[StorageKeys.GEMINI_LINE_HEIGHT]) || 0);
             apply();
         },
     );

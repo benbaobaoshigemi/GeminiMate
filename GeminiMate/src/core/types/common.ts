@@ -15,7 +15,6 @@ export type TurnId = Brand<string, 'TurnId'>;
 
 export const StorageKeys = {
     FOLDER_DATA: 'gvFolderData',
-    FOLDER_DATA_AISTUDIO: 'gvFolderDataAIStudio',
     LATEX_FIXER_ENABLED: 'geminimate_latex_enabled',
     MARKDOWN_REPAIR_ENABLED: 'geminimate_markdown_enabled',
     MERMAID_RENDER_ENABLED: 'geminimate_mermaid_enabled',
@@ -51,10 +50,11 @@ export const StorageKeys = {
     GEMINI_LINE_HEIGHT: 'geminimate_line_height',
     GEMINI_PARAGRAPH_INDENT_ENABLED: 'geminimate_paragraph_indent_enabled',
     GEMINI_EMPHASIS_MODE: 'geminimate_emphasis_mode',
+    WORD_RESPONSE_EXPORT_ENABLED: 'geminimate_word_response_export_enabled',
+    WORD_RESPONSE_EXPORT_MODE: 'geminimate_word_response_export_mode',
     GV_FOLDER_FILTER_USER_ONLY: 'gvFolderFilterUserOnly',
     GV_FOLDER_TREE_INDENT: 'gvFolderTreeIndent',
     GV_ACCOUNT_ISOLATION_ENABLED: 'gvAccountIsolationEnabled',
     GV_ACCOUNT_ISOLATION_ENABLED_GEMINI: 'gvAccountIsolationEnabledGemini',
-    GV_ACCOUNT_ISOLATION_ENABLED_AISTUDIO: 'gvAccountIsolationEnabledAIStudio',
     GV_ACCOUNT_PROFILE_MAP: 'gvAccountProfileMap',
 } as const;

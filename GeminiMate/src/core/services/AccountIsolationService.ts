@@ -5,7 +5,6 @@ const EMAIL_PATTERN = /\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/i;
 const PROFILE_MAP_VERSION = 1;
 const ACCOUNT_ISOLATION_KEY_BY_PLATFORM = {
   gemini: StorageKeys.GV_ACCOUNT_ISOLATION_ENABLED_GEMINI,
-  aistudio: StorageKeys.GV_ACCOUNT_ISOLATION_ENABLED_AISTUDIO,
 } as const;
 
 interface AccountProfileRecord {
@@ -42,7 +41,7 @@ export interface AccountContext {
   email: string | null;
 }
 
-export type AccountPlatform = 'gemini' | 'aistudio';
+export type AccountPlatform = 'gemini';
 
 function parseHostname(url: string): string | null {
   try {
@@ -52,17 +51,12 @@ function parseHostname(url: string): string | null {
   }
 }
 
-function isAIStudioHost(hostname: string | null): boolean {
-  return hostname === 'aistudio.google.com' || hostname === 'aistudio.google.cn';
-}
-
 function isGeminiHost(hostname: string | null): boolean {
   return hostname === 'gemini.google.com' || hostname === 'business.gemini.google';
 }
 
 export function detectAccountPlatformFromUrl(pageUrl: string | null | undefined): AccountPlatform {
-  const hostname = parseHostname(pageUrl || '');
-  if (isAIStudioHost(hostname)) return 'aistudio';
+  void pageUrl;
   return 'gemini';
 }
 
@@ -205,18 +199,6 @@ function findEmailBySelectors(
 export function detectAccountContextFromDocument(pageUrl: string, doc: Document): AccountContext {
   const routeUserId = extractRouteUserIdFromUrl(pageUrl);
   const hostname = parseHostname(pageUrl);
-
-  if (isAIStudioHost(hostname)) {
-    const aiStudioEmail = findEmailBySelectors(doc, [
-      '.account-switcher-text',
-      '#account-switcher-button .button-container[aria-label]',
-      'alkali-accountswitcher [aria-label*="@"]',
-      '.account-switcher-container [aria-label*="@"]',
-    ]);
-    if (aiStudioEmail) {
-      return { routeUserId, email: aiStudioEmail };
-    }
-  }
 
   if (isGeminiHost(hostname)) {
     const geminiEmail = findEmailBySelectors(doc, [

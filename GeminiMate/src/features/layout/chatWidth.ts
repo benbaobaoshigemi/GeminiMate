@@ -3,11 +3,24 @@
  */
 
 import { StorageKeys } from '@/core/types/common';
+import { debugService } from '@/core/services/DebugService';
 
 const STYLE_ID = 'geminimate-chat-width';
-const DEFAULT_PERCENT = 70;
-const MIN_PERCENT = 30;
-const MAX_PERCENT = 100;
+const UI_DEFAULT_PERCENT = 100;
+const UI_MIN_PERCENT = 100;
+const UI_MAX_PERCENT = 170;
+const FALLBACK_NATIVE_VW = 70;
+let nativeBaseVw = FALLBACK_NATIVE_VW;
+const WIDTH_DIAG_PREFIX = '[GM-ChatWidth]';
+
+const traceWidth = (event: string, detail: Record<string, unknown> = {}): void => {
+    try {
+        console.info(WIDTH_DIAG_PREFIX, { event, detail, ts: new Date().toISOString() });
+        debugService.log('chat-width', event, detail);
+    } catch {
+        // ignore
+    }
+};
 
 function getUserSelectors(): string[] {
     return [
@@ -50,79 +63,144 @@ function getTableSelectors(): string[] {
 const clampPercent = (value: number, min: number, max: number) =>
     Math.min(max, Math.max(min, Math.round(value)));
 
-function applyWidth(widthPercent: number) {
-    const normalizedPercent = clampPercent(widthPercent, MIN_PERCENT, MAX_PERCENT);
-    const widthValue = `${normalizedPercent}vw`;
-    const panoramaCleanupRules =
-      normalizedPercent >= 95
-        ? `
-    chat-window > div > input-container,
-    chat-window input-container,
-    input-container.input-gradient,
-    input-container[class*="input-gradient"],
-    input-gradient,
-    .input-gradient {
-      background: transparent !important;
-      background-color: transparent !important;
-      background-image: none !important;
-      box-shadow: none !important;
-      -webkit-box-shadow: none !important;
-      filter: none !important;
-      mask-image: none !important;
-      -webkit-mask-image: none !important;
-      --bard-color-synthetic--chat-window-surface: transparent !important;
+const toVw = (px: number): number => {
+    const viewportWidth = Math.max(window.innerWidth, 1);
+    return (px / viewportWidth) * 100;
+};
+
+type SelectorSnapshot = {
+    selector: string;
+    tag: string;
+    className: string;
+    rectWidthVw: number;
+    computedMaxWidth: string;
+};
+
+const collectSelectorSnapshot = (selectors: string[]): SelectorSnapshot[] => {
+    const snapshots: SelectorSnapshot[] = [];
+    for (const selector of selectors) {
+        const element = document.querySelector<HTMLElement>(selector);
+        if (!element) continue;
+        const rect = element.getBoundingClientRect();
+        const style = window.getComputedStyle(element);
+        snapshots.push({
+            selector,
+            tag: element.tagName.toLowerCase(),
+            className: element.className || '',
+            rectWidthVw: Number(toVw(rect.width).toFixed(3)),
+            computedMaxWidth: style.maxWidth,
+        });
+        if (snapshots.length >= 4) break;
+    }
+    return snapshots;
+};
+
+const parsePx = (value: string): number | null => {
+    const trimmed = value.trim().toLowerCase();
+    if (!trimmed || trimmed === 'none' || trimmed === 'auto') return null;
+    if (!trimmed.endsWith('px')) return null;
+    const parsed = Number.parseFloat(trimmed);
+    if (!Number.isFinite(parsed)) return null;
+    return parsed;
+};
+
+const measureComputedMaxWidthVw = (selectors: string[]): number | null => {
+    const samples: number[] = [];
+    for (const selector of selectors) {
+        const elements = Array.from(document.querySelectorAll<HTMLElement>(selector));
+        for (const element of elements) {
+            const rect = element.getBoundingClientRect();
+            if (rect.width < 120 || rect.height < 16) continue;
+            const style = window.getComputedStyle(element);
+            if (style.display === 'none' || style.visibility === 'hidden') continue;
+            const maxWidthPx = parsePx(style.maxWidth);
+            if (maxWidthPx === null) continue;
+            if (maxWidthPx < 120 || maxWidthPx > window.innerWidth) continue;
+            samples.push(toVw(maxWidthPx));
+        }
+    }
+    if (samples.length === 0) return null;
+    samples.sort((a, b) => a - b);
+    return samples[Math.floor(samples.length / 2)] ?? null;
+};
+
+const measureVisibleWidthVw = (selectors: string[]): number | null => {
+    for (const selector of selectors) {
+        const elements = Array.from(document.querySelectorAll<HTMLElement>(selector));
+        for (const element of elements) {
+            const rect = element.getBoundingClientRect();
+            if (rect.width < 120 || rect.height < 16) continue;
+            const style = window.getComputedStyle(element);
+            if (style.display === 'none' || style.visibility === 'hidden') continue;
+            return toVw(rect.width);
+        }
+    }
+    return null;
+};
+
+const refreshNativeBaseVw = (): void => {
+    const style = document.getElementById(STYLE_ID);
+    const previousCssText = style?.textContent ?? null;
+    if (style) style.textContent = '';
+    const measured =
+        measureComputedMaxWidthVw(getAssistantSelectors()) ??
+        measureComputedMaxWidthVw(getUserSelectors()) ??
+        measureVisibleWidthVw(getAssistantSelectors()) ??
+        measureVisibleWidthVw(getUserSelectors()) ??
+        measureVisibleWidthVw(['.presented-response-container', 'model-response', '.response-container']);
+    if (style && previousCssText !== null) {
+        style.textContent = previousCssText;
+    }
+    if (measured && Number.isFinite(measured) && measured > 20 && measured <= 100) {
+        nativeBaseVw = measured;
+        traceWidth('native-base-measured', { nativeBaseVw });
+    } else {
+        traceWidth('native-base-measure-fallback', {
+            measured,
+            assistantSnapshot: collectSelectorSnapshot(getAssistantSelectors()),
+            userSnapshot: collectSelectorSnapshot(getUserSelectors()),
+        });
+    }
+};
+
+const toUiPercent = (value: unknown): number => {
+    const numeric = Number(value);
+    if (!Number.isFinite(numeric)) {
+        return UI_DEFAULT_PERCENT;
     }
 
-    chat-window > div > input-container::before,
-    chat-window > div > input-container::after,
-    input-container.input-gradient::before,
-    input-container.input-gradient::after,
-    input-container[class*="input-gradient"]::before,
-    input-container[class*="input-gradient"]::after,
-    input-gradient::before,
-    input-gradient::after,
-    .input-gradient::before,
-    .input-gradient::after {
-      display: none !important;
-      content: none !important;
-      background: transparent !important;
-      opacity: 0 !important;
-      mask-image: none !important;
-      -webkit-mask-image: none !important;
+    if (numeric >= UI_MIN_PERCENT && numeric <= UI_MAX_PERCENT) {
+        return clampPercent(numeric, UI_MIN_PERCENT, UI_MAX_PERCENT);
     }
 
-    .autosuggest-scrim,
-    chat-window-content > .autosuggest-scrim {
-      display: none !important;
-      opacity: 0 !important;
-      pointer-events: none !important;
-      background: transparent !important;
-      background-image: none !important;
+    if (numeric > 0) {
+        const mapped = (numeric / Math.max(nativeBaseVw, 1)) * 100;
+        return clampPercent(mapped, UI_MIN_PERCENT, UI_MAX_PERCENT);
     }
 
-    .hidden-content-image-cache,
-    chat-window-content > div.hidden-content-image-cache,
-    chat-window-content > .hidden-content-image-cache,
-    chat-window .hidden-content-image-cache {
-      display: none !important;
-      background: transparent !important;
-      background-image: none !important;
-    }
+    return UI_DEFAULT_PERCENT;
+};
 
-    chat-window > div,
-    chat-window-content,
-    input-container fieldset.input-area-container,
-    input-container .input-area-container,
-    condensed-tos-disclaimer,
-    hallucination-disclaimer {
-      background: transparent !important;
-      background-image: none !important;
-      max-width: 100% !important;
-      width: 100% !important;
-    }
-  `
-        : '';
+const uiPercentToTargetVw = (uiPercent: number): number => {
+    const normalizedUi = clampPercent(uiPercent, UI_MIN_PERCENT, UI_MAX_PERCENT);
+    return (nativeBaseVw * normalizedUi) / 100;
+};
 
+function applyWidth(uiPercent: number) {
+    const normalizedPercent = clampPercent(uiPercent, UI_MIN_PERCENT, UI_MAX_PERCENT);
+    if (normalizedPercent === UI_DEFAULT_PERCENT) {
+        const existingStyle = document.getElementById(STYLE_ID);
+        if (existingStyle) existingStyle.remove();
+        traceWidth('apply-native', { uiPercent: normalizedPercent, nativeBaseVw });
+        return;
+    }
+    const targetWidthVw = uiPercentToTargetVw(normalizedPercent);
+    traceWidth('apply-scaled', {
+        uiPercent: normalizedPercent,
+        nativeBaseVw,
+        targetWidthVw,
+    });
+    const widthValue = `${targetWidthVw.toFixed(3)}vw`;
     let style = document.getElementById(STYLE_ID) as HTMLStyleElement;
     if (!style) {
         style = document.createElement('style');
@@ -137,75 +215,33 @@ function applyWidth(widthPercent: number) {
     const userRules = userSelectors.map((sel) => `${sel}`).join(',\n    ');
     const assistantRules = assistantSelectors.map((sel) => `${sel}`).join(',\n    ');
     const tableRules = tableSelectors.map((sel) => `${sel}`).join(',\n    ');
-
-    const GAP_PX = 10;
+    traceWidth('apply-style-scope', {
+        uiPercent: normalizedPercent,
+        widthValue,
+        userSelectors: userSelectors.length,
+        assistantSelectors: assistantSelectors.length,
+        tableSelectors: tableSelectors.length,
+    });
 
     style.textContent = `
-    /* Remove width constraints from outer containers that contain conversations */
-    .content-wrapper:has(chat-window),
-    .main-content:has(chat-window),
-    .content-container:has(chat-window),
-    .content-container:has(.conversation-container) {
-      max-width: none !important;
-    }
-
-    /* Remove width constraints from main and conversation containers, but not buttons */
-    [role="main"]:has(chat-window),
-    [role="main"]:has(.conversation-container) {
-      max-width: none !important;
-    }
-
-    /* Target chat window and related containers; A small gap to account for scrollbars */
-    chat-window,
-    .chat-container,
-    chat-window-content,
-    .chat-history-scroll-container,
-    .chat-history,
+    chat-window-content > .conversation-container,
+    .chat-history-scroll-container > .conversation-container,
+    .chat-history > .conversation-container,
     .conversation-container {
-      max-width: none !important;
-      padding-right: ${GAP_PX}px !important;
+      max-width: ${widthValue} !important;
       box-sizing: border-box !important;
-    }
-
-    main > div:has(user-query),
-    main > div:has(model-response),
-    main > div:has(.conversation-container) {
-      max-width: none !important;
-      width: 100% !important;
-    }
-
-    @supports not selector(:has(*)) {
-      .content-wrapper,
-      .main-content,
-      .content-container {
-        max-width: none !important;
-      }
-
-      main > div:not(:has(button)):not(.main-menu-button) {
-        max-width: none !important;
-        width: 100% !important;
-      }
     }
 
     ${userRules} {
       max-width: ${widthValue} !important;
-      width: min(100%, ${widthValue}) !important;
-      margin-left: auto !important;
-      margin-right: auto !important;
     }
 
     ${assistantRules} {
       max-width: ${widthValue} !important;
-      width: min(100%, ${widthValue}) !important;
-      margin-left: auto !important;
-      margin-right: auto !important;
     }
 
     ${tableRules} {
       max-width: ${widthValue} !important;
-      width: min(100%, ${widthValue}) !important;
-      margin-left: auto !important;
-      margin-right: auto !important;
       box-sizing: border-box !important;
     }
 
@@ -225,53 +261,30 @@ function applyWidth(widthPercent: number) {
     .response-container:has(img[src*="sparkle"]), 
     main > div:has(img[src*="sparkle"]) {
       max-width: ${widthValue} !important;
-      width: min(100%, ${widthValue}) !important;
-      margin-left: auto !important;
-      margin-right: auto !important;
-    }
-
-    user-query,
-    user-query > *,
-    user-query > * > *,
-    model-response,
-    model-response > *,
-    model-response > * > *,
-    response-container,
-    response-container > *,
-    response-container > * > * {
-      max-width: ${widthValue} !important;
-    }
-
-    .presented-response-container,
-    [data-message-author-role] {
-      max-width: ${widthValue} !important;
     }
 
     .user-query-bubble-with-background {
       max-width: ${widthValue} !important;
       width: fit-content !important;
     }
-
-    ${panoramaCleanupRules}
   `;
 }
 
 export function startChatWidthAdjuster() {
-    let currentWidthPercent = DEFAULT_PERCENT;
+    let currentWidthPercent = UI_DEFAULT_PERCENT;
+    refreshNativeBaseVw();
 
-    chrome.storage.local.get({ [StorageKeys.GEMINI_CHAT_WIDTH]: DEFAULT_PERCENT }, (res) => {
+    chrome.storage.local.get([StorageKeys.GEMINI_CHAT_WIDTH], (res) => {
         const raw = res[StorageKeys.GEMINI_CHAT_WIDTH];
-        currentWidthPercent = clampPercent(Number(raw) || DEFAULT_PERCENT, MIN_PERCENT, MAX_PERCENT);
+        currentWidthPercent = toUiPercent(raw);
         applyWidth(currentWidthPercent);
     });
 
     chrome.storage.onChanged.addListener((changes, area) => {
         if (area === 'local' && changes[StorageKeys.GEMINI_CHAT_WIDTH]) {
             const newWidth = changes[StorageKeys.GEMINI_CHAT_WIDTH].newValue;
-            if (typeof newWidth === 'number') {
-                currentWidthPercent = clampPercent(newWidth, MIN_PERCENT, MAX_PERCENT);
-                applyWidth(currentWidthPercent);
-            }
+            currentWidthPercent = toUiPercent(newWidth);
+            applyWidth(currentWidthPercent);
         }
     });
 
@@ -279,6 +292,9 @@ export function startChatWidthAdjuster() {
     const observer = new MutationObserver(() => {
         if (debounceTimer !== null) clearTimeout(debounceTimer);
         debounceTimer = window.setTimeout(() => {
+            if (currentWidthPercent === UI_DEFAULT_PERCENT) {
+                refreshNativeBaseVw();
+            }
             applyWidth(currentWidthPercent);
             debounceTimer = null;
         }, 200);

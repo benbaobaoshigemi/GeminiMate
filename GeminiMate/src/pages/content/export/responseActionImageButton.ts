@@ -161,13 +161,7 @@ export function injectResponseActionCopyImageButtons(
     ...Array.from(root.querySelectorAll<HTMLElement>(`[data-test-id="${MORE_BUTTON_TEST_ID}"]`)),
   );
 
-  if (moreButtons.length === 0 && root instanceof HTMLElement) {
-    const directContainer = findActionContainerFromMoreButton(root);
-    if (directContainer) {
-      const maybeInjected = injectIntoActionContainer(directContainer, options);
-      return maybeInjected ? [maybeInjected] : [];
-    }
-  }
+  if (moreButtons.length === 0) return [];
 
   const visitedContainers = new Set<HTMLElement>();
   const injected: HTMLElement[] = [];

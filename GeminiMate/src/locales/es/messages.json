@@ -1,6 +1,6 @@
-{
+﻿{
   "extName": {
-    "message": "Gemini Voyager",
+    "message": "GeminiMate",
     "description": "Extension name"
   },
   "extDescription": {
@@ -52,7 +52,7 @@
     "description": "Language label"
   },
   "pm_title": {
-    "message": "Gemini Voyager",
+    "message": "GeminiMate",
     "description": "Prompt Manager title"
   },
   "pm_add": {
@@ -1280,7 +1280,7 @@
     "description": "Changelog annotation pointing to docs icon"
   },
   "changelog_rate_chrome": {
-    "message": "¿Te gusta Gemini Voyager? ¡Una valoración en la Chrome Web Store ayuda a otros a descubrirlo!",
+    "message": "¿Te gusta GeminiMate? ¡Una valoración en la Chrome Web Store ayuda a otros a descubrirlo!",
     "description": "Chrome Web Store rating prompt in changelog modal"
   },
   "changelog_rate_chrome_cta": {
@@ -1360,3 +1360,4 @@
     "description": "AI Studio platform label."
   }
 }
+

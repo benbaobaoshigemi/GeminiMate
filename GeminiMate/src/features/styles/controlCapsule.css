@@ -1,15 +1,17 @@
 .gm-control-capsule {
   position: fixed;
   z-index: 2147483646;
-  height: 34px;
-  min-width: 108px;
-  padding: 0 14px;
+  height: 36px;
+  min-width: 138px;
+  padding: 0 16px;
   border: 1px solid rgba(59, 130, 246, 0.45);
   border-radius: 999px;
   background: rgba(239, 246, 255, 0.95);
   color: #1d4ed8;
-  font: 600 13px/34px 'Google Sans', 'Segoe UI', Roboto, sans-serif;
-  letter-spacing: 0.01em;
+  font: 700 14px/36px 'Google Sans', 'Segoe UI', Roboto, sans-serif;
+  letter-spacing: 0;
+  white-space: nowrap;
+  text-overflow: clip;
   cursor: pointer;
   box-shadow: none;
   transition: background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease;
@@ -44,7 +46,6 @@
 
   .gm-control-capsule:hover {
     background: rgba(15, 36, 68, 0.98);
-    box-shadow: none;
   }
 
   .gm-control-capsule.active {

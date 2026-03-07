@@ -1,11 +1,18 @@
-// Static imports to avoid CSP issues with dynamic imports in content scripts
+﻿// Static imports to avoid CSP issues with dynamic imports in content scripts
 import { StorageKeys } from '@/core/types/common';
 import { isSafari } from '@/core/utils/browser';
 import { type AppLanguage, normalizeLanguage } from '@/utils/language';
 import { TRANSLATIONS, type TranslationKey } from '@/utils/translations';
 
 import { ConversationExportService } from '../../../features/export/services/ConversationExportService';
+import { DOMContentExtractor } from '../../../features/export/services/DOMContentExtractor';
 import { ImageExportService } from '../../../features/export/services/ImageExportService';
+import {
+  WordResponseExportService,
+  type WordResponseEmphasisMode,
+  type WordResponseExportMode,
+  type WordResponseTypography,
+} from '../../../features/export/services/WordResponseExportService';
 import type {
   ConversationMetadata,
   ChatTurn as ExportChatTurn,
@@ -22,6 +29,10 @@ import {
   injectResponseMenuExportButton,
 } from './conversationMenuInjection';
 import { injectResponseActionCopyImageButtons } from './responseActionImageButton';
+import {
+  injectResponseActionWordButtons,
+  WORD_EXPORT_BUTTON_TEST_ID,
+} from './responseActionWordButton';
 import { copyImageBlobToClipboard, downloadImageBlob } from './responseImageCopy';
 import { groupSelectedMessagesByTurn, resolveInitialSelectedMessageIds } from './selectionUtils';
 import { resolveSidebarConversationTarget } from './sidebarConversationTarget';
@@ -47,6 +58,32 @@ const EXPORT_PRELOAD_WAIT_OPTIONS = {
 const FINAL_EXPORT_PREPARE_DELAY_MS = 120;
 let conversationMenuObserver: MutationObserver | null = null;
 let responseActionObserver: MutationObserver | null = null;
+let wordResponseExportEnabled = true;
+let wordResponseExportMode: WordResponseExportMode = 'default';
+
+const DEFAULT_WORD_SANS_PRESET = 'sans-apple';
+const DEFAULT_WORD_SERIF_PRESET = 'serif-source';
+
+const WORD_SANS_PRESET_FAMILIES: Record<string, string> = {
+  'sans-apple':
+    "system-ui, -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Hiragino Sans GB', 'Noto Sans SC', sans-serif",
+  'sans-sys': "'Segoe UI', 'Microsoft YaHei UI', 'Noto Sans SC', sans-serif",
+  'sans-harmony': "'HarmonyOS Sans SC', 'HarmonyOS Sans', 'PingFang SC', 'Noto Sans SC', sans-serif",
+  'sans-modern': "'MiSans', 'Alibaba PuHuiTi 3.0', 'PingFang SC', 'Noto Sans SC', sans-serif",
+  'sans-grotesk': "'Helvetica Neue', Arial, 'Noto Sans SC', sans-serif",
+  'sans-humanist': "'Source Sans 3', 'Noto Sans SC', 'Microsoft YaHei UI', sans-serif",
+  'sans-tech': "'JetBrains Mono', 'Fira Code', 'Cascadia Code', 'Courier New', monospace",
+};
+
+const WORD_SERIF_PRESET_FAMILIES: Record<string, string> = {
+  'serif-source': "'Source Han Serif SC', 'Noto Serif SC', 'Songti SC', serif",
+  'serif-traditional': "'Songti SC', SimSun, 'Noto Serif SC', serif",
+  'serif-fangsong': "FangSong, STFangsong, 'Noto Serif SC', serif",
+  'serif-kaiti': "'Kaiti SC', KaiTi, STKaiti, 'Noto Serif SC', serif",
+  'serif-newspaper': "Constantia, 'Times New Roman', STSong, 'Noto Serif SC', serif",
+  'serif-editorial': "Baskerville, 'Times New Roman', STSong, serif",
+  'serif-georgia': "Georgia, Cambria, 'Noto Serif SC', serif",
+};
 
 interface PendingExportState {
   format: ExportFormat;
@@ -515,23 +552,42 @@ function resolveAssistantMessageIdFromMenuTrigger(trigger: HTMLElement | null): 
   if (!trigger) return null;
 
   const assistantHost = trigger.closest(
-    '.response-container, response-container, .model-response, model-response',
+    [
+      '.response-container',
+      'response-container',
+      '.model-response',
+      'model-response',
+      '[data-message-author-role="assistant"]',
+      '[data-message-author-role="model"]',
+      'article[data-author="assistant"]',
+      'article[data-turn="assistant"]',
+      'article[data-turn="model"]',
+    ].join(', '),
   ) as HTMLElement | null;
-  if (!assistantHost) return null;
 
-  const messages = buildExportMessagesFromPairs(collectChatPairs());
-  const target = messages.find((message) => {
-    if (message.role !== 'assistant') return false;
+  const messages = buildExportMessagesFromPairs(collectChatPairs()).filter(
+    (message) => message.role === 'assistant',
+  );
+
+  if (assistantHost) {
+    const target = messages.find((message) => {
+      const host = message.hostElement;
+      return (
+        host === assistantHost ||
+        host.contains(assistantHost) ||
+        assistantHost.contains(host) ||
+        host.contains(trigger)
+      );
+    });
+    if (target) return target.messageId;
+  }
+
+  const fallback = messages.find((message) => {
     const host = message.hostElement;
-    return (
-      host === assistantHost ||
-      host.contains(assistantHost) ||
-      assistantHost.contains(host) ||
-      host.contains(trigger)
-    );
+    return host.contains(trigger) || trigger.contains(host);
   });
 
-  return target?.messageId || null;
+  return fallback?.messageId || null;
 }
 
 function ensureDropdownInjected(logoElement: Element): HTMLButtonElement | null {
@@ -597,12 +653,11 @@ function isMeaningfulConversationTitle(title: string | null | undefined): title 
     t === 'Untitled Conversation' ||
     t === 'Gemini' ||
     t === 'Google Gemini' ||
-    t === 'Google AI Studio' ||
     t === 'New chat'
   ) {
     return false;
   }
-  if (t.startsWith('Gemini -') || t.startsWith('Google AI Studio -')) return false;
+  if (t.startsWith('Gemini -')) return false;
   return true;
 }
 
@@ -724,7 +779,7 @@ function escapeCssAttributeValue(value: string): string {
 }
 
 function getConversationTitleForExport(): string {
-  // Strategy 1: Get from active conversation in Gemini Voyager Folder UI (most accurate)
+  // Strategy 1: Get from active conversation in GeminiMate Folder UI (most accurate)
   try {
     const activeFolderTitle =
       document.querySelector(
@@ -762,7 +817,7 @@ function getConversationTitleForExport(): string {
     }
   }
 
-  // Strategy 3: Try to get from sidebar conversation list (Gemini / AI Studio)
+  // Strategy 3: Try to get from sidebar conversation list.
   try {
     const selectors = [
       'mat-list-item.mdc-list-item--activated [mat-line]',
@@ -881,6 +936,94 @@ async function exportFromSidebarConversationTrigger(
 
 function normalizeLang(lang: string | undefined): AppLanguage {
   return normalizeLanguage(lang);
+}
+
+function normalizeWordResponseExportMode(value: unknown): WordResponseExportMode {
+  return value === 'academic' ? 'academic' : 'default';
+}
+
+async function refreshWordResponseExportSettings(): Promise<void> {
+  try {
+    const result = await chrome.storage.local.get([
+      StorageKeys.WORD_RESPONSE_EXPORT_ENABLED,
+      StorageKeys.WORD_RESPONSE_EXPORT_MODE,
+    ]);
+    wordResponseExportEnabled = result[StorageKeys.WORD_RESPONSE_EXPORT_ENABLED] !== false;
+    wordResponseExportMode = normalizeWordResponseExportMode(
+      result[StorageKeys.WORD_RESPONSE_EXPORT_MODE],
+    );
+  } catch {
+    wordResponseExportEnabled = true;
+    wordResponseExportMode = 'default';
+  }
+}
+
+function resolveWordFontFamilyFromStorage(result: Record<string, unknown>): string {
+  const family = String(result[StorageKeys.GEMINI_FONT_FAMILY] || 'default');
+  if (family === 'sans') {
+    const preset = String(result[StorageKeys.GEMINI_SANS_PRESET] || DEFAULT_WORD_SANS_PRESET);
+    return WORD_SANS_PRESET_FAMILIES[preset] ?? WORD_SANS_PRESET_FAMILIES[DEFAULT_WORD_SANS_PRESET];
+  }
+  if (family === 'serif') {
+    const preset = String(result[StorageKeys.GEMINI_SERIF_PRESET] || DEFAULT_WORD_SERIF_PRESET);
+    return WORD_SERIF_PRESET_FAMILIES[preset] ?? WORD_SERIF_PRESET_FAMILIES[DEFAULT_WORD_SERIF_PRESET];
+  }
+  if (family === 'monospace') {
+    return WORD_SANS_PRESET_FAMILIES['sans-tech'];
+  }
+  if (family === 'default') {
+    return WORD_SANS_PRESET_FAMILIES[DEFAULT_WORD_SANS_PRESET];
+  }
+  return `'${family}', ${WORD_SANS_PRESET_FAMILIES[DEFAULT_WORD_SANS_PRESET]}`;
+}
+
+function resolveWordTypographyFromStorage(result: Record<string, unknown>): WordResponseTypography {
+  return {
+    fontFamily: resolveWordFontFamilyFromStorage(result),
+    fontSizeScale: Number(result[StorageKeys.GEMINI_FONT_SIZE_SCALE]) || 100,
+    fontWeight: Number(result[StorageKeys.GEMINI_FONT_WEIGHT]) || 400,
+    letterSpacing: Number(result[StorageKeys.GEMINI_LETTER_SPACING]) || 0,
+    lineHeight: Number(result[StorageKeys.GEMINI_LINE_HEIGHT]) || 0,
+    paragraphIndentEnabled: result[StorageKeys.GEMINI_PARAGRAPH_INDENT_ENABLED] === true,
+  };
+}
+
+type ResponseWordExportTexts = {
+  label: string;
+  success: string;
+  failed: string;
+  disabled: string;
+  targetMissing: string;
+};
+
+function getResponseWordExportTexts(lang: AppLanguage): ResponseWordExportTexts {
+  if (lang === 'zh') {
+    return {
+      label: '导出回复为 Word',
+      success: '已导出 Word 文件',
+      failed: '导出 Word 失败',
+      disabled: '请先在设置中开启单条回复 Word 导出',
+      targetMissing: '未找到可导出的回复内容',
+    };
+  }
+
+  if (lang === 'zh_TW') {
+    return {
+      label: '匯出回覆為 Word',
+      success: '已匯出 Word 檔案',
+      failed: '匯出 Word 失敗',
+      disabled: '請先在設定中啟用單條回覆 Word 匯出',
+      targetMissing: '找不到可匯出的回覆內容',
+    };
+  }
+
+  return {
+    label: 'Export response as Word',
+    success: 'Word file exported',
+    failed: 'Failed to export Word file',
+    disabled: 'Enable single response Word export in settings first',
+    targetMissing: 'Unable to locate response content',
+  };
 }
 
 async function getLanguage(): Promise<AppLanguage> {
@@ -1123,7 +1266,7 @@ async function executeExportSequence(
   };
 
   if (state.attempt > 25) {
-    console.warn('[Gemini Voyager] Export aborted: too many attempts.');
+    console.warn('[GeminiMate] Export aborted: too many attempts.');
     sessionStorage.removeItem(SESSION_KEY_PENDING_EXPORT);
     alert('Export stopped: Too many attempts detected.');
     return;
@@ -1131,7 +1274,7 @@ async function executeExportSequence(
 
   // 1. Find Top Node
   if (state.attempt > 0) {
-    console.log('[Gemini Voyager] Resuming export... waiting for content load.');
+    console.log('[GeminiMate] Resuming export... waiting for content load.');
     const userSelectors = getUserSelectors();
     await waitForAnyElement(userSelectors, 15000);
   }
@@ -1148,7 +1291,7 @@ async function executeExportSequence(
   }
 
   if (!topNode) {
-    console.log('[Gemini Voyager] No top node found, proceeding to export directly.');
+    console.log('[GeminiMate] No top node found, proceeding to export directly.');
     sessionStorage.removeItem(SESSION_KEY_PENDING_EXPORT);
     await performFinalExport(format, dict, lang, state.fontSize, state.initialSelectedMessageId);
     return;
@@ -1157,7 +1300,7 @@ async function executeExportSequence(
   const fingerprintSelectors = [...getUserSelectors(), ...getAssistantSelectors()];
   const beforeFingerprint = computeConversationFingerprint(document.body, fingerprintSelectors, 10);
 
-  console.log(`[Gemini Voyager] Simulating click on top node (Attempt ${state.attempt + 1})...`);
+  console.log(`[GeminiMate] Simulating click on top node (Attempt ${state.attempt + 1})...`);
 
   // Update state before action to persist across potential reload
   sessionStorage.setItem(
@@ -1173,7 +1316,7 @@ async function executeExportSequence(
     topNode.dispatchEvent(new MouseEvent('mouseup', opts));
     topNode.click();
   } catch (e) {
-    console.error('[Gemini Voyager] Failed to click top node:', e);
+    console.error('[GeminiMate] Failed to click top node:', e);
   }
 
   // 2. Wait for either hard refresh (page unload) OR a "soft refresh" that loads more history.
@@ -1186,7 +1329,7 @@ async function executeExportSequence(
   );
 
   if (changed) {
-    console.log('[Gemini Voyager] History expanded (soft refresh). Clicking top node again...');
+    console.log('[GeminiMate] History expanded (soft refresh). Clicking top node again...');
     await executeExportSequence(format, dict, lang, {
       ...state,
       attempt: state.attempt + 1,
@@ -1195,7 +1338,7 @@ async function executeExportSequence(
     return;
   }
 
-  console.log('[Gemini Voyager] No refresh or update detected. Exporting...');
+  console.log('[GeminiMate] No refresh or update detected. Exporting...');
   sessionStorage.removeItem(SESSION_KEY_PENDING_EXPORT);
   await performFinalExport(format, dict, lang, state.fontSize, state.initialSelectedMessageId);
 }
@@ -1506,7 +1649,7 @@ async function performFinalExport(
         showExportToast(t('export_toast_safari_pdf_ready'), { autoDismissMs: 5000 });
       }
     } catch (err) {
-      console.error('[Gemini Voyager] Export error:', err);
+      console.error('[GeminiMate] Export error:', err);
       alert('Export error occurred.');
     } finally {
       hideProgress();
@@ -1622,7 +1765,7 @@ async function checkPendingExport() {
 
     // If state exists, it means we clicked and page refreshed.
     // So we resume the sequence.
-    console.log('[Gemini Voyager] Resuming pending export sequence...');
+    console.log('[GeminiMate] Resuming pending export sequence...');
 
     // We need i18n for final export/alert
     const dict = await loadDictionaries();
@@ -1630,7 +1773,7 @@ async function checkPendingExport() {
 
     await executeExportSequenceWithProgress(state.format, dict, lang, state);
   } catch (e) {
-    console.error('[Gemini Voyager] Failed to resume pending export:', e);
+    console.error('[GeminiMate] Failed to resume pending export:', e);
     sessionStorage.removeItem(SESSION_KEY_PENDING_EXPORT);
   }
 }
@@ -1771,20 +1914,114 @@ async function handleResponseCopyImageClick(
       showExportToast(texts.unsupported, { autoDismissMs: 3200 });
       return;
     }
-    console.error('[Gemini Voyager] Failed to copy response image:', error);
+    console.error('[GeminiMate] Failed to copy response image:', error);
     showExportToast(texts.failed, { autoDismissMs: 3200 });
   } finally {
     delete trigger.dataset.gvCopyImageBusy;
   }
 }
 
-function applyResponseActionCopyImageButtons(getCurrentLanguage: () => AppLanguage): void {
+async function handleResponseWordExportClick(
+  trigger: HTMLElement,
+  getCurrentLanguage: () => AppLanguage,
+): Promise<void> {
+  if (trigger.dataset.gvWordExportBusy === '1') return;
+  trigger.dataset.gvWordExportBusy = '1';
+
+  const texts = getResponseWordExportTexts(getCurrentLanguage());
+  try {
+    if (!wordResponseExportEnabled) {
+      showExportToast(texts.disabled, { autoDismissMs: 2800 });
+      return;
+    }
+
+    const messageId = resolveAssistantMessageIdFromMenuTrigger(trigger);
+    if (!messageId) {
+      showExportToast(texts.targetMissing);
+      return;
+    }
+
+    const selectedMessageIds = new Set<string>([messageId]);
+    const turns = buildTurnsForSelectedMessageIds(selectedMessageIds, collectChatPairs());
+    const targetTurn = turns.find((turn) => turn.assistantElement || turn.assistant.trim());
+    if (!targetTurn) {
+      showExportToast(texts.targetMissing);
+      return;
+    }
+
+    const typographyKeys = [
+      StorageKeys.GEMINI_FONT_SIZE_SCALE,
+      StorageKeys.GEMINI_FONT_WEIGHT,
+      StorageKeys.GEMINI_FONT_FAMILY,
+      StorageKeys.GEMINI_SANS_PRESET,
+      StorageKeys.GEMINI_SERIF_PRESET,
+      StorageKeys.GEMINI_LETTER_SPACING,
+      StorageKeys.GEMINI_LINE_HEIGHT,
+      StorageKeys.GEMINI_PARAGRAPH_INDENT_ENABLED,
+      StorageKeys.GEMINI_EMPHASIS_MODE,
+      StorageKeys.WORD_RESPONSE_EXPORT_MODE,
+    ];
+    const styleSettings = (await chrome.storage.local.get(typographyKeys)) as Record<string, unknown>;
+    const effectiveWordMode =
+      styleSettings[StorageKeys.WORD_RESPONSE_EXPORT_MODE] === undefined
+        ? wordResponseExportMode
+        : normalizeWordResponseExportMode(styleSettings[StorageKeys.WORD_RESPONSE_EXPORT_MODE]);
+    const extracted = targetTurn.assistantElement
+      ? DOMContentExtractor.extractAssistantContent(targetTurn.assistantElement)
+      : {
+          text: targetTurn.assistant,
+          html: '',
+        };
+
+    const exportResult = WordResponseExportService.exportSingleResponse({
+      assistantHtml: extracted.html || '',
+      assistantText: extracted.text || targetTurn.assistant,
+      conversationTitle: getConversationTitleForExport(),
+      mode: effectiveWordMode,
+      emphasisMode:
+        styleSettings[StorageKeys.GEMINI_EMPHASIS_MODE] === 'underline'
+          ? ('underline' as WordResponseEmphasisMode)
+          : ('bold' as WordResponseEmphasisMode),
+      typography: resolveWordTypographyFromStorage(styleSettings),
+    });
+
+    if (!exportResult.success) {
+      showExportToast(texts.failed, { autoDismissMs: 3200 });
+      return;
+    }
+
+    showExportToast(texts.success);
+  } catch (error) {
+    console.error('[GeminiMate] Failed to export Word response:', error);
+    showExportToast(texts.failed, { autoDismissMs: 3200 });
+  } finally {
+    delete trigger.dataset.gvWordExportBusy;
+  }
+}
+
+function applyResponseActionButtons(getCurrentLanguage: () => AppLanguage): void {
   const texts = getResponseCopyImageTexts(getCurrentLanguage());
   injectResponseActionCopyImageButtons(document, {
     label: texts.label,
     tooltip: texts.label,
     onClick: (button) => {
       void handleResponseCopyImageClick(button, getCurrentLanguage);
+    },
+  });
+
+  if (!wordResponseExportEnabled) {
+    document
+      .querySelectorAll(`[data-test-id="${WORD_EXPORT_BUTTON_TEST_ID}"]`)
+      .forEach((node) => node.remove());
+    return;
+  }
+
+  const wordTexts = getResponseWordExportTexts(getCurrentLanguage());
+  injectResponseActionWordButtons(document, {
+    label: wordTexts.label,
+    tooltip: wordTexts.label,
+    onClick: (button) => {
+      void handleResponseWordExportClick(button, getCurrentLanguage);
     },
   });
 }
@@ -1794,19 +2031,41 @@ function setupResponseActionCopyImageObserver({
 }: {
   getCurrentLanguage: () => AppLanguage;
 }): void {
-  applyResponseActionCopyImageButtons(getCurrentLanguage);
+  applyResponseActionButtons(getCurrentLanguage);
   if (responseActionObserver) return;
+
+  const hasResponseActionMenuButton = (node: HTMLElement): boolean => {
+    if (node.getAttribute('data-test-id') === RESPONSE_MENU_TRIGGER_TEST_ID) return true;
+    return node.querySelector(`[data-test-id="${RESPONSE_MENU_TRIGGER_TEST_ID}"]`) !== null;
+  };
 
   const observer = new MutationObserver((mutations) => {
     for (const mutation of mutations) {
       mutation.addedNodes.forEach((node) => {
         if (!(node instanceof HTMLElement)) return;
+        if (!hasResponseActionMenuButton(node)) return;
         const texts = getResponseCopyImageTexts(getCurrentLanguage());
         injectResponseActionCopyImageButtons(node, {
           label: texts.label,
           tooltip: texts.label,
           onClick: (button) => {
             void handleResponseCopyImageClick(button, getCurrentLanguage);
+          },
+        });
+
+        if (!wordResponseExportEnabled) {
+          node
+            .querySelectorAll(`[data-test-id="${WORD_EXPORT_BUTTON_TEST_ID}"]`)
+            .forEach((wordButton) => wordButton.remove());
+          return;
+        }
+
+        const wordTexts = getResponseWordExportTexts(getCurrentLanguage());
+        injectResponseActionWordButtons(node, {
+          label: wordTexts.label,
+          tooltip: wordTexts.label,
+          onClick: (button) => {
+            void handleResponseWordExportClick(button, getCurrentLanguage);
           },
         });
       });
@@ -1971,6 +2230,8 @@ export async function startExportButton(): Promise<void> {
   // Check for pending export immediately
   checkPendingExport();
 
+  await refreshWordResponseExportSettings();
+
   // i18n setup for tooltip and label
   const dict = await loadDictionaries();
   let lang = await getLanguage();
@@ -2034,21 +2295,42 @@ export async function startExportButton(): Promise<void> {
     changes: Record<string, chrome.storage.StorageChange>,
     area: string,
   ) => {
-    if (area !== 'sync') return;
-    const nextRaw = changes[StorageKeys.LANGUAGE]?.newValue;
-    if (typeof nextRaw === 'string') {
-      const next = normalizeLang(nextRaw);
-      lang = next;
-      const ttl =
-        dict[next]?.['exportChatJson'] ?? dict.en?.['exportChatJson'] ?? 'Export chat history';
-      btn.title = ttl;
-      btn.setAttribute('aria-label', ttl);
+    if (area === 'sync') {
+      const nextRaw = changes[StorageKeys.LANGUAGE]?.newValue;
+      if (typeof nextRaw === 'string') {
+        const next = normalizeLang(nextRaw);
+        lang = next;
+        const ttl =
+          dict[next]?.['exportChatJson'] ?? dict.en?.['exportChatJson'] ?? 'Export chat history';
+        btn.title = ttl;
+        btn.setAttribute('aria-label', ttl);
 
-      // Update visible label text
-      const lbl = btn.querySelector('.gv-export-dropdown-label');
-      if (lbl) lbl.textContent = dict[next]?.['pm_export'] ?? dict.en?.['pm_export'] ?? 'Export';
+        // Update visible label text
+        const lbl = btn.querySelector('.gv-export-dropdown-label');
+        if (lbl)
+          lbl.textContent = dict[next]?.['pm_export'] ?? dict.en?.['pm_export'] ?? 'Export';
 
-      applyResponseActionCopyImageButtons(() => lang);
+        applyResponseActionButtons(() => lang);
+      }
+      return;
+    }
+
+    if (area === 'local') {
+      if (
+        changes[StorageKeys.WORD_RESPONSE_EXPORT_ENABLED] ||
+        changes[StorageKeys.WORD_RESPONSE_EXPORT_MODE]
+      ) {
+        if (changes[StorageKeys.WORD_RESPONSE_EXPORT_ENABLED]) {
+          wordResponseExportEnabled =
+            changes[StorageKeys.WORD_RESPONSE_EXPORT_ENABLED].newValue !== false;
+        }
+        if (changes[StorageKeys.WORD_RESPONSE_EXPORT_MODE]) {
+          wordResponseExportMode = normalizeWordResponseExportMode(
+            changes[StorageKeys.WORD_RESPONSE_EXPORT_MODE].newValue,
+          );
+        }
+        applyResponseActionButtons(() => lang);
+      }
     }
   };
 
@@ -2062,7 +2344,7 @@ export async function startExportButton(): Promise<void> {
         try {
           chrome.storage?.onChanged?.removeListener(storageChangeHandler);
         } catch (e) {
-          console.error('[Gemini Voyager] Failed to remove storage listener on unload:', e);
+          console.error('[GeminiMate] Failed to remove storage listener on unload:', e);
         }
       },
       { once: true },
@@ -2077,7 +2359,7 @@ export async function startExportButton(): Promise<void> {
       showExportDialog(dict, lang);
     } catch (err) {
       try {
-        console.error('Gemini Voyager export failed', err);
+        console.error('GeminiMate export failed', err);
       } catch {}
     }
   });
@@ -2136,7 +2418,7 @@ export async function startExportButton(): Promise<void> {
             showExportDialog(dict, lang);
           } catch (err) {
             try {
-              console.error('Gemini Voyager export failed', err);
+              console.error('GeminiMate export failed', err);
             } catch {}
           }
         });
@@ -2145,7 +2427,7 @@ export async function startExportButton(): Promise<void> {
         currentBtn = newBtn;
       } catch (e) {
         try {
-          console.debug('[Gemini Voyager] Export button re-injection failed:', e);
+          console.debug('[GeminiMate] Export button re-injection failed:', e);
         } catch {}
       }
     }, 800);
@@ -2181,7 +2463,7 @@ async function showExportDialog(
           options?.initialSelectedMessageId || undefined,
         );
       } catch (err) {
-        console.error('[Gemini Voyager] Export error:', err);
+        console.error('[GeminiMate] Export error:', err);
       }
     },
 
@@ -2209,3 +2491,4 @@ async function showExportDialog(
 }
 
 export default { startExportButton };
+

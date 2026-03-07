@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Image export service
  *
  * Generates a single PNG image from a rendered export document.
@@ -154,7 +154,7 @@ export class ImageExportService {
 
     const footerHtml = `
       <footer class="gv-image-export-footer">
-        <div>Exported from Gemini Voyager</div>
+        <div>Exported from GeminiMate</div>
         <div>Generated on ${this.escapeHTML(date)}</div>
       </footer>
     `;
@@ -293,7 +293,7 @@ export class ImageExportService {
 
     const footerHtml = `
       <footer class="gv-image-export-footer">
-        <div>Exported from Gemini Voyager</div>
+        <div>Exported from GeminiMate</div>
         <div>Generated on ${this.escapeHTML(date)}</div>
       </footer>
     `;
@@ -560,3 +560,4 @@ export class ImageExportService {
     }
   }
 }
+

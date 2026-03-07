@@ -2,10 +2,7 @@ import browser from 'webextension-polyfill';
 
 import {
   type AccountScope,
-  accountIsolationService,
-  buildScopedFolderStorageKey,
   detectAccountContextFromDocument,
-  extractRouteUserIdFromPath,
 } from '@/core/services/AccountIsolationService';
 import { DataBackupService } from '@/core/services/DataBackupService';
 import { getStorageMonitor } from '@/core/services/StorageMonitor';
@@ -5038,40 +5035,15 @@ export class FolderManager {
   }
 
   private async loadAccountIsolationSetting(): Promise<void> {
-    try {
-      this.accountIsolationEnabled = await accountIsolationService.isIsolationEnabled({
-        platform: 'gemini',
-        pageUrl: window.location.href,
-      });
-      this.debug('Loaded account isolation setting:', this.accountIsolationEnabled);
-    } catch (error) {
-      console.error('[FolderManager] Failed to load account isolation setting:', error);
-      this.accountIsolationEnabled = false;
-    }
+    // Account isolation mode is removed for folder feature.
+    this.accountIsolationEnabled = false;
+    this.accountScope = null;
+    this.activeStorageKey = STORAGE_KEY;
   }
 
   private async refreshAccountScope(): Promise<void> {
-    if (!this.accountIsolationEnabled) {
-      this.accountScope = null;
-      this.activeStorageKey = STORAGE_KEY;
-      return;
-    }
-
-    try {
-      const context = detectAccountContextFromDocument(window.location.href, document);
-      const resolvedScope = await accountIsolationService.resolveAccountScope({
-        pageUrl: window.location.href,
-        routeUserId: context.routeUserId,
-        email: context.email,
-      });
-      this.accountScope = resolvedScope;
-      this.activeStorageKey = buildScopedFolderStorageKey(resolvedScope.accountKey);
-      await this.storage.init(this.activeStorageKey);
-    } catch (error) {
-      console.error('[FolderManager] Failed to resolve account scope:', error);
-      this.accountScope = null;
-      this.activeStorageKey = STORAGE_KEY;
-    }
+    this.accountScope = null;
+    this.activeStorageKey = STORAGE_KEY;
   }
 
   private async loadHideArchivedSetting(): Promise<void> {
@@ -5126,15 +5098,8 @@ export class FolderManager {
   }
 
   private async handleAccountIsolationToggle(enabled: boolean): Promise<void> {
-    if (enabled === this.accountIsolationEnabled) return;
-
-    this.accountIsolationEnabled = enabled;
-    await this.refreshAccountScope();
-    await this.loadData();
-
-    if (this.folderEnabled) {
-      this.refresh();
-    }
+    if (!enabled) return;
+    this.accountIsolationEnabled = false;
   }
 
   private setupStorageListener(): void {
@@ -5155,18 +5120,6 @@ export class FolderManager {
         }
         if (changes[StorageKeys.GV_FOLDER_TREE_INDENT]) {
           this.applyFolderTreeIndentSetting(changes[StorageKeys.GV_FOLDER_TREE_INDENT].newValue);
-        }
-        if (
-          changes[StorageKeys.GV_ACCOUNT_ISOLATION_ENABLED] ||
-          changes[StorageKeys.GV_ACCOUNT_ISOLATION_ENABLED_GEMINI]
-        ) {
-          void (async () => {
-            const nextEnabled = await accountIsolationService.isIsolationEnabled({
-              platform: 'gemini',
-              pageUrl: window.location.href,
-            });
-            await this.handleAccountIsolationToggle(nextEnabled);
-          })();
         }
         // Listen for language changes and update UI text
         if (changes[StorageKeys.LANGUAGE]) {
@@ -5487,18 +5440,7 @@ export class FolderManager {
   }
 
   private async reloadScopedDataOnAccountRouteChange(): Promise<void> {
-    if (!this.accountIsolationEnabled) return;
-
-    const routeUserId = extractRouteUserIdFromPath(window.location.pathname);
-    if (routeUserId === this.accountScope?.routeUserId) return;
-
-    const previousStorageKey = this.activeStorageKey;
-    await this.refreshAccountScope();
-    if (this.activeStorageKey === previousStorageKey) return;
-
-    await this.loadData();
-    this.renderAllFolders();
-    this.debug('Switched account-scoped folder storage:', this.activeStorageKey);
+    return;
   }
 
   private installRouteChangeListener(): void {

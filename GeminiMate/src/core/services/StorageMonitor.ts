@@ -1,4 +1,4 @@
-/**
+﻿/**
  * StorageMonitor - Monitor browser storage quota and warn users when nearing limits
  *
  * This service monitors storage usage using the Storage API and provides warnings
@@ -195,7 +195,7 @@ export class StorageMonitor {
     try {
       const notification = document.createElement('div');
       notification.className = `gv-notification gv-notification-${level}`;
-      notification.textContent = `[Gemini Voyager] ${message}`;
+      notification.textContent = `[GeminiMate] ${message}`;
 
       // Color based on level
       const colors = {
@@ -347,3 +347,4 @@ export class StorageMonitor {
 export function getStorageMonitor(config?: Partial<StorageMonitorConfig>): StorageMonitor {
   return StorageMonitor.getInstance(config);
 }
+

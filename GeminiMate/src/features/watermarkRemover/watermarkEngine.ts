@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Watermark Engine Main Module
  *
  * This module is ported from gemini-watermark-remover by journey-ad (Jad).
@@ -115,7 +115,7 @@ export class WatermarkEngine {
     const bg48Path = getBgPath(BG_48_IMPORT);
     const bg96Path = getBgPath(BG_96_IMPORT);
 
-    console.log('[Gemini Voyager] Loading watermark assets:', { bg48Path, bg96Path });
+    console.log('[GeminiMate] Loading watermark assets:', { bg48Path, bg96Path });
 
     await Promise.all([
       new Promise<void>((resolve, reject) => {
@@ -238,3 +238,4 @@ export class WatermarkEngine {
     };
   }
 }
+

@@ -8,7 +8,8 @@
   },
   "permissions": [
     "storage",
-    "scripting"
+    "scripting",
+    "downloads"
   ],
   "host_permissions": [
     "https://gemini.google.com/*",
@@ -21,10 +22,18 @@
     "service_worker": "service-worker-loader.js",
     "type": "module"
   },
+  "sandbox": {
+    "pages": [
+      "sandbox/runner.html"
+    ]
+  },
+  "content_security_policy": {
+    "sandbox": "sandbox allow-scripts allow-forms allow-modals allow-popups; script-src 'self' 'unsafe-inline' 'unsafe-eval'; child-src 'self' data: blob:;"
+  },
   "content_scripts": [
     {
       "js": [
-        "assets/index.tsx-loader-Dzd0Rmj0.js"
+        "assets/index.tsx-loader-BDZwjJ75.js"
       ],
       "matches": [
         "https://gemini.google.com/*",
@@ -32,7 +41,7 @@
       ],
       "css": [
         "contentStyle.css",
-        "assets/index-BVHWGy1o.css"
+        "assets/index-BKpK9uk4.css"
       ],
       "run_at": "document_start"
     }
@@ -45,7 +54,8 @@
       "resources": [
         "contentStyle.css",
         "assets/*",
-        "fetchInterceptor.js"
+        "fetchInterceptor.js",
+        "sandbox/*"
       ],
       "use_dynamic_url": false
     },
@@ -56,17 +66,21 @@
       ],
       "resources": [
         "assets/bg_96-C2FFcR6-.png",
-        "assets/feature-reading-DIT-h0Kq.js",
-        "assets/treemap-GDKQZRPO-BzXpMGBl.js",
-        "assets/feature-timeline-oVLGIccu.js",
+        "assets/feature-reading-C80NGcap.js",
+        "assets/treemap-GDKQZRPO-ftSZOSXq.js",
+        "assets/feature-export-T0Wsm29B.js",
+        "assets/feature-timeline-BHXGEBv0.js",
         "assets/vendor-react-B-sxFqXu.js",
-        "assets/Popup-DdV6of6j.js",
-        "assets/feature-export-DNK65XAr.js",
-        "assets/feature-layout-CRsS5MA1.js",
-        "assets/vendor-mermaid-DekUzk_f.js",
-        "assets/app-locales-CU6VwQFh.js",
+        "assets/Popup-Cn6d_gUq.js",
+        "assets/feature-layout-BLp5rb9e.js",
+        "assets/vendor-mermaid-B7he9oCH.js",
         "assets/vendor-export-Bi8-UUDe.js",
-        "assets/index.tsx-CTLAkrDz.js"
+        "assets/app-locales-DlJG-aFp.js",
+        "assets/index.tsx-fFHl9Tzh.js",
+        "assets/jspdf.es.min-lwZsBXTp.js",
+        "assets/html2canvas.esm-DXEQVQnt.js",
+        "assets/purify.es-DrLDRNlj.js",
+        "assets/index.es-BWi_-WRl.js"
       ],
       "use_dynamic_url": false
     }

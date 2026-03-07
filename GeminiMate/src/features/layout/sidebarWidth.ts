@@ -32,47 +32,6 @@ function buildStyle(widthPx: number): string {
       --bard-sidenav-open-width: ${clampedWidth} !important;
       --bard-sidenav-open-closed-width-diff: ${openClosedDiff} !important;
     }
-
-    #app-root > main > div > bard-mode-switcher {
-      transform: translateX(var(--gv-sidenav-shift)) !important;
-      pointer-events: none !important;
-    }
-
-    #app-root > main > div > bard-mode-switcher :is(
-      button, a, input, select, textarea, [role='button'], [tabindex]:not([tabindex='-1'])
-    ) {
-      pointer-events: auto;
-    }
-
-    #app-root > main > div > bard-mode-switcher .top-bar-actions {
-      pointer-events: none !important;
-    }
-
-    top-bar-actions .top-bar-actions,
-    top-bar-actions {
-      pointer-events: none !important;
-    }
-
-    #app-root > main > div > bard-mode-switcher .top-bar-actions :is(
-      button, a, input, select, textarea, [role='button'], [tabindex]:not([tabindex='-1']), search-nav-button
-    ),
-    top-bar-actions .top-bar-actions :is(
-      button, a, input, select, textarea, [role='button'], [tabindex]:not([tabindex='-1']), search-nav-button
-    ),
-    top-bar-actions :is(
-      button, a, input, select, textarea, [role='button'], [tabindex]:not([tabindex='-1']), search-nav-button
-    ) {
-      pointer-events: auto !important;
-    }
-
-    #app-root > main > div > bard-mode-switcher search-nav-button,
-    #app-root > main > div > bard-mode-switcher search-nav-button button,
-    top-bar-actions search-nav-button,
-    top-bar-actions search-nav-button button {
-      position: relative;
-      z-index: 1;
-      pointer-events: auto !important;
-    }
   `;
 }
 
@@ -86,13 +45,22 @@ function applyWidth(widthPx: number): void {
     style.textContent = buildStyle(widthPx);
 }
 
+function clearWidthOverride(): void {
+    const style = document.getElementById(STYLE_ID);
+    if (style) style.remove();
+}
+
 export function startSidebarWidthAdjuster(): void {
     let currentWidthValue = DEFAULT_PX;
 
-    chrome.storage.local.get({ [StorageKeys.GEMINI_SIDEBAR_WIDTH]: DEFAULT_PX }, (res) => {
+    chrome.storage.local.get([StorageKeys.GEMINI_SIDEBAR_WIDTH], (res) => {
         const raw = res[StorageKeys.GEMINI_SIDEBAR_WIDTH];
-        currentWidthValue = clampNumber(Number(raw) || DEFAULT_PX, MIN_PX, MAX_PX);
-        applyWidth(currentWidthValue);
+        if (typeof raw === 'number' && Number.isFinite(raw)) {
+            currentWidthValue = clampNumber(raw, MIN_PX, MAX_PX);
+            applyWidth(currentWidthValue);
+        } else {
+            clearWidthOverride();
+        }
     });
 
     chrome.storage.onChanged.addListener((changes, area) => {
@@ -101,6 +69,8 @@ export function startSidebarWidthAdjuster(): void {
             if (Number.isFinite(w)) {
                 currentWidthValue = clampNumber(w, MIN_PX, MAX_PX);
                 applyWidth(currentWidthValue);
+            } else {
+                clearWidthOverride();
             }
         }
     });

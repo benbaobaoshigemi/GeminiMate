@@ -3998,13 +3998,18 @@ body.dark-theme .gv-folder-action-btn.gv-filter-active mat-icon,
 }
 
 .gv-aistudio .google-symbols[data-icon='push_pin']::before {
-  content: '📌';
+  content: '⌖';
+  font-family: inherit;
   font-size: 16px;
+  line-height: 20px;
+  color: currentColor;
 }
 
 .gv-aistudio .gv-folder-pin-btn[data-state='unpinned'] .google-symbols::before {
-  content: '📍';
-  font-size: 14px;
+  content: '⌖';
+  opacity: 0.72;
+  transform: rotate(28deg);
+  transform-origin: 50% 50%;
 }
 
 .gv-aistudio
@@ -4012,8 +4017,10 @@ body.dark-theme .gv-folder-action-btn.gv-filter-active mat-icon,
   > .gv-folder-item-header
   .gv-folder-pin-btn
   .google-symbols::before {
-  content: '📌';
-  color: #f59e0b;
+  content: '⌖';
+  color: currentColor;
+  opacity: 1;
+  transform: none;
 }
 
 /* Subtle highlight for pinned folders */
@@ -4058,13 +4065,19 @@ body.dark-theme .gv-folder-action-btn.gv-filter-active mat-icon,
 }
 
 .gv-folder-container span.google-symbols[data-icon='push_pin']::before {
-  content: '📌';
-  font-size: 16px;
+  content: 'push_pin';
+  font-family: 'Google Symbols', 'Material Symbols Outlined', 'Material Symbols Rounded', 'Segoe UI Symbol', sans-serif;
+  font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 20;
+  font-size: 18px;
+  line-height: 20px;
+  color: currentColor;
 }
 
 .gv-folder-container .gv-folder-pin-btn[data-state='unpinned'] span.google-symbols::before {
-  content: '📍';
-  font-size: 14px;
+  content: 'push_pin';
+  opacity: 0.72;
+  transform: rotate(28deg);
+  transform-origin: 50% 50%;
 }
 
 .gv-folder-container span.google-symbols[data-icon='more_vert']::before {

@@ -15,6 +15,9 @@ const DEBUG_CACHE_DIR = `${DEBUG_LOG_DIR}/cache`;
 const DEBUG_FLUSH_INTERVAL_MS = 1500;
 const DEBUG_MAX_LOG_LINES = 9000;
 const DEBUG_MAX_DETAIL_CHARS = 2400;
+const SHARE_PAYLOAD_PREFIX = 'gm_share_payload_';
+const SHARE_PAYLOAD_TTL_MS = 10 * 60 * 1000;
+const SHARE_DATA_URL_HTML_LIMIT = 400_000;
 
 type StarredMessageRequest =
   | { type: 'gv.starred.getAll'; payload?: unknown }
@@ -27,6 +30,17 @@ type ThoughtTranslationRequest = {
   type: 'gm.translateThought';
   text?: unknown;
   targetLang?: unknown;
+};
+type ShareOpenRequest = {
+  type: 'gm.share.open';
+  html?: unknown;
+  title?: unknown;
+};
+
+type PdfDownloadRequest = {
+  type: 'gm.pdf.download';
+  dataUrl?: unknown;
+  filename?: unknown;
 };
 
 type DebugIngestRequest = {
@@ -86,6 +100,10 @@ const isFetchImageRequest = (message: unknown): message is FetchImageRequest =>
 
 const isThoughtTranslationRequest = (message: unknown): message is ThoughtTranslationRequest =>
   isRecord(message) && message.type === 'gm.translateThought';
+const isShareOpenRequest = (message: unknown): message is ShareOpenRequest =>
+  isRecord(message) && message.type === 'gm.share.open';
+const isPdfDownloadRequest = (message: unknown): message is PdfDownloadRequest =>
+  isRecord(message) && message.type === 'gm.pdf.download';
 
 const isDebugMessageRequest = (message: unknown): message is DebugMessageRequest =>
   isRecord(message) && typeof message.type === 'string' && message.type.startsWith('gm.debug.');
@@ -487,6 +505,92 @@ async function blobToBase64(blob: Blob): Promise<string> {
   return btoa(binary);
 }
 
+const createSharePayloadId = (): string =>
+  `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
+
+const getShareStorage = (): chrome.storage.SessionArea | chrome.storage.LocalStorageArea =>
+  chrome.storage.session ?? chrome.storage.local;
+
+const cleanupExpiredSharePayloads = async (
+  storage: chrome.storage.SessionArea | chrome.storage.LocalStorageArea,
+): Promise<void> => {
+  const all = await storage.get(null);
+  const now = Date.now();
+  const staleKeys = Object.entries(all)
+    .filter(([key, value]) => {
+      if (!key.startsWith(SHARE_PAYLOAD_PREFIX)) return false;
+      if (!isRecord(value)) return true;
+      const createdAt = typeof value.createdAt === 'number' ? value.createdAt : 0;
+      return createdAt <= 0 || now - createdAt > SHARE_PAYLOAD_TTL_MS;
+    })
+    .map(([key]) => key);
+  if (!staleKeys.length) return;
+  await storage.remove(staleKeys);
+};
+
+const openShareViewerTab = async (html: string, title: string): Promise<void> => {
+  // A top-level data: page avoids the extension viewer/blob execution quirks
+  // and lets self-contained dynamic HTML run as a normal standalone document.
+  if (html.length <= SHARE_DATA_URL_HTML_LIMIT) {
+    const url = `data:text/html;charset=utf-8,${encodeURIComponent(html)}`;
+    await chrome.tabs.create({ url });
+    return;
+  }
+
+  const payloadId = createSharePayloadId();
+  const storageKey = `${SHARE_PAYLOAD_PREFIX}${payloadId}`;
+  const storage = getShareStorage();
+  await cleanupExpiredSharePayloads(storage);
+  await storage.set({
+    [storageKey]: {
+      html,
+      title,
+      createdAt: Date.now(),
+    },
+  });
+
+  const url = chrome.runtime.getURL(`share-viewer.html?id=${encodeURIComponent(payloadId)}`);
+  await chrome.tabs.create({ url });
+};
+
+const sleep = (ms: number): Promise<void> =>
+  new Promise((resolve) => {
+    setTimeout(resolve, ms);
+  });
+
+const waitForDownloadFilename = async (downloadId: number): Promise<string> => {
+  const maxAttempts = 25;
+  for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
+    const items = await chrome.downloads.search({ id: downloadId });
+    const filePath = items[0]?.filename;
+    if (filePath) {
+      return filePath;
+    }
+    await sleep(200);
+  }
+
+  throw new Error('download_path_unavailable');
+};
+
+const downloadPdfAndResolvePath = async (dataUrl: string, filename: string): Promise<string> => {
+  if (!chrome.downloads?.download) {
+    throw new Error('downloads_api_unavailable');
+  }
+
+  const downloadId = await chrome.downloads.download({
+    url: dataUrl,
+    filename,
+    saveAs: false,
+    conflictAction: 'uniquify',
+  });
+
+  if (typeof downloadId !== 'number') {
+    throw new Error('download_failed');
+  }
+
+  return waitForDownloadFilename(downloadId);
+};
+
 const captureClientCacheSnapshot = async (
   payload: unknown,
   writeTimestampedFile = false,
@@ -621,6 +725,38 @@ chrome.runtime.onMessage.addListener((message: unknown, _sender, sendResponse) =
         sendResponse({ ok: false, error: getErrorMessage(error) });
       });
 
+    return true;
+  }
+
+  if (isShareOpenRequest(message)) {
+    const html = typeof message.html === 'string' ? message.html : '';
+    const title = typeof message.title === 'string' && message.title.trim()
+      ? message.title.trim()
+      : 'GeminiMate Share';
+
+    if (!html.trim()) {
+      sendResponse({ ok: false, error: 'empty_html' });
+      return;
+    }
+
+    void openShareViewerTab(html, title)
+      .then(() => sendResponse({ ok: true }))
+      .catch((error: unknown) => sendResponse({ ok: false, error: getErrorMessage(error) }));
+    return true;
+  }
+
+  if (isPdfDownloadRequest(message)) {
+    const dataUrl = typeof message.dataUrl === 'string' ? message.dataUrl : '';
+    const filename = typeof message.filename === 'string' ? message.filename : 'geminimate.pdf';
+
+    if (!dataUrl.startsWith('data:application/pdf')) {
+      sendResponse({ ok: false, error: 'invalid_pdf_data' });
+      return;
+    }
+
+    void downloadPdfAndResolvePath(dataUrl, filename)
+      .then((filePath) => sendResponse({ ok: true, filePath }))
+      .catch((error: unknown) => sendResponse({ ok: false, error: getErrorMessage(error) }));
     return true;
   }
 

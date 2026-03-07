@@ -1,4 +1,4 @@
-import { TimelineManager } from './manager';
+﻿import { TimelineManager } from './manager';
 
 function isGeminiConversationRoute(pathname = location.pathname): boolean {
   // Support account-scoped routes like /u/1/app or /u/0/gem/
@@ -156,7 +156,7 @@ function cleanup(): void {
     try {
       observer.disconnect();
     } catch (e) {
-      console.error('[Gemini Voyager] Failed to disconnect observer during cleanup:', e);
+      console.error('[GeminiMate] Failed to disconnect observer during cleanup:', e);
     }
   });
   activeObservers = [];
@@ -172,7 +172,7 @@ function cleanup(): void {
     try {
       handler();
     } catch (e) {
-      console.error('[Gemini Voyager] Failed to run cleanup handler:', e);
+      console.error('[GeminiMate] Failed to run cleanup handler:', e);
     }
   });
   cleanupHandlers = [];
@@ -218,3 +218,4 @@ export function startTimeline(): void {
     chrome.runtime.onSuspend?.addListener?.(cleanup);
   }
 }
+
