@@ -19,6 +19,7 @@ export const StorageKeys = {
     LATEX_FIXER_ENABLED: 'geminimate_latex_enabled',
     MARKDOWN_REPAIR_ENABLED: 'geminimate_markdown_enabled',
     MERMAID_RENDER_ENABLED: 'geminimate_mermaid_enabled',
+    SVG_RENDER_ENABLED: 'geminimate_svg_render_enabled',
     THOUGHT_TRANSLATION_ENABLED: 'geminimate_thought_translation_enabled',
     FORMULA_COPY_ENABLED: 'geminimate_formula_copy_enabled',
     FORMULA_COPY_FORMAT: 'geminimate_formula_copy_format',

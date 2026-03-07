@@ -24,7 +24,7 @@
   "content_scripts": [
     {
       "js": [
-        "assets/index.tsx-loader-C6Cr1v9T.js"
+        "assets/index.tsx-loader-Dzd0Rmj0.js"
       ],
       "matches": [
         "https://gemini.google.com/*",
@@ -56,17 +56,17 @@
       ],
       "resources": [
         "assets/bg_96-C2FFcR6-.png",
-        "assets/feature-reading-BoCbnQAC.js",
-        "assets/treemap-GDKQZRPO-Bve51nkg.js",
-        "assets/feature-timeline-DC3gbxfG.js",
+        "assets/feature-reading-DIT-h0Kq.js",
+        "assets/treemap-GDKQZRPO-BzXpMGBl.js",
+        "assets/feature-timeline-oVLGIccu.js",
         "assets/vendor-react-B-sxFqXu.js",
-        "assets/Popup-DxZrOTYF.js",
+        "assets/Popup-DdV6of6j.js",
         "assets/feature-export-DNK65XAr.js",
-        "assets/feature-layout-CIHtj69c.js",
-        "assets/vendor-mermaid-DJOcXJMk.js",
+        "assets/feature-layout-CRsS5MA1.js",
+        "assets/vendor-mermaid-DekUzk_f.js",
         "assets/app-locales-CU6VwQFh.js",
         "assets/vendor-export-Bi8-UUDe.js",
-        "assets/index.tsx-jlVKyHJn.js"
+        "assets/index.tsx-CTLAkrDz.js"
       ],
       "use_dynamic_url": false
     }

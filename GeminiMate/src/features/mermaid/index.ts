@@ -28,7 +28,9 @@ let fullscreenModal: HTMLElement | null = null;
 let fullscreenKeydownHandler: ((event: KeyboardEvent) => void) | null = null;
 const TRACE_ENABLED = false;
 const DEFAULT_MERMAID_FONT_FAMILY = 'Google Sans, Roboto, sans-serif';
-let resolvedMermaidFontFamily = DEFAULT_MERMAID_FONT_FAMILY;
+const STABLE_MERMAID_FONT_FAMILY =
+  "'Google Sans', Roboto, 'PingFang SC', 'Noto Sans CJK SC', 'Microsoft YaHei', sans-serif";
+let resolvedMermaidFontFamily = STABLE_MERMAID_FONT_FAMILY;
 const boundDownloadButtons = new WeakSet<HTMLButtonElement>();
 const boundToggleButtons = new WeakSet<HTMLButtonElement>();
 const boundDiagramContainers = new WeakSet<HTMLElement>();
@@ -157,16 +159,9 @@ export const normalizeWhitespace = (code: string): string =>
     .replace(/[\u200B\u200C\u200D\uFEFF]/g, '');
 
 const resolveMermaidFontFamily = (): string => {
-  const candidateSelectors = ['.markdown-main-panel', '.markdown', 'body'];
-  for (const selector of candidateSelectors) {
-    const node = document.querySelector(selector);
-    if (!(node instanceof HTMLElement)) continue;
-    const family = (window.getComputedStyle(node).fontFamily || '').trim();
-    if (family.length > 0) {
-      return family;
-    }
-  }
-  return DEFAULT_MERMAID_FONT_FAMILY;
+  // Keep Mermaid metrics stable and aligned with reference behavior.
+  // Dynamic runtime font switching can cause label overflow/clipping.
+  return STABLE_MERMAID_FONT_FAMILY || DEFAULT_MERMAID_FONT_FAMILY;
 };
 
 const syncResolvedMermaidFontFamily = (): boolean => {
@@ -176,6 +171,17 @@ const syncResolvedMermaidFontFamily = (): boolean => {
   // Mermaid caches theme variables internally; re-init when runtime font changed.
   mermaidInitialized = false;
   return true;
+};
+
+const waitForDocumentFonts = async (): Promise<void> => {
+  if (!(document as Document & { fonts?: FontFaceSet }).fonts?.ready) return;
+  const readyPromise = (document as Document & { fonts?: FontFaceSet }).fonts!.ready;
+  await Promise.race([
+    readyPromise,
+    new Promise<void>((resolve) => {
+      window.setTimeout(resolve, 1200);
+    }),
+  ]);
 };
 
 export const isGenericLanguageLabel = (language: string | null): boolean => {
@@ -297,7 +303,7 @@ const ensureStyles = (): void => {
     .${DIAGRAM_CLASS} {
       display: none;
       padding: 16px 18px 18px;
-      overflow-x: auto;
+      overflow: auto;
       text-align: center;
       cursor: zoom-in;
       border-top: 1px solid rgba(148, 163, 184, 0.16);
@@ -306,6 +312,14 @@ const ensureStyles = (): void => {
     .${DIAGRAM_CLASS} svg {
       max-width: 100%;
       height: auto;
+      overflow: visible !important;
+    }
+
+    .${DIAGRAM_CLASS} .label,
+    .${DIAGRAM_CLASS} .edgeLabel,
+    .${DIAGRAM_CLASS} foreignObject,
+    .${DIAGRAM_CLASS} foreignObject * {
+      overflow: visible !important;
     }
 
     .gm-mermaid-render-error {
@@ -528,7 +542,15 @@ const ensureSvgFontStyleTag = (svg: SVGElement): void => {
     style.setAttribute('data-gm-mermaid-font', '1');
     defs.appendChild(style);
   }
-  style.textContent = `text, tspan, .label, .nodeLabel, .edgeLabel, foreignObject, foreignObject * { font-family: ${resolvedMermaidFontFamily} !important; }`;
+  style.textContent = `
+    text, tspan, .label, .nodeLabel, .edgeLabel, foreignObject, foreignObject * {
+      font-family: ${resolvedMermaidFontFamily} !important;
+    }
+    .label, .edgeLabel, foreignObject, foreignObject * {
+      overflow: visible !important;
+      line-height: 1.25 !important;
+    }
+  `;
 };
 
 const serializeSvg = (svgElement: SVGElement): string => {
@@ -557,14 +579,16 @@ const applySvgFontFamily = (container: HTMLElement): void => {
   const svg = container.querySelector('svg');
   if (!(svg instanceof SVGElement)) return;
   svg.style.setProperty('font-family', resolvedMermaidFontFamily, 'important');
+  svg.style.setProperty('overflow', 'visible', 'important');
   ensureSvgFontStyleTag(svg);
-  svg.querySelectorAll<Element>('text, tspan, .label, .nodeLabel, .edgeLabel, foreignObject, foreignObject *').forEach((node) => {
+  svg.querySelectorAll<Element>('.label, .edgeLabel, foreignObject, foreignObject *').forEach((node) => {
     if (node instanceof SVGElement) {
-      node.style.setProperty('font-family', resolvedMermaidFontFamily, 'important');
+      node.style.setProperty('overflow', 'visible', 'important');
       return;
     }
     if (node instanceof HTMLElement) {
-      node.style.setProperty('font-family', resolvedMermaidFontFamily, 'important');
+      node.style.setProperty('overflow', 'visible', 'important');
+      node.style.setProperty('line-height', '1.25', 'important');
     }
   });
 };
@@ -959,6 +983,7 @@ const renderMermaid = async (codeElement: HTMLElement, sourceCode: string): Prom
   codeBlockHost.setAttribute(PROCESSING_ATTR, '1');
 
   try {
+    await waitForDocumentFonts();
     const ready = await initMermaid();
     if (!ready) {
       logTrace('load-unavailable');

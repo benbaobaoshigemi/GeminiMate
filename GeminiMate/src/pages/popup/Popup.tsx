@@ -321,6 +321,7 @@ export default function Popup() {
   const [latexEnabled, setLatexEnabled] = useState(true);
   const [markdownEnabled, setMarkdownEnabled] = useState(true);
   const [mermaidEnabled, setMermaidEnabled] = useState(true);
+  const [svgRenderEnabled, setSvgRenderEnabled] = useState(true);
   const [thoughtTranslationEnabled, setThoughtTranslationEnabled] = useState(false);
 
   const [formulaCopyEnabled, setFormulaCopyEnabled] = useState(true);
@@ -361,6 +362,7 @@ export default function Popup() {
       StorageKeys.LATEX_FIXER_ENABLED,
       StorageKeys.MARKDOWN_REPAIR_ENABLED,
       StorageKeys.MERMAID_RENDER_ENABLED,
+      StorageKeys.SVG_RENDER_ENABLED,
       StorageKeys.THOUGHT_TRANSLATION_ENABLED,
       StorageKeys.FORMULA_COPY_ENABLED,
       StorageKeys.FORMULA_COPY_FORMAT,
@@ -395,6 +397,7 @@ export default function Popup() {
       setLatexEnabled(resolveToggleValue(result[StorageKeys.LATEX_FIXER_ENABLED]));
       setMarkdownEnabled(resolveToggleValue(result[StorageKeys.MARKDOWN_REPAIR_ENABLED]));
       setMermaidEnabled(resolveToggleValue(result[StorageKeys.MERMAID_RENDER_ENABLED]));
+      setSvgRenderEnabled(resolveToggleValue(result[StorageKeys.SVG_RENDER_ENABLED]));
       setThoughtTranslationEnabled(resolveToggleValue(result[StorageKeys.THOUGHT_TRANSLATION_ENABLED], false));
 
       setFormulaCopyEnabled(result[StorageKeys.FORMULA_COPY_ENABLED] ?? true);
@@ -443,6 +446,9 @@ export default function Popup() {
       }
       if (changes[StorageKeys.MERMAID_RENDER_ENABLED]) {
         setMermaidEnabled(resolveToggleValue(changes[StorageKeys.MERMAID_RENDER_ENABLED].newValue));
+      }
+      if (changes[StorageKeys.SVG_RENDER_ENABLED]) {
+        setSvgRenderEnabled(resolveToggleValue(changes[StorageKeys.SVG_RENDER_ENABLED].newValue));
       }
       if (changes[StorageKeys.THOUGHT_TRANSLATION_ENABLED]) {
         setThoughtTranslationEnabled(resolveToggleValue(changes[StorageKeys.THOUGHT_TRANSLATION_ENABLED].newValue, false));
@@ -772,6 +778,82 @@ export default function Popup() {
               )}
             </div>
           </div>
+
+          <div className="bg-white dark:bg-white/[0.02] backdrop-blur-xl border border-slate-200 dark:border-white/10 rounded-2xl p-4 mt-4">
+            <SectionHeader icon={Settings} title="调试设置" />
+            <div className="space-y-2">
+              <SettingRow
+                icon={Settings}
+                title="调试模式"
+                description="开启后持续记录运行日志并落盘到本地 .log 目录"
+                checked={debugModeEnabled}
+                onChange={(v) => updateSetting(StorageKeys.DEBUG_MODE, v, setDebugModeEnabled)}
+                badge="DEBUG"
+              />
+              <SettingRow
+                icon={Settings}
+                title="日志落盘"
+                description="将运行日志持续写入 .log/geminimate-runtime.log"
+                checked={debugFileLogEnabled}
+                onChange={(v) =>
+                  updateSetting(
+                    StorageKeys.DEBUG_FILE_LOG_ENABLED,
+                    v,
+                    setDebugFileLogEnabled,
+                  )
+                }
+                disabled={!debugModeEnabled}
+              />
+              <SettingRow
+                icon={Settings}
+                title="缓存快照采集"
+                description="采集 local/session/chrome storage 快照到 .log/cache"
+                checked={debugCacheCaptureEnabled}
+                onChange={(v) =>
+                  updateSetting(
+                    StorageKeys.DEBUG_CACHE_CAPTURE_ENABLED,
+                    v,
+                    setDebugCacheCaptureEnabled,
+                  )
+                }
+                disabled={!debugModeEnabled}
+              />
+              <div className="p-3 rounded-xl bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/5">
+                <p className="text-sm font-medium text-slate-800 dark:text-white/90 mb-2">调试操作</p>
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() =>
+                      triggerDebugAction(
+                        { type: 'gm.debug.exportNow', reason: 'popup-manual-export' },
+                        '已导出日志',
+                      )
+                    }
+                    disabled={!debugModeEnabled}
+                    className="px-3 py-2 rounded-lg text-xs font-medium border border-slate-200 dark:border-white/10 bg-white dark:bg-white/5 hover:bg-slate-100 dark:hover:bg-white/10 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    立即导出日志
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      triggerDebugAction(
+                        { type: 'gm.debug.captureNow', reason: 'popup-manual-cache' },
+                        '已抓取缓存快照',
+                      )
+                    }
+                    disabled={!debugModeEnabled || !debugCacheCaptureEnabled}
+                    className="px-3 py-2 rounded-lg text-xs font-medium border border-slate-200 dark:border-white/10 bg-white dark:bg-white/5 hover:bg-slate-100 dark:hover:bg-white/10 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    立即抓缓存
+                  </button>
+                </div>
+                {debugActionStatus ? (
+                  <p className="text-[11px] text-blue-500 dark:text-blue-300 mt-2">{debugActionStatus}</p>
+                ) : null}
+              </div>
+            </div>
+          </div>
         </div>
       </div>
     );
@@ -830,6 +912,13 @@ export default function Popup() {
               description="将代码块转为可视化流程图"
               checked={mermaidEnabled}
               onChange={(v) => updateSetting(StorageKeys.MERMAID_RENDER_ENABLED, v, setMermaidEnabled)}
+            />
+            <SettingRow
+              icon={PenTool}
+              title="SVG 图形渲染"
+              description="将 SVG 源码实时渲染为图形预览"
+              checked={svgRenderEnabled}
+              onChange={(v) => updateSetting(StorageKeys.SVG_RENDER_ENABLED, v, setSvgRenderEnabled)}
             />
             <SettingRow
               icon={PenTool}
@@ -1190,76 +1279,6 @@ export default function Popup() {
 
           <SectionHeader icon={Settings} title="其他" />
           <div className="space-y-2">
-            <SettingRow
-              icon={Settings}
-              title="调试模式"
-              description="开启后持续记录运行日志并落盘到本地 .log 目录"
-              checked={debugModeEnabled}
-              onChange={(v) => updateSetting(StorageKeys.DEBUG_MODE, v, setDebugModeEnabled)}
-              badge="DEBUG"
-            />
-            <SettingRow
-              icon={Settings}
-              title="日志落盘"
-              description="将运行日志持续写入 .log/geminimate-runtime.log"
-              checked={debugFileLogEnabled}
-              onChange={(v) =>
-                updateSetting(
-                  StorageKeys.DEBUG_FILE_LOG_ENABLED,
-                  v,
-                  setDebugFileLogEnabled,
-                )
-              }
-              disabled={!debugModeEnabled}
-            />
-            <SettingRow
-              icon={Settings}
-              title="缓存快照采集"
-              description="采集 local/session/chrome storage 快照到 .log/cache"
-              checked={debugCacheCaptureEnabled}
-              onChange={(v) =>
-                updateSetting(
-                  StorageKeys.DEBUG_CACHE_CAPTURE_ENABLED,
-                  v,
-                  setDebugCacheCaptureEnabled,
-                )
-              }
-              disabled={!debugModeEnabled}
-            />
-            <div className="p-3 rounded-xl bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/5">
-              <p className="text-sm font-medium text-slate-800 dark:text-white/90 mb-2">调试操作</p>
-              <div className="grid grid-cols-2 gap-2">
-                <button
-                  type="button"
-                  onClick={() =>
-                    triggerDebugAction(
-                      { type: 'gm.debug.exportNow', reason: 'popup-manual-export' },
-                      '已导出日志',
-                    )
-                  }
-                  disabled={!debugModeEnabled}
-                  className="px-3 py-2 rounded-lg text-xs font-medium border border-slate-200 dark:border-white/10 bg-white dark:bg-white/5 hover:bg-slate-100 dark:hover:bg-white/10 disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  立即导出日志
-                </button>
-                <button
-                  type="button"
-                  onClick={() =>
-                    triggerDebugAction(
-                      { type: 'gm.debug.captureNow', reason: 'popup-manual-cache' },
-                      '已抓取缓存快照',
-                    )
-                  }
-                  disabled={!debugModeEnabled || !debugCacheCaptureEnabled}
-                  className="px-3 py-2 rounded-lg text-xs font-medium border border-slate-200 dark:border-white/10 bg-white dark:bg-white/5 hover:bg-slate-100 dark:hover:bg-white/10 disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  立即抓缓存
-                </button>
-              </div>
-              {debugActionStatus ? (
-                <p className="text-[11px] text-blue-500 dark:text-blue-300 mt-2">{debugActionStatus}</p>
-              ) : null}
-            </div>
             <SettingRow
               icon={Zap}
               title="Word 一键导出"

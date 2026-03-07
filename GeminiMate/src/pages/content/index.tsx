@@ -5,6 +5,7 @@ import { StorageKeys } from '../../core/types/common';
 import { getFormulaCopyService, startFormulaCopy, stopFormulaCopy } from '../../features/formulaCopy';
 import { startQuoteReply } from '../../features/quoteReply';
 import { setMermaidRenderEnabled, startMermaid, stopMermaid } from '../../features/mermaid';
+import { setSvgRenderEnabled, startSvgRenderer, stopSvgRenderer } from '../../features/svgRenderer';
 import { startThoughtTranslation, stopThoughtTranslation } from '../../features/thoughtTranslation';
 import { startTimeline } from '../../features/timeline';
 import { startBottomCleanup, stopBottomCleanup } from '../../features/uiCleanup';
@@ -36,6 +37,8 @@ let watermarkEnabled = false;
 let bottomCleanupEnabled = false;
 let mermaidEnabled = false;
 let mermaidServiceBootstrapped = false;
+let svgRenderEnabled = true;
+let svgRendererBootstrapped = false;
 let thoughtTranslationEnabled = false;
 let debugModeEnabled = false;
 let debugCacheCaptureTimer: ReturnType<typeof setInterval> | null = null;
@@ -206,6 +209,22 @@ const syncMermaidState = (enabled: boolean): void => {
   debugService.log('mermaid', enabled ? 'toggle-on' : 'toggle-off');
 };
 
+const syncSvgRenderState = (enabled: boolean): void => {
+  svgRenderEnabled = enabled;
+  if (!svgRendererBootstrapped) {
+    svgRendererBootstrapped = true;
+    void startSvgRenderer().then(() => {
+      setSvgRenderEnabled(svgRenderEnabled);
+      debugService.log('svg-renderer', 'service-bootstrapped', {
+        renderEnabled: svgRenderEnabled,
+      });
+    });
+    return;
+  }
+  setSvgRenderEnabled(enabled);
+  debugService.log('svg-renderer', enabled ? 'toggle-on' : 'toggle-off');
+};
+
 const syncThoughtTranslationState = (enabled: boolean): void => {
   if (enabled === thoughtTranslationEnabled) {
     return;
@@ -300,6 +319,13 @@ const handleStorageChanged = (
     syncMermaidState(enabled);
   }
 
+  const svgRenderChange = changes[StorageKeys.SVG_RENDER_ENABLED];
+  if (svgRenderChange) {
+    const enabled = resolveEnabledValue(svgRenderChange.newValue);
+    debugService.log('storage', 'svg-render-enabled-changed', { enabled });
+    syncSvgRenderState(enabled);
+  }
+
   const thoughtTranslationChange = changes[StorageKeys.THOUGHT_TRANSLATION_ENABLED];
   if (thoughtTranslationChange) {
     const enabled = resolveThoughtTranslationValue(thoughtTranslationChange.newValue);
@@ -330,6 +356,7 @@ const initExtension = async () => {
       StorageKeys.WATERMARK_REMOVER_ENABLED,
       StorageKeys.BOTTOM_CLEANUP_ENABLED,
       StorageKeys.MERMAID_RENDER_ENABLED,
+      StorageKeys.SVG_RENDER_ENABLED,
       StorageKeys.THOUGHT_TRANSLATION_ENABLED,
       StorageKeys.DEBUG_MODE,
     ]);
@@ -338,6 +365,7 @@ const initExtension = async () => {
     syncWatermarkRemoverState(resolveEnabledValue(settings[StorageKeys.WATERMARK_REMOVER_ENABLED]));
     syncBottomCleanupState(resolveEnabledValue(settings[StorageKeys.BOTTOM_CLEANUP_ENABLED]));
     syncMermaidState(resolveEnabledValue(settings[StorageKeys.MERMAID_RENDER_ENABLED]));
+    syncSvgRenderState(resolveEnabledValue(settings[StorageKeys.SVG_RENDER_ENABLED]));
     traceThoughtTranslation('initial-setting', {
       rawValue: settings[StorageKeys.THOUGHT_TRANSLATION_ENABLED],
       resolved: resolveThoughtTranslationValue(settings[StorageKeys.THOUGHT_TRANSLATION_ENABLED]),
@@ -374,6 +402,7 @@ const initExtension = async () => {
       stopWatermarkRemover();
       stopBottomCleanup();
       stopMermaid();
+      stopSvgRenderer();
       stopThoughtTranslation();
       stopControlCapsule();
       if (debugCacheCaptureTimer !== null) {
