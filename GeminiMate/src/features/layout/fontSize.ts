@@ -67,6 +67,13 @@ function resolveBodyLineHeight(step: number): number {
  * Angular scoped: .markdown[_nghost-ng-c3518605453] — we override with !important
  */
 const MODEL_TEXT_SELECTORS = `.markdown`;
+const TABLE_TEXT_SELECTORS = `
+    .markdown table th,
+    .markdown table td,
+    .markdown table th > p,
+    .markdown table td > p,
+    .markdown table th li,
+    .markdown table td li`.trim();
 const USER_TEXT_SELECTORS = `.query-text, .query-text-line`;
 /*
  * Input area selectors: rich-textarea contains the user's typing.
@@ -139,7 +146,7 @@ function buildCSS(
 
     /* All conversation text — model, user, input */
         const textRules = [fontSizeRule, fontWeightRule, fontVariationRule, fontFamilyRule, letterSpacingRule, lineHeightRule].filter(Boolean).join('\n      ');
-    parts.push(`${MODEL_TEXT_SELECTORS}, ${USER_TEXT_SELECTORS}, ${INPUT_TEXT_SELECTORS} {
+    parts.push(`${MODEL_TEXT_SELECTORS}, ${TABLE_TEXT_SELECTORS}, ${USER_TEXT_SELECTORS}, ${INPUT_TEXT_SELECTORS} {
       ${textRules}
     }`);
 

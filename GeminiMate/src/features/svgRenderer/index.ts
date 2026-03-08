@@ -8,6 +8,7 @@ const HOST_ATTR = 'data-gm-svg-host';
 const VIEW_ATTR = 'data-gm-svg-view';
 const CODE_ATTR = 'data-gm-svg-code';
 const PROCESSING_ATTR = 'data-gm-svg-processing';
+const MARKUP_ATTR = 'data-gm-svg-markup';
 const TRACE_ENABLED = false;
 
 let started = false;
@@ -76,6 +77,15 @@ const ensureStyles = (): void => {
       max-width: 100%;
       height: auto;
       overflow: visible !important;
+    }
+
+    .${DIAGRAM_CLASS} iframe {
+      display: block;
+      width: 100%;
+      min-height: 160px;
+      border: 0;
+      background: transparent;
+      pointer-events: none;
     }
 
     .gm-svg-modal {
@@ -160,7 +170,14 @@ const openFullscreen = (svgHtml: string): void => {
 
   const content = document.createElement('div');
   content.className = 'gm-svg-modal-content';
-  content.innerHTML = svgHtml;
+  const viewer = document.createElement('iframe');
+  viewer.setAttribute('aria-label', 'SVG 全屏预览');
+  viewer.sandbox.add('allow-same-origin');
+  viewer.srcdoc = createSvgPreviewDocument(svgHtml);
+  viewer.style.width = '100%';
+  viewer.style.height = '80vh';
+  viewer.style.border = '0';
+  content.appendChild(viewer);
 
   modal.append(closeButton, content);
   document.body.appendChild(modal);
@@ -266,7 +283,30 @@ const setErrorDiagram = (diagramContainer: HTMLElement, error: string): void => 
   `;
 };
 
-const sanitizeSvgMarkup = (source: string): string => {
+type SanitizedSvgResult = {
+  markup: string;
+  aspectRatio: string;
+};
+
+const getSvgAspectRatio = (svg: Element): string => {
+  const viewBox = svg.getAttribute('viewBox');
+  if (viewBox) {
+    const values = viewBox.trim().split(/[\s,]+/).map((value) => Number.parseFloat(value));
+    if (values.length === 4 && Number.isFinite(values[2]) && Number.isFinite(values[3]) && values[2] > 0 && values[3] > 0) {
+      return `${values[2]} / ${values[3]}`;
+    }
+  }
+
+  const width = Number.parseFloat(svg.getAttribute('width') ?? '');
+  const height = Number.parseFloat(svg.getAttribute('height') ?? '');
+  if (Number.isFinite(width) && Number.isFinite(height) && width > 0 && height > 0) {
+    return `${width} / ${height}`;
+  }
+
+  return '16 / 9';
+};
+
+const sanitizeSvgMarkup = (source: string): SanitizedSvgResult => {
   const parser = new DOMParser();
   const doc = parser.parseFromString(source, 'image/svg+xml');
   const parserError = doc.querySelector('parsererror');
@@ -292,7 +332,66 @@ const sanitizeSvgMarkup = (source: string): string => {
     svg.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
   }
 
-  return new XMLSerializer().serializeToString(svg);
+  return {
+    markup: new XMLSerializer().serializeToString(svg),
+    aspectRatio: getSvgAspectRatio(svg),
+  };
+};
+
+const createSvgPreviewDocument = (svgMarkup: string): string => `<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8">
+    <style>
+      html, body {
+        margin: 0;
+        padding: 0;
+        width: 100%;
+        height: 100%;
+        background: transparent;
+        overflow: hidden;
+      }
+
+      body {
+        display: flex;
+        align-items: stretch;
+        justify-content: center;
+      }
+
+      svg {
+        width: 100%;
+        height: 100%;
+        display: block;
+      }
+    </style>
+  </head>
+  <body>${svgMarkup}</body>
+</html>`;
+
+const setDiagramMarkup = (
+  codeBlockHost: HTMLElement,
+  diagramContainer: HTMLElement,
+  svgMarkup: string,
+  aspectRatio: string,
+): void => {
+  const frame = document.createElement('iframe');
+  frame.setAttribute('aria-label', 'SVG 预览');
+  frame.sandbox.add('allow-same-origin');
+  frame.srcdoc = createSvgPreviewDocument(svgMarkup);
+  frame.style.width = '100%';
+  frame.style.aspectRatio = aspectRatio;
+  frame.style.minHeight = '160px';
+  frame.style.border = '0';
+  codeBlockHost.setAttribute(MARKUP_ATTR, svgMarkup);
+  diagramContainer.replaceChildren(frame);
+};
+
+const isResponseComplete = (codeBlockHost: HTMLElement): boolean => {
+  const responseEl = codeBlockHost.closest('model-response, .model-response, [data-message-author-role="model"]');
+  if (!responseEl) return true;
+  if (responseEl.querySelector('message-actions')) return true;
+  if (responseEl.querySelector('.deferred-response-indicator')) return false;
+  return false;
 };
 
 const updateView = (codeBlockHost: HTMLElement, view: SvgView): void => {
@@ -332,9 +431,10 @@ const bindToggleButton = (button: HTMLButtonElement, codeBlockHost: HTMLElement,
 const bindDiagramContainer = (diagramContainer: HTMLElement): void => {
   if (boundDiagramContainers.has(diagramContainer)) return;
   diagramContainer.addEventListener('click', () => {
-    const svg = diagramContainer.querySelector('svg');
-    if (svg) {
-      openFullscreen(diagramContainer.innerHTML);
+    const codeBlockHost = diagramContainer.closest<HTMLElement>('.code-block, code-block');
+    const svgMarkup = codeBlockHost?.getAttribute(MARKUP_ATTR) ?? '';
+    if (svgMarkup) {
+      openFullscreen(svgMarkup);
     }
   });
   boundDiagramContainers.add(diagramContainer);
@@ -420,6 +520,7 @@ const teardownSvgHost = (codeBlockHost: HTMLElement): void => {
   codeBlockHost.removeAttribute(VIEW_ATTR);
   codeBlockHost.removeAttribute(CODE_ATTR);
   codeBlockHost.removeAttribute(PROCESSING_ATTR);
+  codeBlockHost.removeAttribute(MARKUP_ATTR);
 };
 
 const renderSvg = (codeElement: HTMLElement, sourceCode: string): void => {
@@ -428,7 +529,7 @@ const renderSvg = (codeElement: HTMLElement, sourceCode: string): void => {
   if (!codeBlockHost) return;
 
   const existingDiagram = getDiagramContainer(codeBlockHost);
-  const hasRenderableDiagram = existingDiagram?.querySelector('svg') instanceof SVGElement;
+  const hasRenderableDiagram = existingDiagram?.querySelector('iframe') instanceof HTMLIFrameElement;
   if (codeBlockHost.getAttribute(CODE_ATTR) === normalizedCode && hasRenderableDiagram) {
     ensureToggleControls(codeBlockHost);
     if (existingDiagram) {
@@ -450,8 +551,8 @@ const renderSvg = (codeElement: HTMLElement, sourceCode: string): void => {
     codeBlockHost.setAttribute(HOST_ATTR, '1');
 
     try {
-      const svgMarkup = sanitizeSvgMarkup(normalizedCode);
-      diagramContainer.innerHTML = svgMarkup;
+      const sanitized = sanitizeSvgMarkup(normalizedCode);
+      setDiagramMarkup(codeBlockHost, diagramContainer, sanitized.markup, sanitized.aspectRatio);
       logTrace('rendered', { codeLength: normalizedCode.length });
     } catch (error) {
       setErrorDiagram(diagramContainer, String(error));
@@ -488,8 +589,9 @@ const processCodeBlocks = (): void => {
 
     const code = normalizeSvgSource(codeElement.textContent || '');
     const language = getCodeBlockLanguage(codeElement);
+    const responseComplete = isResponseComplete(codeBlockHost);
 
-    const shouldRenderSvg = renderEnabled && isSvgCode(code, language);
+    const shouldRenderSvg = renderEnabled && responseComplete && isSvgCode(code, language);
     if (shouldRenderSvg) {
       renderSvg(codeElement, code);
       return;

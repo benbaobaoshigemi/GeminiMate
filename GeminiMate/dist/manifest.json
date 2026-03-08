@@ -33,7 +33,7 @@
   "content_scripts": [
     {
       "js": [
-        "assets/index.tsx-loader-BDZwjJ75.js"
+        "assets/index.tsx-loader-DKaGpvUT.js"
       ],
       "matches": [
         "https://gemini.google.com/*",
@@ -66,21 +66,21 @@
       ],
       "resources": [
         "assets/bg_96-C2FFcR6-.png",
-        "assets/feature-reading-C80NGcap.js",
-        "assets/treemap-GDKQZRPO-ftSZOSXq.js",
-        "assets/feature-export-T0Wsm29B.js",
-        "assets/feature-timeline-BHXGEBv0.js",
+        "assets/feature-reading-Yu-Fs4wA.js",
+        "assets/treemap-GDKQZRPO-CgWYU2Nk.js",
+        "assets/feature-export-CjsGfjPy.js",
+        "assets/feature-timeline-Bl8-O3Tv.js",
         "assets/vendor-react-B-sxFqXu.js",
-        "assets/Popup-Cn6d_gUq.js",
-        "assets/feature-layout-BLp5rb9e.js",
-        "assets/vendor-mermaid-B7he9oCH.js",
+        "assets/Popup-CXwp0a1a.js",
+        "assets/feature-layout-B8v4VqYC.js",
+        "assets/vendor-mermaid-BXcf6h2-.js",
         "assets/vendor-export-Bi8-UUDe.js",
         "assets/app-locales-DlJG-aFp.js",
-        "assets/index.tsx-fFHl9Tzh.js",
-        "assets/jspdf.es.min-lwZsBXTp.js",
+        "assets/index.tsx-Dtv09SVT.js",
+        "assets/jspdf.es.min-DKlZO4Ek.js",
         "assets/html2canvas.esm-DXEQVQnt.js",
         "assets/purify.es-DrLDRNlj.js",
-        "assets/index.es-BWi_-WRl.js"
+        "assets/index.es-D1-3rN72.js"
       ],
       "use_dynamic_url": false
     }

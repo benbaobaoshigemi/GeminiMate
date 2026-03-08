@@ -5,12 +5,15 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "vite build",
+    "typecheck": "tsc --noEmit",
+    "build": "npm run typecheck && vite build",
     "lint": "eslint .",
     "preview": "vite preview"
   },
   "dependencies": {
+    "@hungknguyen/mathml2omml": "^0.4.6",
     "clsx": "^2.1.1",
+    "docx": "^9.6.0",
     "html-to-image": "^1.11.13",
     "jspdf": "^2.5.2",
     "jszip": "^3.10.1",

@@ -271,6 +271,34 @@ const attachClickLoggerOnce = (): void => {
   );
 };
 
+const extractCustomFontNames = (value: unknown): string[] => {
+  if (!Array.isArray(value)) return [];
+  return value
+    .map((item) => (item && typeof item === 'object' && 'name' in item ? String(item.name || '') : ''))
+    .filter((name) => name.length > 0);
+};
+
+const traceCustomFontStorage = (event: 'initial' | 'changed', value: unknown): void => {
+  const fontNames = extractCustomFontNames(value);
+  console.error('[VIBE_DEBUG_TRACE][CUSTOM_FONT_STORAGE_PAGE_TRACE]', {
+    event,
+    fontNames,
+    fontCount: fontNames.length,
+  });
+  console.error(
+    '[VIBE_DEBUG_TRACE][CUSTOM_FONT_STORAGE_PAGE_TRACE_JSON]',
+    JSON.stringify(
+      {
+        event,
+        fontNames,
+        fontCount: fontNames.length,
+      },
+      null,
+      2,
+    ),
+  );
+};
+
 const handleStorageChanged = (
   changes: Record<string, chrome.storage.StorageChange>,
   areaName: string,
@@ -339,6 +367,11 @@ const handleStorageChanged = (
     debugService.log('storage', 'debug-mode-enabled-changed', { enabled });
     syncDebugModeState(enabled);
   }
+
+  const customFontsChange = changes[StorageKeys.GEMINI_CUSTOM_FONTS];
+  if (customFontsChange) {
+    traceCustomFontStorage('changed', customFontsChange.newValue);
+  }
 };
 
 const initExtension = async () => {
@@ -359,6 +392,7 @@ const initExtension = async () => {
       StorageKeys.SVG_RENDER_ENABLED,
       StorageKeys.THOUGHT_TRANSLATION_ENABLED,
       StorageKeys.DEBUG_MODE,
+      StorageKeys.GEMINI_CUSTOM_FONTS,
     ]);
     syncFormulaCopyState(resolveEnabledValue(settings[StorageKeys.FORMULA_COPY_ENABLED]));
     syncQuoteReplyState(resolveEnabledValue(settings[StorageKeys.QUOTE_REPLY_ENABLED]));
@@ -372,6 +406,7 @@ const initExtension = async () => {
     });
     syncThoughtTranslationState(resolveThoughtTranslationValue(settings[StorageKeys.THOUGHT_TRANSLATION_ENABLED]));
     syncDebugModeState(settings[StorageKeys.DEBUG_MODE] === true);
+    traceCustomFontStorage('initial', settings[StorageKeys.GEMINI_CUSTOM_FONTS]);
 
     // Initialize Timeline with SPA route handling
     startTimeline();

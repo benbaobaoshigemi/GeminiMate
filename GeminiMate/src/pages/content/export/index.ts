@@ -8,6 +8,7 @@ import { ConversationExportService } from '../../../features/export/services/Con
 import { DOMContentExtractor } from '../../../features/export/services/DOMContentExtractor';
 import { ImageExportService } from '../../../features/export/services/ImageExportService';
 import {
+  type WordEmbeddedFont,
   WordResponseExportService,
   type WordResponseEmphasisMode,
   type WordResponseExportMode,
@@ -60,6 +61,7 @@ let conversationMenuObserver: MutationObserver | null = null;
 let responseActionObserver: MutationObserver | null = null;
 let wordResponseExportEnabled = true;
 let wordResponseExportMode: WordResponseExportMode = 'default';
+let wordResponseExportPureBody = true;
 
 const DEFAULT_WORD_SANS_PRESET = 'sans-apple';
 const DEFAULT_WORD_SERIF_PRESET = 'serif-source';
@@ -180,6 +182,52 @@ function normalizeText(text: string | null): string {
   } catch {
     return '';
   }
+}
+
+function resolveBooleanSetting(value: unknown, fallback = true): boolean {
+  if (value === undefined) return fallback;
+  if (typeof value === 'string') {
+    const normalized = value.trim().toLowerCase();
+    if (normalized === 'true' || normalized === '1') return true;
+    if (normalized === 'false' || normalized === '0') return false;
+  }
+  if (typeof value === 'number') {
+    return value !== 0;
+  }
+  return value !== false;
+}
+
+
+function resolveComputedWordFontFamily(element: HTMLElement | undefined): string | null {
+  if (!element) return null;
+
+  const candidates: HTMLElement[] = [];
+  const seen = new Set<HTMLElement>();
+  const pushCandidate = (candidate: HTMLElement | null | undefined): void => {
+    if (!candidate || seen.has(candidate)) return;
+    seen.add(candidate);
+    candidates.push(candidate);
+  };
+
+  const walker = document.createTreeWalker(element, NodeFilter.SHOW_TEXT, {
+    acceptNode: (node) =>
+      (node.textContent ?? '').trim().length > 0 ? NodeFilter.FILTER_ACCEPT : NodeFilter.FILTER_SKIP,
+  });
+  const firstTextNode = walker.nextNode();
+  pushCandidate(firstTextNode?.parentElement ?? undefined);
+  pushCandidate(
+    element.querySelector<HTMLElement>('p, h1, h2, h3, h4, h5, h6, li, blockquote, div, span'),
+  );
+  pushCandidate(element);
+
+  for (const candidate of candidates) {
+    const fontFamily = window.getComputedStyle(candidate).fontFamily.trim();
+    if (fontFamily) {
+      return fontFamily;
+    }
+  }
+
+  return null;
 }
 
 // Note: cleaning of thinking toggles is handled at DOM level in extractAssistantText
@@ -947,14 +995,20 @@ async function refreshWordResponseExportSettings(): Promise<void> {
     const result = await chrome.storage.local.get([
       StorageKeys.WORD_RESPONSE_EXPORT_ENABLED,
       StorageKeys.WORD_RESPONSE_EXPORT_MODE,
+      StorageKeys.WORD_RESPONSE_EXPORT_PURE_BODY,
+      StorageKeys.WORD_RESPONSE_EXPORT_FONT_SIZE_SCALE,
+      StorageKeys.WORD_RESPONSE_EXPORT_LINE_HEIGHT_SCALE,
+      StorageKeys.WORD_RESPONSE_EXPORT_LETTER_SPACING_SCALE,
     ]);
     wordResponseExportEnabled = result[StorageKeys.WORD_RESPONSE_EXPORT_ENABLED] !== false;
     wordResponseExportMode = normalizeWordResponseExportMode(
       result[StorageKeys.WORD_RESPONSE_EXPORT_MODE],
     );
+    wordResponseExportPureBody = result[StorageKeys.WORD_RESPONSE_EXPORT_PURE_BODY] !== false;
   } catch {
     wordResponseExportEnabled = true;
     wordResponseExportMode = 'default';
+    wordResponseExportPureBody = true;
   }
 }
 
@@ -977,53 +1031,226 @@ function resolveWordFontFamilyFromStorage(result: Record<string, unknown>): stri
   return `'${family}', ${WORD_SANS_PRESET_FAMILIES[DEFAULT_WORD_SANS_PRESET]}`;
 }
 
-function resolveWordTypographyFromStorage(result: Record<string, unknown>): WordResponseTypography {
+function resolveWordTypographyFromStorage(
+  result: Record<string, unknown>,
+  mode: WordResponseExportMode,
+  _liveFontFamily?: string | null,
+): WordResponseTypography {
+  const fontFamilySetting = String(result[StorageKeys.GEMINI_FONT_FAMILY] || 'default');
+  const customFontsRaw = result[StorageKeys.GEMINI_CUSTOM_FONTS];
+  const customFonts = Array.isArray(customFontsRaw) ? customFontsRaw : [];
+  const availableCustomFontNames = customFonts
+    .map((item) => (item && typeof item === 'object' && 'name' in item ? String(item.name || '') : ''))
+    .filter((name) => name.length > 0);
+  const matchedCustomFontName = availableCustomFontNames.find((name) => name === fontFamilySetting);
+  const fallbackCustomFontName = availableCustomFontNames.length === 1 ? availableCustomFontNames[0] : undefined;
+  const preferredCustomFontName = matchedCustomFontName ?? fallbackCustomFontName;
+  const storageFontFamily =
+    mode === 'default'
+      ? resolveWordFontFamilyFromStorage(result)
+      : WORD_SERIF_PRESET_FAMILIES[DEFAULT_WORD_SERIF_PRESET];
+  const effectiveFontFamily =
+    mode !== 'default'
+      ? storageFontFamily
+      : preferredCustomFontName
+        ? `'${preferredCustomFontName}', ${WORD_SANS_PRESET_FAMILIES[DEFAULT_WORD_SANS_PRESET]}`
+        : storageFontFamily;
+
   return {
-    fontFamily: resolveWordFontFamilyFromStorage(result),
-    fontSizeScale: Number(result[StorageKeys.GEMINI_FONT_SIZE_SCALE]) || 100,
-    fontWeight: Number(result[StorageKeys.GEMINI_FONT_WEIGHT]) || 400,
-    letterSpacing: Number(result[StorageKeys.GEMINI_LETTER_SPACING]) || 0,
-    lineHeight: Number(result[StorageKeys.GEMINI_LINE_HEIGHT]) || 0,
-    paragraphIndentEnabled: result[StorageKeys.GEMINI_PARAGRAPH_INDENT_ENABLED] === true,
+    fontFamily: effectiveFontFamily,
+    fontSizeScale:
+      mode === 'default'
+        ? Number(result[StorageKeys.WORD_RESPONSE_EXPORT_FONT_SIZE_SCALE]) || 100
+        : Number(result[StorageKeys.GEMINI_FONT_SIZE_SCALE]) || 100,
+    fontWeight: 400,
+    letterSpacing:
+      mode === 'default'
+        ? Number(result[StorageKeys.WORD_RESPONSE_EXPORT_LETTER_SPACING_SCALE]) || 100
+        : Number(result[StorageKeys.GEMINI_LETTER_SPACING]) || 0,
+    lineHeight:
+      mode === 'default'
+        ? Number(result[StorageKeys.WORD_RESPONSE_EXPORT_LINE_HEIGHT_SCALE]) || 100
+        : Number(result[StorageKeys.GEMINI_LINE_HEIGHT]) || 0,
+    paragraphIndentEnabled:
+      mode === 'default' ? false : result[StorageKeys.GEMINI_PARAGRAPH_INDENT_ENABLED] === true,
   };
+}
+
+function traceWordExportSettings(
+  styleSettings: Record<string, unknown>,
+  mode: WordResponseExportMode,
+  typography: WordResponseTypography,
+  exportPureBody: boolean,
+  liveFontFamily?: string | null,
+): void {
+  const fontFamilySetting = String(styleSettings[StorageKeys.GEMINI_FONT_FAMILY] || 'default');
+  const customFontsRaw = styleSettings[StorageKeys.GEMINI_CUSTOM_FONTS];
+  const customFonts = Array.isArray(customFontsRaw) ? customFontsRaw : [];
+  const availableCustomFontNames = customFonts
+    .map((item) => (item && typeof item === 'object' && 'name' in item ? String(item.name || '') : ''))
+    .filter((name) => name.length > 0);
+
+  const filtered = {
+    source: 'chrome.storage.local',
+    mode,
+    exportPureBody,
+    typography,
+    liveFontFamily: liveFontFamily?.trim() || null,
+    selectionCriteria: {
+      directSourceKeys: [
+        StorageKeys.GEMINI_FONT_FAMILY,
+        StorageKeys.GEMINI_SANS_PRESET,
+        StorageKeys.GEMINI_SERIF_PRESET,
+        StorageKeys.GEMINI_CUSTOM_FONTS,
+        StorageKeys.GEMINI_FONT_SIZE_SCALE,
+        StorageKeys.GEMINI_FONT_WEIGHT,
+        StorageKeys.GEMINI_LETTER_SPACING,
+        StorageKeys.GEMINI_LINE_HEIGHT,
+        StorageKeys.GEMINI_PARAGRAPH_INDENT_ENABLED,
+        StorageKeys.GEMINI_EMPHASIS_MODE,
+        StorageKeys.WORD_RESPONSE_EXPORT_MODE,
+        StorageKeys.WORD_RESPONSE_EXPORT_PURE_BODY,
+        StorageKeys.WORD_RESPONSE_EXPORT_FONT_SIZE_SCALE,
+        StorageKeys.WORD_RESPONSE_EXPORT_LINE_HEIGHT_SCALE,
+        StorageKeys.WORD_RESPONSE_EXPORT_LETTER_SPACING_SCALE,
+      ],
+      defaultModeRule: mode === 'default' ? 'export-settings-and-storage-font-selection' : 'academic-fixed',
+      fontFamilySetting,
+      fontFamilyFilter: {
+        acceptPresetValues: ['default', 'sans', 'serif', 'monospace'],
+        acceptCustomFontWhen: 'fontFamilySetting === customFont.name',
+      },
+      computedFontRule:
+        mode === 'default'
+          ? 'ignore computed font-family; default export uses dedicated export typography controls and does not inherit page font weight or paragraph indent only'
+          : 'ignore computed font-family',
+      availableCustomFontNames,
+      matchedCustomFontNames: availableCustomFontNames.filter((name) => name === fontFamilySetting),
+      singleCustomFontFallback: availableCustomFontNames.length === 1 ? availableCustomFontNames[0] : null,
+    },
+  };
+
+  console.error('[VIBE_DEBUG_TRACE][WORD_EXPORT_SETTINGS_RAW]', styleSettings);
+  console.error('[VIBE_DEBUG_TRACE][WORD_EXPORT_SETTINGS_RAW_JSON]', JSON.stringify(styleSettings, null, 2));
+  console.error('[VIBE_DEBUG_TRACE][WORD_EXPORT_SETTINGS_FILTERED]', filtered);
+  console.error('[VIBE_DEBUG_TRACE][WORD_EXPORT_SETTINGS_FILTERED_JSON]', JSON.stringify(filtered, null, 2));
+}
+
+async function decodeFontDataUrl(dataUrl: string): Promise<Uint8Array> {
+  const response = await fetch(dataUrl);
+  const buffer = await response.arrayBuffer();
+  return new Uint8Array(buffer);
+}
+
+async function resolveWordEmbeddedFonts(
+  result: Record<string, unknown>,
+  mode: WordResponseExportMode,
+  effectiveFontFamily: string,
+): Promise<readonly WordEmbeddedFont[]> {
+  const customFontsRaw = result[StorageKeys.GEMINI_CUSTOM_FONTS];
+  const customFonts = Array.isArray(customFontsRaw) ? customFontsRaw : [];
+  const requestedNames = effectiveFontFamily
+    .split(',')
+    .map((item) => item.trim().replace(/^['"]|['"]$/g, ''))
+    .filter((item) => item.length > 0);
+
+  if (customFonts.length === 0) {
+    console.error(
+      '[VIBE_DEBUG_TRACE][WORD_EXPORT_EMBEDDED_FONTS_JSON]',
+      JSON.stringify(
+        {
+          mode,
+          requestedNames,
+          availableCustomFontNames: [],
+          embeddedFontNames: [],
+        },
+        null,
+        2,
+      ),
+    );
+    return [];
+  }
+
+  const eligibleFonts = customFonts.filter((font): font is { name: string; data: string } => {
+    if (!font || typeof font !== 'object') return false;
+    const maybeName = 'name' in font ? font.name : undefined;
+    const maybeData = 'data' in font ? font.data : undefined;
+    const shouldEmbed =
+      mode === 'default'
+        ? true
+        : typeof maybeName === 'string' && requestedNames.includes(maybeName);
+    return (
+      typeof maybeName === 'string' &&
+      typeof maybeData === 'string' &&
+      shouldEmbed
+    );
+  });
+
+  const embeddedFonts: WordEmbeddedFont[] = [];
+  for (const font of eligibleFonts) {
+    embeddedFonts.push({
+      name: font.name,
+      data: await decodeFontDataUrl(font.data),
+    });
+  }
+
+  console.error(
+    '[VIBE_DEBUG_TRACE][WORD_EXPORT_EMBEDDED_FONTS_JSON]',
+    JSON.stringify(
+      {
+        mode,
+        requestedNames,
+        availableCustomFontNames: eligibleFonts.map((font) => font.name),
+        embeddedFontNames: embeddedFonts.map((font) => font.name),
+      },
+      null,
+      2,
+    ),
+  );
+
+  return embeddedFonts;
 }
 
 type ResponseWordExportTexts = {
   label: string;
   success: string;
   failed: string;
+  invalidated: string;
   disabled: string;
   targetMissing: string;
 };
 
 function getResponseWordExportTexts(lang: AppLanguage): ResponseWordExportTexts {
   if (lang === 'zh') {
-    return {
-      label: '导出回复为 Word',
-      success: '已导出 Word 文件',
-      failed: '导出 Word 失败',
-      disabled: '请先在设置中开启单条回复 Word 导出',
-      targetMissing: '未找到可导出的回复内容',
-    };
+      return {
+        label: '导出回复为 Word',
+        success: '已导出 Word 文件',
+        failed: '导出 Word 失败',
+        invalidated: '扩展刚刚重载，请刷新当前 Gemini 页面后再试',
+        disabled: '请先在设置中开启单条回复 Word 导出',
+        targetMissing: '未找到可导出的回复内容',
+      };
   }
 
   if (lang === 'zh_TW') {
-    return {
-      label: '匯出回覆為 Word',
-      success: '已匯出 Word 檔案',
-      failed: '匯出 Word 失敗',
-      disabled: '請先在設定中啟用單條回覆 Word 匯出',
-      targetMissing: '找不到可匯出的回覆內容',
-    };
+      return {
+        label: '匯出回覆為 Word',
+        success: '已匯出 Word 檔案',
+        failed: '匯出 Word 失敗',
+        invalidated: '擴充功能剛剛重載，請重新整理目前 Gemini 頁面後再試',
+        disabled: '請先在設定中啟用單條回覆 Word 匯出',
+        targetMissing: '找不到可匯出的回覆內容',
+      };
   }
 
-  return {
-    label: 'Export response as Word',
-    success: 'Word file exported',
-    failed: 'Failed to export Word file',
-    disabled: 'Enable single response Word export in settings first',
-    targetMissing: 'Unable to locate response content',
-  };
+    return {
+      label: 'Export response as Word',
+      success: 'Word file exported',
+      failed: 'Failed to export Word file',
+      invalidated: 'The extension was just reloaded. Refresh the current Gemini page and try again.',
+      disabled: 'Enable single response Word export in settings first',
+      targetMissing: 'Unable to locate response content',
+    };
 }
 
 async function getLanguage(): Promise<AppLanguage> {
@@ -1955,11 +2182,16 @@ async function handleResponseWordExportClick(
       StorageKeys.GEMINI_FONT_FAMILY,
       StorageKeys.GEMINI_SANS_PRESET,
       StorageKeys.GEMINI_SERIF_PRESET,
+      StorageKeys.GEMINI_CUSTOM_FONTS,
       StorageKeys.GEMINI_LETTER_SPACING,
       StorageKeys.GEMINI_LINE_HEIGHT,
       StorageKeys.GEMINI_PARAGRAPH_INDENT_ENABLED,
       StorageKeys.GEMINI_EMPHASIS_MODE,
       StorageKeys.WORD_RESPONSE_EXPORT_MODE,
+      StorageKeys.WORD_RESPONSE_EXPORT_PURE_BODY,
+      StorageKeys.WORD_RESPONSE_EXPORT_FONT_SIZE_SCALE,
+      StorageKeys.WORD_RESPONSE_EXPORT_LINE_HEIGHT_SCALE,
+      StorageKeys.WORD_RESPONSE_EXPORT_LETTER_SPACING_SCALE,
     ];
     const styleSettings = (await chrome.storage.local.get(typographyKeys)) as Record<string, unknown>;
     const effectiveWordMode =
@@ -1972,8 +2204,26 @@ async function handleResponseWordExportClick(
           text: targetTurn.assistant,
           html: '',
         };
+    const liveFontFamily = resolveComputedWordFontFamily(targetTurn.assistantElement);
+    const typography = resolveWordTypographyFromStorage(
+      styleSettings,
+      effectiveWordMode,
+      liveFontFamily,
+    );
+    const embeddedFonts = await resolveWordEmbeddedFonts(styleSettings, effectiveWordMode, typography.fontFamily);
+    const exportPureBody = resolveBooleanSetting(
+      styleSettings[StorageKeys.WORD_RESPONSE_EXPORT_PURE_BODY],
+      wordResponseExportPureBody,
+    );
+    traceWordExportSettings(
+      styleSettings,
+      effectiveWordMode,
+      typography,
+      exportPureBody,
+      liveFontFamily,
+    );
 
-    const exportResult = WordResponseExportService.exportSingleResponse({
+    const exportResult = await WordResponseExportService.exportSingleResponse({
       assistantHtml: extracted.html || '',
       assistantText: extracted.text || targetTurn.assistant,
       conversationTitle: getConversationTitleForExport(),
@@ -1982,18 +2232,36 @@ async function handleResponseWordExportClick(
         styleSettings[StorageKeys.GEMINI_EMPHASIS_MODE] === 'underline'
           ? ('underline' as WordResponseEmphasisMode)
           : ('bold' as WordResponseEmphasisMode),
-      typography: resolveWordTypographyFromStorage(styleSettings),
+      typography,
+      includeDocumentChrome: !exportPureBody,
+      embeddedFonts,
     });
 
     if (!exportResult.success) {
-      showExportToast(texts.failed, { autoDismissMs: 3200 });
+      const isInvalidated =
+        typeof exportResult.error === 'string' &&
+        exportResult.error.toLowerCase().includes('extension context invalidated');
+      const detail = isInvalidated
+        ? texts.invalidated
+        : exportResult.error
+          ? `${texts.failed}：${exportResult.error}`
+          : texts.failed;
+      console.error('[GeminiMate] Word export returned failure:', exportResult.error);
+      showExportToast(detail, { autoDismissMs: 4200 });
       return;
     }
 
     showExportToast(texts.success);
   } catch (error) {
     console.error('[GeminiMate] Failed to export Word response:', error);
-    showExportToast(texts.failed, { autoDismissMs: 3200 });
+    const isInvalidated =
+      error instanceof Error && error.message.toLowerCase().includes('extension context invalidated');
+    const detail = isInvalidated
+      ? texts.invalidated
+      : error instanceof Error
+        ? `${texts.failed}：${error.message}`
+        : texts.failed;
+    showExportToast(detail, { autoDismissMs: 4200 });
   } finally {
     delete trigger.dataset.gvWordExportBusy;
   }
@@ -2318,7 +2586,8 @@ export async function startExportButton(): Promise<void> {
     if (area === 'local') {
       if (
         changes[StorageKeys.WORD_RESPONSE_EXPORT_ENABLED] ||
-        changes[StorageKeys.WORD_RESPONSE_EXPORT_MODE]
+        changes[StorageKeys.WORD_RESPONSE_EXPORT_MODE] ||
+        changes[StorageKeys.WORD_RESPONSE_EXPORT_PURE_BODY]
       ) {
         if (changes[StorageKeys.WORD_RESPONSE_EXPORT_ENABLED]) {
           wordResponseExportEnabled =
@@ -2328,6 +2597,10 @@ export async function startExportButton(): Promise<void> {
           wordResponseExportMode = normalizeWordResponseExportMode(
             changes[StorageKeys.WORD_RESPONSE_EXPORT_MODE].newValue,
           );
+        }
+        if (changes[StorageKeys.WORD_RESPONSE_EXPORT_PURE_BODY]) {
+          wordResponseExportPureBody =
+            changes[StorageKeys.WORD_RESPONSE_EXPORT_PURE_BODY].newValue !== false;
         }
         applyResponseActionButtons(() => lang);
       }
@@ -2491,4 +2764,6 @@ async function showExportDialog(
 }
 
 export default { startExportButton };
+
+
 
