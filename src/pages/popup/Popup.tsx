@@ -5,7 +5,6 @@ import { StorageKeys } from '@/core/types/common';
 import type { CustomFont } from '@/features/layout/customFont';
 
 type FormulaCopyFormat = 'latex' | 'unicodemath' | 'no-dollar';
-type WordResponseExportMode = 'default' | 'academic';
 type ThoughtTranslationMode = 'compare' | 'replace';
 
 const SANS_PRESET_OPTIONS = [
@@ -364,7 +363,7 @@ const SectionHeader = ({ icon: Icon, title }: { icon: React.ElementType; title: 
 );
 
 export default function Popup() {
-  const BUILD_MARK = 'build-20260307-s20-mermaid-scan-boost';
+  const BUILD_MARK = 'build-20260313-v2.0.0';
 
   // View routing: 'main' or 'settings'
   const [view, setView] = useState<'main' | 'settings'>('main');
@@ -382,6 +381,7 @@ export default function Popup() {
   const [svgRenderEnabled, setSvgRenderEnabled] = useState(true);
   const [thoughtTranslationEnabled, setThoughtTranslationEnabled] = useState(false);
   const [thoughtTranslationMode, setThoughtTranslationMode] = useState<ThoughtTranslationMode>('compare');
+  const [youtubeRecommendationBlockerEnabled, setYoutubeRecommendationBlockerEnabled] = useState(true);
 
   const [formulaCopyEnabled, setFormulaCopyEnabled] = useState(true);
   const [formulaCopyFormat, setFormulaCopyFormat] = useState<FormulaCopyFormat>('latex');
@@ -415,9 +415,6 @@ export default function Popup() {
   const [debugFileLogEnabled, setDebugFileLogEnabled] = useState(true);
   const [debugCacheCaptureEnabled, setDebugCacheCaptureEnabled] = useState(true);
   const [debugActionStatus, setDebugActionStatus] = useState('');
-  const [wordResponseExportEnabled, setWordResponseExportEnabled] = useState(true);
-  const [wordResponseExportMode, setWordResponseExportMode] =
-    useState<WordResponseExportMode>('default');
 
   useEffect(() => {
     const keys = [
@@ -427,6 +424,7 @@ export default function Popup() {
       StorageKeys.SVG_RENDER_ENABLED,
       StorageKeys.THOUGHT_TRANSLATION_ENABLED,
       StorageKeys.THOUGHT_TRANSLATION_MODE,
+      StorageKeys.YOUTUBE_RECOMMENDATION_BLOCKER_ENABLED,
       StorageKeys.FORMULA_COPY_ENABLED,
       StorageKeys.FORMULA_COPY_FORMAT,
       StorageKeys.WATERMARK_REMOVER_ENABLED,
@@ -454,8 +452,6 @@ export default function Popup() {
       StorageKeys.DEBUG_MODE,
       StorageKeys.DEBUG_FILE_LOG_ENABLED,
       StorageKeys.DEBUG_CACHE_CAPTURE_ENABLED,
-      StorageKeys.WORD_RESPONSE_EXPORT_ENABLED,
-      StorageKeys.WORD_RESPONSE_EXPORT_MODE,
     ];
 
     const applyResult = (result: Record<string, unknown>): void => {
@@ -465,6 +461,9 @@ export default function Popup() {
       setSvgRenderEnabled(resolveToggleValue(result[StorageKeys.SVG_RENDER_ENABLED]));
       setThoughtTranslationEnabled(resolveToggleValue(result[StorageKeys.THOUGHT_TRANSLATION_ENABLED], false));
       setThoughtTranslationMode(normalizeThoughtTranslationMode(result[StorageKeys.THOUGHT_TRANSLATION_MODE]));
+      setYoutubeRecommendationBlockerEnabled(
+        resolveToggleValue(result[StorageKeys.YOUTUBE_RECOMMENDATION_BLOCKER_ENABLED], true),
+      );
 
       setFormulaCopyEnabled(result[StorageKeys.FORMULA_COPY_ENABLED] ?? true);
       const rawFormat = result[StorageKeys.FORMULA_COPY_FORMAT];
@@ -516,10 +515,6 @@ export default function Popup() {
       setDebugModeEnabled(result[StorageKeys.DEBUG_MODE] === true);
       setDebugFileLogEnabled(resolveToggleValue(result[StorageKeys.DEBUG_FILE_LOG_ENABLED], true));
       setDebugCacheCaptureEnabled(resolveToggleValue(result[StorageKeys.DEBUG_CACHE_CAPTURE_ENABLED], true));
-      setWordResponseExportEnabled(resolveToggleValue(result[StorageKeys.WORD_RESPONSE_EXPORT_ENABLED], true));
-      setWordResponseExportMode(
-        result[StorageKeys.WORD_RESPONSE_EXPORT_MODE] === 'academic' ? 'academic' : 'default',
-      );
     };
 
     const applyStorageChanges = (changes: Record<string, chrome.storage.StorageChange>): void => {
@@ -541,6 +536,14 @@ export default function Popup() {
       if (changes[StorageKeys.THOUGHT_TRANSLATION_MODE]) {
         setThoughtTranslationMode(
           normalizeThoughtTranslationMode(changes[StorageKeys.THOUGHT_TRANSLATION_MODE].newValue),
+        );
+      }
+      if (changes[StorageKeys.YOUTUBE_RECOMMENDATION_BLOCKER_ENABLED]) {
+        setYoutubeRecommendationBlockerEnabled(
+          resolveToggleValue(
+            changes[StorageKeys.YOUTUBE_RECOMMENDATION_BLOCKER_ENABLED].newValue,
+            true,
+          ),
         );
       }
       if (changes[StorageKeys.FORMULA_COPY_ENABLED]) {
@@ -645,18 +648,6 @@ export default function Popup() {
       if (changes[StorageKeys.DEBUG_CACHE_CAPTURE_ENABLED]) {
         setDebugCacheCaptureEnabled(resolveToggleValue(changes[StorageKeys.DEBUG_CACHE_CAPTURE_ENABLED].newValue, true));
       }
-      if (changes[StorageKeys.WORD_RESPONSE_EXPORT_ENABLED]) {
-        setWordResponseExportEnabled(
-          resolveToggleValue(changes[StorageKeys.WORD_RESPONSE_EXPORT_ENABLED].newValue, true),
-        );
-      }
-      if (changes[StorageKeys.WORD_RESPONSE_EXPORT_MODE]) {
-        setWordResponseExportMode(
-          changes[StorageKeys.WORD_RESPONSE_EXPORT_MODE].newValue === 'academic'
-            ? 'academic'
-            : 'default',
-        );
-      }
     };
 
     chrome.storage.local.get(keys, applyResult);
@@ -708,19 +699,39 @@ export default function Popup() {
 
   const updateSansPreset = (value: string): void => {
     setSansPreset(value);
-    chrome.storage.local.set({ [StorageKeys.GEMINI_SANS_PRESET]: value });
+    setFontFamily('sans');
+    chrome.storage.local.set({
+      [StorageKeys.GEMINI_SANS_PRESET]: value,
+      [StorageKeys.GEMINI_FONT_FAMILY]: 'sans',
+    });
   };
 
   const updateSerifPreset = (value: string): void => {
     setSerifPreset(value);
-    chrome.storage.local.set({ [StorageKeys.GEMINI_SERIF_PRESET]: value });
+    setFontFamily('serif');
+    chrome.storage.local.set({
+      [StorageKeys.GEMINI_SERIF_PRESET]: value,
+      [StorageKeys.GEMINI_FONT_FAMILY]: 'serif',
+    });
   };
 
   // ── Custom Font Handlers ─────────────────────────────────────────────────────
 
   const saveCustomFonts = (fonts: CustomFont[]): void => {
     setCustomFonts(fonts);
-    chrome.storage.local.set({ [StorageKeys.GEMINI_CUSTOM_FONTS]: fonts });
+    chrome.storage.local.set({ [StorageKeys.GEMINI_CUSTOM_FONTS]: fonts }, () => {
+      if (chrome.runtime.lastError) {
+        console.error('[VIBE_DEBUG_TRACE][CUSTOM_FONT_STORAGE_WRITE_FAILED]', {
+          message: chrome.runtime.lastError.message,
+          fontNames: fonts.map((font) => font.name),
+        });
+        return;
+      }
+
+      console.error('[VIBE_DEBUG_TRACE][CUSTOM_FONT_STORAGE_WRITE_OK]', {
+        fontNames: fonts.map((font) => font.name),
+      });
+    });
   };
 
   const handleFontFileSelect = (e: React.ChangeEvent<HTMLInputElement>): void => {
@@ -917,72 +928,6 @@ export default function Popup() {
           </div>
 
           <div className="bg-white dark:bg-white/[0.02] backdrop-blur-xl border border-slate-200 dark:border-white/10 rounded-2xl p-4 mt-4">
-            <SectionHeader icon={Zap} title="导出功能" />
-            <div className="space-y-2">
-              <SettingRow
-                icon={Zap}
-                title="单条回复 Word 导出"
-                description="在每条助手回复下显示“导出为 Word”按钮"
-                checked={wordResponseExportEnabled}
-                onChange={(v) =>
-                  updateSetting(
-                    StorageKeys.WORD_RESPONSE_EXPORT_ENABLED,
-                    v,
-                    setWordResponseExportEnabled,
-                  )
-                }
-              />
-              <div
-                className={`p-3 rounded-xl bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/5 ${
-                  !wordResponseExportEnabled ? 'opacity-60' : ''
-                }`}
-              >
-                <div className="flex items-center gap-3 mb-3">
-                  <div className="p-2 rounded-lg bg-blue-500/20 text-blue-400 shrink-0">
-                    <Type size={16} />
-                  </div>
-                  <div>
-                    <p className="text-sm font-medium text-slate-800 dark:text-white/90">Word 样式模式</p>
-                    <p className="text-xs text-slate-500 dark:text-white/50">
-                      默认模式跟随当前排版；学术模式使用固定论文风格
-                    </p>
-                  </div>
-                </div>
-                <div className="grid grid-cols-2 gap-1.5">
-                  {([
-                    { value: 'default' as const, label: '默认模式', desc: '继承当前字号、字重、缩进设置' },
-                    { value: 'academic' as const, label: '学术模式', desc: '固定 Times 风格与更宽行距' },
-                  ] as {
-                    value: WordResponseExportMode;
-                    label: string;
-                    desc: string;
-                  }[]).map((opt) => (
-                    <button
-                      key={opt.value}
-                      type="button"
-                      disabled={!wordResponseExportEnabled}
-                      onClick={() => {
-                        setWordResponseExportMode(opt.value);
-                        chrome.storage.local.set({
-                          [StorageKeys.WORD_RESPONSE_EXPORT_MODE]: opt.value,
-                        });
-                      }}
-                      className={`py-2 px-3 rounded-lg border text-xs transition-all text-left ${
-                        wordResponseExportMode === opt.value
-                          ? 'border-blue-400/60 bg-blue-500/15 text-blue-400'
-                          : 'border-slate-200 dark:border-white/10 bg-white dark:bg-white/5 hover:bg-slate-100 dark:hover:bg-white/10 text-slate-600 dark:text-white/70'
-                      } ${!wordResponseExportEnabled ? 'cursor-not-allowed' : ''}`}
-                    >
-                      <span className="block font-medium">{opt.label}</span>
-                      <span className="block text-[10px] opacity-60 mt-0.5">{opt.desc}</span>
-                    </button>
-                  ))}
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <div className="bg-white dark:bg-white/[0.02] backdrop-blur-xl border border-slate-200 dark:border-white/10 rounded-2xl p-4 mt-4">
             <SectionHeader icon={Settings} title="调试与诊断" />
             <div className="space-y-2">
               <SettingRow
@@ -1109,6 +1054,40 @@ export default function Popup() {
               onChange={(v) => updateSetting(StorageKeys.MARKDOWN_REPAIR_ENABLED, v, setMarkdownEnabled)}
               badge="Active"
             />
+            <div className="p-3 rounded-xl bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/5">
+              <div className="flex items-center gap-3 mb-3">
+                <div className="p-2 rounded-lg bg-blue-500/20 text-blue-400 shrink-0">
+                  <PenTool size={16} />
+                </div>
+                <div>
+                  <p className="text-sm font-medium text-slate-800 dark:text-white/90">强调文本样式</p>
+                  <p className="text-xs text-slate-500 dark:text-white/50">设置 Markdown 加粗的显示方式</p>
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-1.5">
+                {([
+                  { value: 'bold' as const, label: '加粗', desc: '保持原生加粗' },
+                  { value: 'underline' as const, label: '下划线', desc: '改为下划线强调' },
+                ] as { value: 'bold' | 'underline'; label: string; desc: string }[]).map((opt) => (
+                  <button
+                    key={opt.value}
+                    type="button"
+                    onClick={() => {
+                      setEmphasisMode(opt.value);
+                      chrome.storage.local.set({ [StorageKeys.GEMINI_EMPHASIS_MODE]: opt.value });
+                    }}
+                    className={`py-2 px-3 rounded-lg border text-xs transition-all text-left ${
+                      emphasisMode === opt.value
+                        ? 'border-blue-400/60 bg-blue-500/15 text-blue-400'
+                        : 'border-slate-200 dark:border-white/10 bg-white dark:bg-white/5 hover:bg-slate-100 dark:hover:bg-white/10 text-slate-600 dark:text-white/70'
+                    }`}
+                  >
+                    <span className={`block font-medium ${opt.value === 'bold' ? 'font-bold' : ''}`}>{opt.label}</span>
+                    <span className="block text-[10px] opacity-60 mt-0.5">{opt.desc}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
             <SettingRow
               icon={PenTool}
               title="思维链翻译"
@@ -1156,9 +1135,22 @@ export default function Popup() {
                 ))}
               </div>
             </div>
+            <SettingRow
+              icon={PenTool}
+              title="视频推荐屏蔽"
+              description="按页面结构隐藏 YouTube 推荐卡片"
+              checked={youtubeRecommendationBlockerEnabled}
+              onChange={(v) =>
+                updateSetting(
+                  StorageKeys.YOUTUBE_RECOMMENDATION_BLOCKER_ENABLED,
+                  v,
+                  setYoutubeRecommendationBlockerEnabled,
+                )
+              }
+            />
           </div>
 
-          <SectionHeader icon={Layout} title="页面布局" />
+          <SectionHeader icon={Layout} title="布局与导航" />
           <div className="space-y-4">
             <Slider
               icon={Layout}
@@ -1235,6 +1227,72 @@ export default function Popup() {
                 updateSetting(StorageKeys.BOTTOM_CLEANUP_ENABLED, v, setBottomCleanupEnabled)
               }
             />
+            <div className="p-3 rounded-xl bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/5">
+              <div className="flex items-center gap-3 mb-3">
+                <div className="p-2 rounded-lg bg-blue-500/20 text-blue-400 shrink-0">
+                  <Clock size={16} />
+                </div>
+                <div>
+                  <p className="text-sm font-medium text-slate-800 dark:text-white/90">时间线导航</p>
+                  <p className="text-xs text-slate-500 dark:text-white/50">在长对话中快速定位到任意轮次</p>
+                </div>
+              </div>
+              <SettingRow
+                icon={Clock}
+                title="侧边时间线"
+                description="开启后显示时间线导航轨道"
+                checked={timelineEnabled}
+                onChange={(v) => updateSetting(StorageKeys.TIMELINE_ENABLED, v, setTimelineEnabled)}
+              />
+              <div className={`mt-3 pt-3 border-t border-slate-200 dark:border-white/10 ${!timelineEnabled ? 'opacity-60' : ''}`}>
+                <div className="space-y-2">
+                  <SettingRow
+                    icon={Layout}
+                    title="平滑滚动模式"
+                    description="开启为平滑滚动，关闭为立即跳转"
+                    checked={timelineScrollMode === 'flow'}
+                    disabled={!timelineEnabled}
+                    onChange={(v) => {
+                      const mode = v ? 'flow' : 'jump';
+                      setTimelineScrollMode(mode);
+                      chrome.storage.local.set({ geminiTimelineScrollMode: mode });
+                    }}
+                  />
+                  <SettingRow
+                    icon={Layout}
+                    title="隐藏原生容器"
+                    description="减少滚动闪跳，长对话更稳定"
+                    checked={timelineHideContainer}
+                    disabled={!timelineEnabled}
+                    onChange={(v) => updateSetting('geminiTimelineHideContainer', v, setTimelineHideContainer)}
+                  />
+                  <SettingRow
+                    icon={Layout}
+                    title="自动贴边"
+                    description="不操作时自动贴边，悬浮后展开"
+                    checked={timelineAutoHide}
+                    disabled={!timelineEnabled}
+                    onChange={(v) => updateSetting(StorageKeys.TIMELINE_AUTO_HIDE, v, setTimelineAutoHide)}
+                  />
+                  <Slider
+                    icon={Layout}
+                    title="时间线宽度"
+                    description="调整轨道与点击热区宽度"
+                    value={timelineWidth}
+                    min={8}
+                    max={32}
+                    step={2}
+                    unit="px"
+                    defaultValue={24}
+                    disabled={!timelineEnabled}
+                    onChange={(v) => {
+                      setTimelineWidth(v);
+                      chrome.storage.local.set({ [StorageKeys.TIMELINE_WIDTH]: v });
+                    }}
+                  />
+                </div>
+              </div>
+            </div>
           </div>
 
           <SectionHeader icon={Type} title="阅读排版" />
@@ -1297,40 +1355,6 @@ export default function Popup() {
                 )
               }
             />
-            <div className="p-3 rounded-xl bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/5">
-              <div className="flex items-center gap-3 mb-3">
-                <div className="p-2 rounded-lg bg-blue-500/20 text-blue-400 shrink-0">
-                  <PenTool size={16} />
-                </div>
-                <div>
-                  <p className="text-sm font-medium text-slate-800 dark:text-white/90">强调文本样式</p>
-                  <p className="text-xs text-slate-500 dark:text-white/50">设置 Markdown 加粗的显示方式</p>
-                </div>
-              </div>
-              <div className="grid grid-cols-2 gap-1.5">
-                {([
-                  { value: 'bold' as const, label: '加粗', desc: '保持原生加粗' },
-                  { value: 'underline' as const, label: '下划线', desc: '改为下划线强调' },
-                ] as { value: 'bold' | 'underline'; label: string; desc: string }[]).map((opt) => (
-                  <button
-                    key={opt.value}
-                    type="button"
-                    onClick={() => {
-                      setEmphasisMode(opt.value);
-                      chrome.storage.local.set({ [StorageKeys.GEMINI_EMPHASIS_MODE]: opt.value });
-                    }}
-                    className={`py-2 px-3 rounded-lg border text-xs transition-all text-left ${
-                      emphasisMode === opt.value
-                        ? 'border-blue-400/60 bg-blue-500/15 text-blue-400'
-                        : 'border-slate-200 dark:border-white/10 bg-white dark:bg-white/5 hover:bg-slate-100 dark:hover:bg-white/10 text-slate-600 dark:text-white/70'
-                    }`}
-                  >
-                    <span className={`block font-medium ${opt.value === 'bold' ? 'font-bold' : ''}`}>{opt.label}</span>
-                    <span className="block text-[10px] opacity-60 mt-0.5">{opt.desc}</span>
-                  </button>
-                ))}
-              </div>
-            </div>
             <div className="p-3 rounded-xl bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/5">
               <div className="flex items-center gap-3 mb-3">
                 <div className="p-2 rounded-lg bg-blue-500/20 text-blue-400 shrink-0">
@@ -1460,75 +1484,18 @@ export default function Popup() {
             />
           </div>
 
-          <SectionHeader icon={Clock} title="时间线导航" />
-          <div className="space-y-2">
-            <SettingRow
-              icon={Clock}
-              title="侧边时间线"
-              description="在长对话中快速定位到任意轮次"
-              checked={timelineEnabled}
-              onChange={(v) => updateSetting(StorageKeys.TIMELINE_ENABLED, v, setTimelineEnabled)}
-            />
-            <div className={`mt-3 pt-3 border-t border-slate-200 dark:border-white/10 ${!timelineEnabled ? 'opacity-60' : ''}`}>
-              <p className="text-sm font-medium text-slate-800 dark:text-white/90">时间线细项</p>
-              <p className="text-xs text-slate-500 dark:text-white/50 mt-1 mb-3">用于控制滚动方式、显示形态和轨道尺寸</p>
-              <div className="space-y-2">
-                <SettingRow
-                  icon={Layout}
-                  title="平滑滚动模式"
-                  description="开启为平滑滚动，关闭为立即跳转"
-                  checked={timelineScrollMode === 'flow'}
-                  disabled={!timelineEnabled}
-                  onChange={(v) => {
-                    const mode = v ? 'flow' : 'jump';
-                    setTimelineScrollMode(mode);
-                    chrome.storage.local.set({ geminiTimelineScrollMode: mode });
-                  }}
-                />
-                <SettingRow
-                  icon={Layout}
-                  title="隐藏原生容器"
-                  description="减少滚动闪跳，长对话更稳定"
-                  checked={timelineHideContainer}
-                  disabled={!timelineEnabled}
-                  onChange={(v) => updateSetting('geminiTimelineHideContainer', v, setTimelineHideContainer)}
-                />
-                <SettingRow
-                  icon={Layout}
-                  title="自动贴边"
-                  description="不操作时自动贴边，悬浮后展开"
-                  checked={timelineAutoHide}
-                  disabled={!timelineEnabled}
-                  onChange={(v) => updateSetting(StorageKeys.TIMELINE_AUTO_HIDE, v, setTimelineAutoHide)}
-                />
-                <Slider
-                  icon={Layout}
-                  title="时间线宽度"
-                  description="调整轨道与点击热区宽度"
-                  value={timelineWidth}
-                  min={8}
-                  max={32}
-                  step={2}
-                  unit="px"
-                  defaultValue={24}
-                  disabled={!timelineEnabled}
-                  onChange={(v) => {
-                    setTimelineWidth(v);
-                    chrome.storage.local.set({ [StorageKeys.TIMELINE_WIDTH]: v });
-                  }}
-                />
-              </div>
-            </div>
-          </div>
-
         </div>
 
         <div className="mt-4 text-center">
           <p className="text-[10px] text-slate-400 dark:text-white/30 font-medium tracking-wider font-mono">
-            GEMINIMATE_V1.0_STABLE | {BUILD_MARK}
+            GEMINIMATE_V2.0.0_STABLE | {BUILD_MARK}
           </p>
         </div>
       </div>
     </div>
   );
 }
+
+
+
+

@@ -57,6 +57,14 @@ function getTableSelectors(): string[] {
         '.table-block.new-table-style',
         '.table-block.has-scrollbar',
         '.table-block .table-content',
+        '.table-block-component',
+        '.table-block-component > response-element',
+        '.table-block-component response-element',
+        '.table-block-component table-block',
+        '.table-block-component .horizontal-scroll-wrapper',
+        '.table-block-component .table-footer',
+        '.horizontal-scroll-wrapper',
+        '.table-footer',
     ];
 }
 
@@ -189,6 +197,16 @@ const uiPercentToTargetPx = (uiPercent: number): number => {
     return (nativeBasePx * normalizedUi) / 100;
 };
 
+const ensureStyleElement = (): HTMLStyleElement => {
+    let style = document.getElementById(STYLE_ID) as HTMLStyleElement | null;
+    if (!style) {
+        style = document.createElement('style');
+        style.id = STYLE_ID;
+        document.head.appendChild(style);
+    }
+    return style;
+};
+
 function applyWidth(uiPercent: number) {
     const normalizedPercent = clampPercent(uiPercent, UI_MIN_PERCENT, UI_MAX_PERCENT);
     if (normalizedPercent === UI_DEFAULT_PERCENT) {
@@ -210,12 +228,7 @@ function applyWidth(uiPercent: number) {
         targetWidthVw: Number(toVw(targetWidthPx).toFixed(3)),
     });
     const widthValue = `${targetWidthPx.toFixed(3)}px`;
-    let style = document.getElementById(STYLE_ID) as HTMLStyleElement;
-    if (!style) {
-        style = document.createElement('style');
-        style.id = STYLE_ID;
-        document.head.appendChild(style);
-    }
+    const style = ensureStyleElement();
 
     const userSelectors = getUserSelectors();
     const assistantSelectors = getAssistantSelectors();
@@ -254,6 +267,24 @@ function applyWidth(uiPercent: number) {
       box-sizing: border-box !important;
     }
 
+    .horizontal-scroll-wrapper,
+    .horizontal-scroll-wrapper > .table-block-component,
+    .table-block-component,
+    .table-block-component > response-element,
+    .table-block-component response-element,
+    .table-block-component table-block,
+    table-block,
+    table-block .table-block,
+    .table-block,
+    .table-block.has-scrollbar,
+    .table-block.new-table-style {
+      display: block !important;
+      width: 100% !important;
+      max-width: 100% !important;
+      min-width: 0 !important;
+      box-sizing: border-box !important;
+    }
+
     table-block .table-block,
     .table-block.has-scrollbar,
     .table-block.new-table-style {
@@ -261,9 +292,24 @@ function applyWidth(uiPercent: number) {
     }
 
     table-block .table-content,
-    .table-block .table-content {
+    .table-block .table-content,
+    .table-block-component .horizontal-scroll-wrapper,
+    .horizontal-scroll-wrapper {
       width: 100% !important;
+      max-width: 100% !important;
+      min-width: 0 !important;
       overflow-x: auto !important;
+      box-sizing: border-box !important;
+    }
+
+    table-block .table-footer,
+    .table-block .table-footer,
+    .table-block-component .table-footer,
+    .table-footer {
+      width: 100% !important;
+      max-width: 100% !important;
+      min-width: 0 !important;
+      box-sizing: border-box !important;
     }
 
     model-response:has(> .deferred-response-indicator),
@@ -325,3 +371,5 @@ export function startChatWidthAdjuster() {
         if (style) style.remove();
     }, { once: true });
 }
+
+

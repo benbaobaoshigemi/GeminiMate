@@ -257,14 +257,28 @@ const captureBackgroundStorageSnapshot = async (
 };
 
 const extractTranslatedText = (payload: unknown): string => {
-  if (!Array.isArray(payload)) return '';
-  const segments = payload[0];
-  if (!Array.isArray(segments)) return '';
-  return segments
-    .map((segment) => {
-      if (!Array.isArray(segment)) return '';
-      return typeof segment[0] === 'string' ? segment[0] : '';
-    })
+  const collectSegments = (node: unknown): string[] => {
+    if (!Array.isArray(node)) return [];
+
+    const directSegments = node
+      .map((segment) => {
+        if (!Array.isArray(segment)) return '';
+        return typeof segment[0] === 'string' ? segment[0] : '';
+      })
+      .filter((segment) => segment.length > 0);
+
+    if (directSegments.length > 0) {
+      return directSegments;
+    }
+
+    const nested: string[] = [];
+    node.forEach((child) => {
+      nested.push(...collectSegments(child));
+    });
+    return nested;
+  };
+
+  return collectSegments(payload)
     .join('')
     .trim();
 };

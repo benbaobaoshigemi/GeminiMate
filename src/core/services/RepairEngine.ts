@@ -1,16 +1,39 @@
 ﻿import katex from 'katex';
 
 import { StorageKeys } from '../types/common';
+import { isNodeInModelResponse, isNodeInThoughtTree } from '../utils/responseLifecycle';
 import { debugService } from './DebugService';
 import { logger } from './LoggerService';
 
 const RE_MATH = /(\$\$[\s\S]*?\$\$)|(\$((?:\\\$|[^$])+?)\$)/g;
+const INLINE_MATH_HTML_REGEX = /\$((?:\\\$|[^$])+?)\$/g;
+const CJK_CHAR_REGEX =
+  /[\u4E00-\u9FFF\u3400-\u4DBF\uF900-\uFAFF\u3000-\u303F\uFF00-\uFFEF，。、《》；：！？“”’（）【】…—]/;
+const MIXED_MATH_FRAGMENT_REGEX =
+  /[A-Za-z0-9\\{}_^()[\]+\-./]+(?:\s+[A-Za-z0-9\\{}_^()[\]+\-./]+)*/g;
+const HARD_THOUGHT_ROOT_SELECTOR = 'model-thoughts, .model-thoughts';
 const DONE_CLASS = 'gemini-fix-done';
+const LATEX_NORMALIZED_ATTR = 'data-gm-latex-normalized';
+const LATEX_REPAIRED_ATTR = 'data-gm-latex-repaired';
 const MD_FIX_CLASS = 'gemini-md-fixed';
 const MD_MARK_CLASS = 'gemini-md-fix-mark';
 const MD_UNDERLINE_CLASS = 'gemini-md-underline';
-const MESSAGE_CONTAINER_SELECTOR =
-  '.message-content, message-content, [data-test-id="message-content"], model-response, model-response-text, .model-response-text, .response-content, .markdown-main-panel, .markdown';
+const MESSAGE_CONTAINER_SELECTOR = [
+  '.message-content',
+  'message-content',
+  '[data-test-id="message-content"]',
+  '.markdown-main-panel',
+  'model-response message-content',
+  '.model-response message-content',
+  '[data-message-author-role="model"] message-content',
+  '[aria-label="Gemini response"] message-content',
+  '.presented-response-container message-content',
+  '.response-container message-content',
+  'model-response .markdown-main-panel',
+  '.model-response .markdown-main-panel',
+  '[data-message-author-role="model"] .markdown-main-panel',
+  '[aria-label="Gemini response"] .markdown-main-panel',
+].join(', ');
 
 interface TrustedTypesLike {
   createPolicy: (name: string, options: { createHTML: (input: string) => string }) => {
@@ -31,6 +54,7 @@ export class RepairEngine {
   private ttPolicy: { createHTML: (html: string) => string } | null = null;
   private started = false;
   private sourceSnapshots = new WeakMap<HTMLElement, string>();
+  private rawSnapshots = new WeakMap<HTMLElement, string>();
   private renderedSnapshots = new WeakMap<HTMLElement, string>();
   private pendingFixTimer: ReturnType<typeof setTimeout> | null = null;
   private pendingRollbackTimer: ReturnType<typeof setTimeout> | null = null;
@@ -202,44 +226,45 @@ export class RepairEngine {
 
   private getMessageContainers(): HTMLElement[] {
     const containers = Array.from(document.querySelectorAll(MESSAGE_CONTAINER_SELECTOR)) as HTMLElement[];
-    const containerSet = new Set(containers);
-    return containers.filter((container) => {
-      let parent = container.parentElement;
-      while (parent) {
-        if (containerSet.has(parent)) return false;
-        parent = parent.parentElement;
-      }
-      return true;
+    const scopedContainers = containers.filter((container) => {
+      if (container.closest(HARD_THOUGHT_ROOT_SELECTOR)) return false;
+      if (isNodeInThoughtTree(container)) return false;
+      return isNodeInModelResponse(container);
     });
+
+    // Always prefer leaf content nodes to avoid rewriting high-level model-response roots.
+    return scopedContainers.filter(
+      (container) => !scopedContainers.some((other) => other !== container && container.contains(other)),
+    );
+  }
+
+  private isRelevantMutationNode(node: Node): boolean {
+    const element = node instanceof Element ? node : node.parentElement;
+    if (!element) return false;
+    if (element.closest(HARD_THOUGHT_ROOT_SELECTOR)) return false;
+    if (isNodeInThoughtTree(element)) return false;
+
+    if (element.closest(MESSAGE_CONTAINER_SELECTOR) !== null) {
+      return true;
+    }
+    if (isNodeInModelResponse(element)) {
+      return true;
+    }
+    return element.querySelector(MESSAGE_CONTAINER_SELECTOR) !== null;
   }
 
   private hasRelevantMessageMutations(mutations: MutationRecord[]): boolean {
     return mutations.some((mutation) => {
       if (mutation.type === 'characterData') {
-        const parent = mutation.target.parentElement;
-        return parent?.closest(MESSAGE_CONTAINER_SELECTOR) !== null;
+        return this.isRelevantMutationNode(mutation.target);
       }
 
-      if (mutation.target instanceof Element) {
-        if (mutation.target.closest(MESSAGE_CONTAINER_SELECTOR)) {
-          return true;
-        }
+      if (this.isRelevantMutationNode(mutation.target)) {
+        return true;
       }
 
       for (const node of Array.from(mutation.addedNodes)) {
-        if (node instanceof Element) {
-          if (node.matches(MESSAGE_CONTAINER_SELECTOR) || node.closest(MESSAGE_CONTAINER_SELECTOR)) {
-            return true;
-          }
-          continue;
-        }
-
-        if (node.nodeType === Node.TEXT_NODE) {
-          const textParent = node.parentElement;
-          if (textParent?.closest(MESSAGE_CONTAINER_SELECTOR)) {
-            return true;
-          }
-        }
+        if (this.isRelevantMutationNode(node)) return true;
       }
 
       return false;
@@ -293,7 +318,7 @@ export class RepairEngine {
       let restored = 0;
 
       containers.forEach((container) => {
-        const snapshot = this.sourceSnapshots.get(container);
+        const snapshot = this.rawSnapshots.get(container) ?? this.sourceSnapshots.get(container);
         if (typeof snapshot !== 'string') return;
         if (container.innerHTML !== snapshot) {
           this.safeSetInnerHTML(container, snapshot);
@@ -323,6 +348,7 @@ export class RepairEngine {
     // Initial snapshot
     if (previousRendered === undefined) {
       this.sourceSnapshots.set(container, currentHtml);
+      this.rawSnapshots.set(container, currentHtml);
       this.renderedSnapshots.set(container, currentHtml);
       return;
     }
@@ -331,6 +357,9 @@ export class RepairEngine {
     if (currentHtml === previousRendered) {
       if (!this.sourceSnapshots.has(container)) {
         this.sourceSnapshots.set(container, currentHtml);
+      }
+      if (!this.rawSnapshots.has(container)) {
+        this.rawSnapshots.set(container, currentHtml);
       }
       return;
     }
@@ -349,12 +378,15 @@ export class RepairEngine {
 
     // External DOM updates (clean content) should refresh source snapshot.
     this.sourceSnapshots.set(container, currentHtml);
+    this.rawSnapshots.set(container, currentHtml);
     this.renderedSnapshots.set(container, currentHtml);
   }
 
   private containsOwnPatchMarkers(html: string): boolean {
     return (
       html.includes(DONE_CLASS) ||
+      html.includes(LATEX_NORMALIZED_ATTR) ||
+      html.includes(LATEX_REPAIRED_ATTR) ||
       html.includes(MD_FIX_CLASS) ||
       html.includes(MD_MARK_CLASS)
     );
@@ -362,6 +394,7 @@ export class RepairEngine {
 
   private processContainerFromSource(container: HTMLElement): void {
     const source = this.sourceSnapshots.get(container) ?? container.innerHTML;
+    const rawSource = this.rawSnapshots.get(container) ?? source;
     const currentInnerHTML = container.innerHTML;
     const hasPatchMarkers = this.containsOwnPatchMarkers(currentInnerHTML);
     const shouldRebuildMarkdown =
@@ -385,11 +418,22 @@ export class RepairEngine {
         !hasPatchMarkers ||
         (!this.config.latexEnabled && currentInnerHTML.includes(DONE_CLASS));
       if (shouldReset) {
-        this.safeSetInnerHTML(container, source);
+        const nextHtml =
+          !this.config.latexEnabled && currentInnerHTML.includes(DONE_CLASS) ? rawSource : source;
+        this.safeSetInnerHTML(container, nextHtml);
       }
     }
 
+    if (
+      !this.config.latexEnabled &&
+      currentInnerHTML !== rawSource &&
+      (currentInnerHTML.includes(DONE_CLASS) || currentInnerHTML.includes(LATEX_NORMALIZED_ATTR))
+    ) {
+      this.safeSetInnerHTML(container, rawSource);
+    }
+
     if (this.config.latexEnabled) {
+      this.normalizeBrokenMathMarkup(container);
       this.revertNativeMath(container);
       this.walkLatex(container);
     }
@@ -436,19 +480,30 @@ export class RepairEngine {
     template.innerHTML = html;
     const root = template.content;
 
-    Array.from(root.querySelectorAll(`.math-inline.${DONE_CLASS}, .math-block.${DONE_CLASS}`)).forEach(
-      (element) => {
-        // Keep rendered math DOM so formulas remain visible when LaTeX fixer is turned off.
-        // We only strip plugin-specific marker/style metadata.
-        element.classList.remove(DONE_CLASS);
-        element.removeAttribute('title');
-        if (element instanceof HTMLElement) {
-          element.style.borderLeft = '';
-          element.style.borderBottom = '';
-          element.style.padding = '';
+    Array.from(root.querySelectorAll(`.math-inline.${DONE_CLASS}`)).forEach((element) => {
+      const math = element.getAttribute('data-math');
+      if (!math) return;
+      this.replaceElementWithText(element, `$${math}$`);
+    });
+
+    Array.from(root.querySelectorAll(`.math-block.${DONE_CLASS}`)).forEach((element) => {
+      let math = element.getAttribute('data-math');
+      if (math === 'block') {
+        const annotation = element.querySelector('annotation[encoding="application/x-tex"]');
+        if (annotation?.textContent) {
+          math = annotation.textContent;
         }
-      },
-    );
+      }
+      if (!math) return;
+      this.replaceElementWithText(element, `$$${math}$$`);
+    });
+
+    Array.from(root.querySelectorAll(`[${LATEX_NORMALIZED_ATTR}]`)).forEach((element) => {
+      element.removeAttribute(LATEX_NORMALIZED_ATTR);
+    });
+    Array.from(root.querySelectorAll(`[${LATEX_REPAIRED_ATTR}]`)).forEach((element) => {
+      element.removeAttribute(LATEX_REPAIRED_ATTR);
+    });
 
     Array.from(root.querySelectorAll(`b.${MD_FIX_CLASS}, strong.${MD_FIX_CLASS}`)).forEach(
       (element) => {
@@ -494,8 +549,11 @@ export class RepairEngine {
   }
 
   private processTextNodeLatex(textNode: Text): void {
-    const text = textNode.nodeValue;
-    if (!text || !text.includes('$')) return;
+    const originalText = textNode.nodeValue;
+    if (!originalText || (!originalText.includes('$') && !originalText.includes('＄'))) return;
+
+    const text = originalText.replace(/＄/g, '$');
+    if (!text.includes('$')) return;
 
     RE_MATH.lastIndex = 0;
     let lastIndex = 0;
@@ -512,22 +570,41 @@ export class RepairEngine {
       const inner = match[3];
 
       if (blockMath) {
-        const { prefix, mathSrc, suffix } = this.sanitizeMathContent(blockMath.trim().slice(2, -2));
+        const blockSource = blockMath.trim().slice(2, -2);
+        const { prefix, mathSrc, suffix } = this.sanitizeMathContent(blockSource);
+        const repaired =
+          text !== originalText ||
+          prefix.length > 0 ||
+          suffix.length > 0 ||
+          mathSrc !== blockSource.trim();
         if (prefix) fragments.push(document.createTextNode(prefix));
-        fragments.push(this.createNativeMathNode(mathSrc, true) ?? document.createTextNode(blockMath));
+        fragments.push(
+          this.createNativeMathNode(mathSrc, true, repaired) ?? document.createTextNode(blockMath),
+        );
         if (suffix) fragments.push(document.createTextNode(suffix));
       } else if (inlineMath) {
         const { prefix, mathSrc, suffix } = this.sanitizeMathContent(inner);
         const before = match.index > 0 ? text[match.index - 1] : '';
         const after = RE_MATH.lastIndex < text.length ? text[RE_MATH.lastIndex] : '';
+        const beforeNeedsSpace = Boolean(before && !/\s/.test(before));
+        const afterNeedsSpace = Boolean(after && !/\s/.test(after));
+        const repaired =
+          text !== originalText ||
+          beforeNeedsSpace ||
+          afterNeedsSpace ||
+          prefix.length > 0 ||
+          suffix.length > 0 ||
+          mathSrc !== inner.trim();
 
-        if (before && !/\s/.test(before)) fragments.push(document.createTextNode(' '));
+        if (beforeNeedsSpace) fragments.push(document.createTextNode(' '));
         if (prefix) fragments.push(document.createTextNode(prefix));
         if (mathSrc.length > 0) {
-          fragments.push(this.createNativeMathNode(mathSrc, false) ?? document.createTextNode(inlineMath));
+          fragments.push(
+            this.createNativeMathNode(mathSrc, false, repaired) ?? document.createTextNode(inlineMath),
+          );
         }
         if (suffix) fragments.push(document.createTextNode(suffix));
-        if (after && !/\s/.test(after)) fragments.push(document.createTextNode(' '));
+        if (afterNeedsSpace) fragments.push(document.createTextNode(' '));
       }
 
       lastIndex = RE_MATH.lastIndex;
@@ -542,19 +619,132 @@ export class RepairEngine {
     parent.removeChild(textNode);
   }
 
+  private normalizeBrokenMathMarkup(container: HTMLElement): void {
+    const blocks = Array.from(container.querySelectorAll('p, li, blockquote, td')) as HTMLElement[];
+    const leafBlocks = blocks.filter(
+      (block) => !blocks.some((other) => other !== block && block.contains(other)),
+    );
+
+    leafBlocks.forEach((element) => {
+      if (element.closest('pre, code, .code-block, code-block')) return;
+      if (element.querySelector('button, [role="button"]')) return;
+
+      const originalHTML = element.innerHTML;
+      if (!originalHTML.includes('$') && !originalHTML.includes('＄')) return;
+
+      const normalizedHTML = this.normalizeMathInBlockHtml(originalHTML);
+      if (normalizedHTML !== originalHTML) {
+        this.safeSetInnerHTML(element, normalizedHTML);
+        element.setAttribute(LATEX_NORMALIZED_ATTR, '1');
+      } else if (element.hasAttribute(LATEX_NORMALIZED_ATTR)) {
+        element.removeAttribute(LATEX_NORMALIZED_ATTR);
+      }
+    });
+  }
+
+  private normalizeMathInBlockHtml(html: string): string {
+    const inlineMathRegex = new RegExp(INLINE_MATH_HTML_REGEX.source, 'g');
+    const normalizedInput = html.replace(/＄/g, '$');
+    let changed = false;
+
+    const normalized = normalizedInput.replace(inlineMathRegex, (full: string, inner: string) => {
+      if (!inner.includes('<') && !inner.includes('math-inline') && !inner.includes('math-block')) {
+        return full;
+      }
+
+      const normalizedInner = this.normalizeInlineMathSegment(inner);
+      if (!normalizedInner) return full;
+
+      const rebuilt = CJK_CHAR_REGEX.test(normalizedInner)
+        ? this.rebuildMixedMathSegment(normalizedInner)
+        : null;
+      const candidate = rebuilt ?? `$${normalizedInner}$`;
+      if (candidate !== full) {
+        changed = true;
+      }
+      return candidate;
+    });
+
+    return changed ? normalized : html;
+  }
+
+  private normalizeInlineMathSegment(segmentInnerHtml: string): string {
+    const template = document.createElement('template');
+    template.innerHTML = segmentInnerHtml;
+    const root = template.content;
+
+    Array.from(root.querySelectorAll('[data-math]')).forEach((element) => {
+      const math = element.getAttribute('data-math');
+      this.replaceElementWithText(element, math ?? (element.textContent ?? ''));
+    });
+
+    Array.from(root.querySelectorAll('i, em')).forEach((element) => {
+      this.replaceElementWithText(element, `_${element.textContent ?? ''}_`);
+    });
+
+    Array.from(root.querySelectorAll('b, strong')).forEach((element) => {
+      this.replaceElementWithText(element, `**${element.textContent ?? ''}**`);
+    });
+
+    const flattened = (root.textContent ?? '').replace(/\u00a0/g, ' ');
+    return this.normalizeMathEscapes(flattened).replace(/\s{2,}/g, ' ').trim();
+  }
+
+  private normalizeMathEscapes(input: string): string {
+    return input.replace(/\\\\([a-zA-Z]+)/g, '\\$1');
+  }
+
+  private rebuildMixedMathSegment(content: string): string | null {
+    if (!CJK_CHAR_REGEX.test(content)) return null;
+
+    const fragmentRegex = new RegExp(MIXED_MATH_FRAGMENT_REGEX.source, 'g');
+    let rebuilt = '';
+    let lastIndex = 0;
+    let mathFragmentCount = 0;
+    let match: RegExpExecArray | null;
+
+    while ((match = fragmentRegex.exec(content)) !== null) {
+      const fragment = match[0];
+      rebuilt += content.slice(lastIndex, match.index);
+
+      if (this.isLikelyMathFragment(fragment)) {
+        rebuilt += `$${fragment.trim()}$`;
+        mathFragmentCount += 1;
+      } else {
+        rebuilt += fragment;
+      }
+
+      lastIndex = fragmentRegex.lastIndex;
+    }
+
+    rebuilt += content.slice(lastIndex);
+    if (mathFragmentCount === 0) return null;
+
+    return rebuilt;
+  }
+
+  private isLikelyMathFragment(fragment: string): boolean {
+    const token = fragment.trim();
+    if (token.length < 2) return false;
+    if (CJK_CHAR_REGEX.test(token)) return false;
+    if (/^[0-9]+$/.test(token)) return false;
+    if (/[\\_^{}\[\]()]/.test(token)) return true;
+
+    return /^(?:[A-Z][a-z]?\d*){2,}$/.test(token);
+  }
+
   private sanitizeMathContent(raw: string): { prefix: string; mathSrc: string; suffix: string } {
     let cleaned = raw.trim();
     let prefix = '';
     let suffix = '';
-    const cjkRegex =
-      /[\u4E00-\u9FFF\u3400-\u4DBF\uF900-\uFAFF\u3000-\u303F\uFF00-\uFFEF，。、《》；：！？“”’（）【】…—]+/;
-    const lead = cleaned.match(new RegExp('^' + cjkRegex.source));
+    const cjkSequenceRegex = new RegExp(`${CJK_CHAR_REGEX.source}+`);
+    const lead = cleaned.match(new RegExp('^' + cjkSequenceRegex.source));
     if (lead) {
       prefix = lead[0];
       cleaned = cleaned.slice(prefix.length).trim();
     }
 
-    const trail = cleaned.match(new RegExp(cjkRegex.source + '$'));
+    const trail = cleaned.match(new RegExp(cjkSequenceRegex.source + '$'));
     if (trail) {
       suffix = trail[0];
       cleaned = cleaned.slice(0, -suffix.length).trim();
@@ -563,20 +753,26 @@ export class RepairEngine {
     return { prefix, mathSrc: cleaned, suffix };
   }
 
-  private createNativeMathNode(mathSrc: string, displayMode: boolean): HTMLElement | null {
+  private createNativeMathNode(mathSrc: string, displayMode: boolean, repaired: boolean): HTMLElement | null {
     if (!mathSrc) return null;
     try {
       const html = katex.renderToString(mathSrc, { displayMode, throwOnError: false, strict: false });
       const el = document.createElement(displayMode ? 'div' : 'span');
       el.className = `${displayMode ? 'math-block' : 'math-inline'} ${DONE_CLASS}`;
       el.setAttribute('data-math', mathSrc);
-      el.setAttribute('title', 'Fixed by GeminiMate');
+      if (repaired) {
+        el.setAttribute(LATEX_REPAIRED_ATTR, '1');
+      }
 
       if (displayMode) {
-        el.style.borderLeft = '2px solid rgba(76, 175, 80, 0.1)';
+        if (repaired) {
+          el.style.borderLeft = '2px solid rgba(220, 38, 38, 0.45)';
+        }
       } else {
-        el.style.borderBottom = '1px dashed rgba(76, 175, 80, 0.2)';
         el.style.padding = '0 2px';
+        if (repaired) {
+          el.style.borderBottom = '1px dashed rgba(220, 38, 38, 0.75)';
+        }
       }
 
       this.safeSetInnerHTML(el, html);
@@ -616,41 +812,16 @@ export class RepairEngine {
   }
 
   private repairMarkdown(container: HTMLElement): void {
-    const blocks = container.querySelectorAll('p, li, blockquote, td, span, div');
     const boldStyle = this.getMarkdownEmphasisStyle();
-
-    blocks.forEach((block) => {
-      const b = block as HTMLElement;
-      // Skip any element that is inside a code block or IS the code block container.
-      // Without this, the **text** regex matches **kwargs across Python code lines.
-      if (b.closest(`pre, code, .code-block, code-block, .${DONE_CLASS}`)) return;
-      if (b.querySelector('table, h1, h2, h3')) return;
-
-      const originalHTML = b.innerHTML;
-      let fixedHTML = originalHTML;
-
-      fixedHTML = fixedHTML.replace(/\*\*([\s\S]+?)\*\*/g, (match, content: string) => {
-        if (!content.trim()) return match;
-        const trimmed = content.replace(/^[\s\xa0]+|[\s\xa0]+$/g, '');
-        const underlineClass = this.config.emphasisMode === 'underline' ? ` ${MD_UNDERLINE_CLASS}` : '';
-        return `<b class="${MD_FIX_CLASS} ${MD_MARK_CLASS}${underlineClass}" style="${boldStyle}" title="Markdown Bold Repaired">${trimmed}</b>`;
-      });
-
-      fixedHTML = fixedHTML.replace(
-        /([^\s\$])(\${2,})(?!\d)/g,
-        `$1<span class="${MD_MARK_CLASS}" style="border-bottom: 2px dashed #b2ff59"> $2</span>`,
-      );
-      fixedHTML = fixedHTML.replace(
-        /(\${2,})([^\s\$])/g,
-        `<span class="${MD_MARK_CLASS}" style="border-bottom: 2px dashed #b2ff59">$1 </span>$2`,
-      );
-
-      fixedHTML = fixedHTML.replace(/([^\s-])(\$)([^$]+)(\$)(?!\$)/g, '$1 $2$3$4');
-      fixedHTML = fixedHTML.replace(/(?<!\$)(\$)([^$]+)(\$)([^\s-])/g, '$1$2$3 $4');
-
-      if (fixedHTML !== originalHTML) {
-        this.safeSetInnerHTML(b, fixedHTML);
-      }
+    const walker = document.createTreeWalker(container, NodeFilter.SHOW_TEXT);
+    const textNodes: Text[] = [];
+    let node = walker.nextNode();
+    while (node) {
+      textNodes.push(node as Text);
+      node = walker.nextNode();
+    }
+    textNodes.forEach((textNode) => {
+      this.rewriteMarkdownInTextNode(textNode, boldStyle);
     });
 
     // Normalize all previously repaired markdown nodes to the current emphasis mode.
@@ -673,6 +844,94 @@ export class RepairEngine {
       }
       this.applyEmphasisToElement(b, false, boldStyle);
     });
+  }
+
+  private normalizeMathSpacingInText(text: string): string {
+    let normalized = text;
+    normalized = normalized.replace(/([^\s\$])(\${2,})(?!\d)/g, '$1 $2');
+    normalized = normalized.replace(/(\${2,})([^\s\$])/g, '$1 $2');
+    normalized = normalized.replace(/([^\s-])(\$)([^$]+)(\$)(?!\$)/g, '$1 $2$3$4');
+    normalized = normalized.replace(/(?<!\$)(\$)([^$]+)(\$)([^\s-])/g, '$1$2$3 $4');
+    return normalized;
+  }
+
+  private shouldSkipMarkdownNode(textNode: Text): boolean {
+    const parent = textNode.parentElement;
+    if (!parent) return true;
+    if (parent.closest(`pre, code, .code-block, code-block, .${DONE_CLASS}`)) return true;
+    if (parent.closest('.katex, .katex-display, math, svg')) return true;
+    if (
+      parent.closest(
+        'a, button, [role="button"], [role="link"], input, textarea, select, option, label, summary, details',
+      )
+    ) {
+      return true;
+    }
+    if (parent.closest('[contenteditable="true"], [data-gm-ignore-markdown="1"]')) return true;
+    return false;
+  }
+
+  private rewriteMarkdownInTextNode(textNode: Text, boldStyle: string): void {
+    if (this.shouldSkipMarkdownNode(textNode)) return;
+    const originalText = textNode.nodeValue ?? '';
+    if (originalText.length === 0) return;
+
+    const hasBoldMarker = /\*\*[\s\S]+?\*\*/.test(originalText);
+    const hasMathSpacingIssue =
+      /([^\s\$])(\${2,})(?!\d)/.test(originalText) ||
+      /(\${2,})([^\s\$])/.test(originalText) ||
+      /([^\s-])(\$)([^$]+)(\$)(?!\$)/.test(originalText) ||
+      /(?<!\$)(\$)([^$]+)(\$)([^\s-])/.test(originalText);
+    if (!hasBoldMarker && !hasMathSpacingIssue) {
+      return;
+    }
+
+    const fragment = document.createDocumentFragment();
+    const boldRegex = /\*\*([\s\S]+?)\*\*/g;
+    let cursor = 0;
+    let changed = false;
+    let match: RegExpExecArray | null;
+
+    while ((match = boldRegex.exec(originalText)) !== null) {
+      const before = originalText.slice(cursor, match.index);
+      const normalizedBefore = this.normalizeMathSpacingInText(before);
+      if (normalizedBefore !== before) {
+        changed = true;
+      }
+      if (normalizedBefore) {
+        fragment.appendChild(document.createTextNode(normalizedBefore));
+      }
+
+      const rawContent = match[1] ?? '';
+      const trimmed = rawContent.replace(/^[\s\xa0]+|[\s\xa0]+$/g, '');
+      if (!trimmed) {
+        fragment.appendChild(document.createTextNode(match[0]));
+      } else {
+        const underlineClass = this.config.emphasisMode === 'underline' ? ` ${MD_UNDERLINE_CLASS}` : '';
+        const boldNode = document.createElement('b');
+        boldNode.className = `${MD_FIX_CLASS} ${MD_MARK_CLASS}${underlineClass}`;
+        boldNode.setAttribute('style', boldStyle);
+        boldNode.setAttribute('title', 'Markdown Bold Repaired');
+        boldNode.textContent = trimmed;
+        fragment.appendChild(boldNode);
+        changed = true;
+      }
+
+      cursor = boldRegex.lastIndex;
+    }
+
+    const trailing = originalText.slice(cursor);
+    const normalizedTrailing = this.normalizeMathSpacingInText(trailing);
+    if (normalizedTrailing !== trailing) {
+      changed = true;
+    }
+    if (normalizedTrailing) {
+      fragment.appendChild(document.createTextNode(normalizedTrailing));
+    }
+
+    if (changed) {
+      textNode.parentNode?.replaceChild(fragment, textNode);
+    }
   }
 
   private safeSetInnerHTML(el: HTMLElement, html: string): void {

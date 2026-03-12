@@ -114,7 +114,7 @@
   right: 28px;
   left: auto;
   width: 24px;
-  height: calc((100vh - 44px) * 0.8);
+  height: calc((100vh - 44px) * 0.64);
   z-index: 980;
   display: flex;
   flex-direction: column;

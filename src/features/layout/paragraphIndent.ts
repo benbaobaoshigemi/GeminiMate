@@ -1,4 +1,9 @@
 import { StorageKeys } from '@/core/types/common';
+import {
+  isAnyModelResponseStreaming,
+  isNodeInModelResponse,
+  isNodeInThoughtTree,
+} from '@/core/utils/responseLifecycle';
 
 const STYLE_ID = 'geminimate-paragraph-indent-style';
 const INDENT_CLASS = 'gm-first-line-indent';
@@ -9,28 +14,59 @@ const BODY_LINE_CLASS = 'gm-indent-body-line';
 const DEFAULT_ENABLED = false;
 
 const CANDIDATE_SELECTOR = [
-  // Restrict indent targets to actual response paragraphs.
-  // Broad div selectors were incorrectly catching thoughts panels,
-  // source buttons, and other layout wrappers.
   'model-response message-content p',
+  '.model-response message-content p',
+  '[data-message-author-role="model"] message-content p',
+  '[aria-label="Gemini response"] message-content p',
   'model-response .markdown p',
+  '.model-response .markdown p',
+  '[data-message-author-role="model"] .markdown p',
+  '[aria-label="Gemini response"] .markdown p',
   'model-response .markdown-main-panel p',
-  'model-response .model-response-text .markdown p',
-  '.model-response-text .markdown p',
-  'message-content .markdown p',
-  '.response-content .markdown p',
-  'structured-content-container message-content p',
-  'structured-content-container .markdown p',
-  '[data-test-id="message-content"] p',
+  '.model-response .markdown-main-panel p',
+  '[data-message-author-role="model"] .markdown-main-panel p',
+  '[aria-label="Gemini response"] .markdown-main-panel p',
 ].join(', ');
-const SECTION_HEADING_RE = /^(?:第\s*[一二三四五六七八九十百千万\d]+\s*[章节部分节讲]|[一二三四五六七八九十百千万]+\s*[、.．:：-])\s*/;
-const ENUMERATED_LIST_HEADING_RE = /^\d+\s*[、.．:)）-]\s*$/;
+
+const SECTION_HEADING_RE =
+  /^(?:\u7b2c\s*[\u4e00-\u9fff\d]+\s*[\u7ae0\u8282\u90e8\u5206\u8bb2]|[\u4e00-\u9fff]+\s*[\u3001.\)\uff09])\s*/;
+const ENUMERATED_LIST_HEADING_RE = /^\d+\s*[\u3001.\)\uff09]\s*$/;
+
+const SKIP_ANCESTOR_SELECTOR = [
+  'li',
+  'ul',
+  'ol',
+  'table',
+  'blockquote',
+  'pre',
+  'code',
+  '.code-block',
+  'code-block',
+  '.gm-mermaid-diagram',
+  '[data-gm-mermaid-host="1"]',
+  'h1',
+  'h2',
+  'h3',
+  'h4',
+  'h5',
+  'h6',
+  'model-thoughts',
+  '.thoughts-container',
+  '.thoughts-content',
+  '.thoughts-content-expanded',
+  '.thoughts-streaming',
+  '[data-test-id*="thought"]',
+].join(', ');
 
 let started = false;
 let enabled = DEFAULT_ENABLED;
 let observer: MutationObserver | null = null;
-let applyTimers: number[] = [];
-let storageChangeListener: ((changes: { [key: string]: chrome.storage.StorageChange; }, areaName: string) => void) | null = null;
+let applyTimer: number | null = null;
+let streamCompletionTimer: number | null = null;
+let pendingApplyAfterStreaming = false;
+let storageChangeListener:
+  | ((changes: { [key: string]: chrome.storage.StorageChange }, areaName: string) => void)
+  | null = null;
 
 function ensureStyle(): void {
   let style = document.getElementById(STYLE_ID) as HTMLStyleElement | null;
@@ -48,6 +84,18 @@ function ensureStyle(): void {
     }
   `;
   document.head.appendChild(style);
+}
+
+function clearApplyTimer(): void {
+  if (applyTimer === null) return;
+  clearTimeout(applyTimer);
+  applyTimer = null;
+}
+
+function clearStreamCompletionTimer(): void {
+  if (streamCompletionTimer === null) return;
+  clearTimeout(streamCompletionTimer);
+  streamCompletionTimer = null;
 }
 
 function removeIndentMark(el: Element): void {
@@ -68,21 +116,9 @@ function rollbackAll(): void {
   document.querySelectorAll(`[${MARK_ATTR}], [${NORMALIZED_ATTR}]`).forEach((el) => removeIndentMark(el));
 }
 
-// 修复列表、代码块、表格被缩进导致排版炸裂的黑名单
-const SKIP_ANCESTOR_SELECTOR = [
-  'li', 'ul', 'ol', // 必须跳过列表，否则缩进会使文字脱离前面的序号
-  'table', 'blockquote',
-  'pre', 'code',
-  '.code-block', 'code-block',
-  '.gm-mermaid-diagram',
-  '[data-gm-mermaid-host="1"]',
-  'h1', 'h2', 'h3', 'h4', 'h5', 'h6',
-  'model-thoughts', '.thoughts-container', '.thoughts-content',
-  '[data-test-id*="thought"]'
-].join(', ');
-
 function shouldSkipBlock(el: HTMLElement): boolean {
-  return !!el.closest(SKIP_ANCESTOR_SELECTOR);
+  if (isNodeInThoughtTree(el)) return true;
+  return el.closest(SKIP_ANCESTOR_SELECTOR) !== null;
 }
 
 function isEnumeratedListHeading(text: string): boolean {
@@ -90,8 +126,7 @@ function isEnumeratedListHeading(text: string): boolean {
 }
 
 function shouldIndentText(raw: string): boolean {
-  const text = raw.replace(/\u00a0/g, ' ').trim();
-  return text.length > 0;
+  return raw.replace(/\u00a0/g, ' ').trim().length > 0;
 }
 
 function normalizeMergedHeadingParagraph(el: HTMLElement): void {
@@ -136,7 +171,11 @@ function isParagraphLikeCandidate(el: HTMLElement): boolean {
   return children.every((child) => {
     const childTag = child.tagName.toUpperCase();
     if (childTag === 'BR') return true;
-    if (['B', 'STRONG', 'SPAN', 'A', 'EM', 'I', 'U', 'CODE', 'MARK', 'SMALL', 'SUB', 'SUP'].includes(childTag)) {
+    if (
+      ['B', 'STRONG', 'SPAN', 'A', 'EM', 'I', 'U', 'CODE', 'MARK', 'SMALL', 'SUB', 'SUP'].includes(
+        childTag,
+      )
+    ) {
       return true;
     }
 
@@ -151,19 +190,12 @@ function applyIndentAll(): void {
     return;
   }
 
-  const normalizationCandidates = document.querySelectorAll(CANDIDATE_SELECTOR);
-  normalizationCandidates.forEach((node) => {
-    if (node instanceof HTMLElement) {
-      normalizeMergedHeadingParagraph(node);
-    }
-  });
+  const candidates = Array.from(document.querySelectorAll<HTMLElement>(CANDIDATE_SELECTOR))
+    .filter((node) => !isNodeInThoughtTree(node));
+  const candidateSet = new Set<HTMLElement>(candidates);
 
-  const candidates = document.querySelectorAll(CANDIDATE_SELECTOR);
-  const candidateSet = new Set<HTMLElement>();
   candidates.forEach((node) => {
-    if (node instanceof HTMLElement) {
-      candidateSet.add(node);
-    }
+    normalizeMergedHeadingParagraph(node);
   });
 
   document.querySelectorAll(`[${MARK_ATTR}], [${NORMALIZED_ATTR}]`).forEach((node) => {
@@ -173,7 +205,6 @@ function applyIndentAll(): void {
   });
 
   candidates.forEach((node) => {
-    if (!(node instanceof HTMLElement)) return;
     if (!isParagraphLikeCandidate(node)) {
       removeIndentMark(node);
       return;
@@ -200,32 +231,74 @@ function applyIndentAll(): void {
   });
 }
 
-function clearApplyTimers(): void {
-  if (applyTimers.length === 0) return;
-  applyTimers.forEach((timer) => clearTimeout(timer));
-  applyTimers = [];
+function scheduleApply(): void {
+  clearApplyTimer();
+  applyTimer = window.setTimeout(() => {
+    applyTimer = null;
+    applyIndentAll();
+  }, 180);
 }
 
-function scheduleApply(): void {
-  // Gemini often hydrates the same paragraph in multiple passes.
-  // Run once after the current mutation burst, then re-check twice more
-  // to catch late text/markdown/formula rendering without waiting for user input.
-  clearApplyTimers();
-  [120, 360, 900].forEach((delay) => {
-    const timer = window.setTimeout(() => {
-      applyIndentAll();
-      applyTimers = applyTimers.filter((id) => id !== timer);
-    }, delay);
-    applyTimers.push(timer);
+function scheduleApplyAfterStreamingCompletes(): void {
+  pendingApplyAfterStreaming = true;
+  if (streamCompletionTimer !== null) return;
+  streamCompletionTimer = window.setTimeout(() => {
+    streamCompletionTimer = null;
+    if (!pendingApplyAfterStreaming) return;
+    if (isAnyModelResponseStreaming()) {
+      scheduleApplyAfterStreamingCompletes();
+      return;
+    }
+    pendingApplyAfterStreaming = false;
+    scheduleApply();
+  }, 220);
+}
+
+function isRelevantMutationNode(node: Node): boolean {
+  const element = node instanceof Element ? node : node.parentElement;
+  if (!element) return false;
+  if (isNodeInThoughtTree(element)) return false;
+  if (element.closest(CANDIDATE_SELECTOR) !== null) return true;
+  if (isNodeInModelResponse(element)) return true;
+  return element.querySelector(CANDIDATE_SELECTOR) !== null;
+}
+
+function hasRelevantMutations(mutations: MutationRecord[]): boolean {
+  return mutations.some((mutation) => {
+    if (mutation.type === 'characterData') {
+      return isRelevantMutationNode(mutation.target);
+    }
+
+    if (isRelevantMutationNode(mutation.target)) {
+      return true;
+    }
+
+    for (const node of Array.from(mutation.addedNodes)) {
+      if (isRelevantMutationNode(node)) return true;
+    }
+
+    return false;
   });
 }
 
 function setupObserver(): void {
   if (observer || !document.body) return;
+
   observer = new MutationObserver((mutations) => {
     if (!enabled || mutations.length === 0) return;
+    if (!hasRelevantMutations(mutations)) return;
+
+    if (isAnyModelResponseStreaming()) {
+      scheduleApplyAfterStreamingCompletes();
+      return;
+    }
+
+    if (pendingApplyAfterStreaming) {
+      pendingApplyAfterStreaming = false;
+    }
     scheduleApply();
   });
+
   observer.observe(document.body, {
     childList: true,
     subtree: true,
@@ -243,6 +316,15 @@ export function startParagraphIndentAdjuster(): void {
 
   chrome.storage.local.get([StorageKeys.GEMINI_PARAGRAPH_INDENT_ENABLED], (res) => {
     enabled = res[StorageKeys.GEMINI_PARAGRAPH_INDENT_ENABLED] === true;
+    if (!enabled) {
+      rollbackAll();
+      return;
+    }
+
+    if (isAnyModelResponseStreaming()) {
+      scheduleApplyAfterStreamingCompletes();
+      return;
+    }
     scheduleApply();
   });
 
@@ -251,7 +333,15 @@ export function startParagraphIndentAdjuster(): void {
     if (!changes[StorageKeys.GEMINI_PARAGRAPH_INDENT_ENABLED]) return;
     enabled = changes[StorageKeys.GEMINI_PARAGRAPH_INDENT_ENABLED].newValue === true;
     if (!enabled) {
+      pendingApplyAfterStreaming = false;
+      clearApplyTimer();
+      clearStreamCompletionTimer();
       rollbackAll();
+      return;
+    }
+
+    if (isAnyModelResponseStreaming()) {
+      scheduleApplyAfterStreamingCompletes();
       return;
     }
     scheduleApply();
@@ -265,6 +355,11 @@ export function startParagraphIndentAdjuster(): void {
       'DOMContentLoaded',
       () => {
         setupObserver();
+        if (!enabled) return;
+        if (isAnyModelResponseStreaming()) {
+          scheduleApplyAfterStreamingCompletes();
+          return;
+        }
         scheduleApply();
       },
       { once: true },
@@ -282,7 +377,9 @@ export function startParagraphIndentAdjuster(): void {
         chrome.storage.onChanged.removeListener(storageChangeListener);
         storageChangeListener = null;
       }
-      clearApplyTimers();
+      pendingApplyAfterStreaming = false;
+      clearApplyTimer();
+      clearStreamCompletionTimer();
       rollbackAll();
       document.getElementById(STYLE_ID)?.remove();
       started = false;

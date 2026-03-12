@@ -9,9 +9,12 @@ import { setSvgRenderEnabled, startSvgRenderer, stopSvgRenderer } from '../../fe
 import { startThoughtTranslation, stopThoughtTranslation } from '../../features/thoughtTranslation';
 import { startTimeline } from '../../features/timeline';
 import { startBottomCleanup, stopBottomCleanup } from '../../features/uiCleanup';
+import {
+  startYoutubeRecommendationBlocker,
+  stopYoutubeRecommendationBlocker,
+} from '../../features/uiCleanup/youtubeRecommendationBlocker';
 import { startWatermarkRemover, stopWatermarkRemover } from '../../features/watermarkRemover';
 import { startControlCapsule, stopControlCapsule } from '../../features/ui/controlCapsule';
-import { startExportButton } from './export';
 import { startFolderManager } from './folder';
 import {
   startChatWidthAdjuster,
@@ -35,6 +38,7 @@ let quoteReplyCleanup: (() => void) | null = null;
 let folderManagerInstance: Awaited<ReturnType<typeof startFolderManager>> | null = null;
 let watermarkEnabled = false;
 let bottomCleanupEnabled = false;
+let youtubeRecommendationBlockerEnabled = false;
 let mermaidEnabled = false;
 let mermaidServiceBootstrapped = false;
 let svgRenderEnabled = true;
@@ -195,6 +199,22 @@ const syncBottomCleanupState = (enabled: boolean): void => {
   debugService.log('bottom-cleanup', 'toggle-off');
 };
 
+const syncYoutubeRecommendationBlockerState = (enabled: boolean): void => {
+  if (enabled === youtubeRecommendationBlockerEnabled) {
+    return;
+  }
+
+  youtubeRecommendationBlockerEnabled = enabled;
+  if (enabled) {
+    startYoutubeRecommendationBlocker();
+    debugService.log('youtube-recommendation-blocker', 'toggle-on');
+    return;
+  }
+
+  stopYoutubeRecommendationBlocker();
+  debugService.log('youtube-recommendation-blocker', 'toggle-off');
+};
+
 const syncMermaidState = (enabled: boolean): void => {
   mermaidEnabled = enabled;
   if (!mermaidServiceBootstrapped) {
@@ -271,6 +291,34 @@ const attachClickLoggerOnce = (): void => {
   );
 };
 
+const extractCustomFontNames = (value: unknown): string[] => {
+  if (!Array.isArray(value)) return [];
+  return value
+    .map((item) => (item && typeof item === 'object' && 'name' in item ? String(item.name || '') : ''))
+    .filter((name) => name.length > 0);
+};
+
+const traceCustomFontStorage = (event: 'initial' | 'changed', value: unknown): void => {
+  const fontNames = extractCustomFontNames(value);
+  console.error('[VIBE_DEBUG_TRACE][CUSTOM_FONT_STORAGE_PAGE_TRACE]', {
+    event,
+    fontNames,
+    fontCount: fontNames.length,
+  });
+  console.error(
+    '[VIBE_DEBUG_TRACE][CUSTOM_FONT_STORAGE_PAGE_TRACE_JSON]',
+    JSON.stringify(
+      {
+        event,
+        fontNames,
+        fontCount: fontNames.length,
+      },
+      null,
+      2,
+    ),
+  );
+};
+
 const handleStorageChanged = (
   changes: Record<string, chrome.storage.StorageChange>,
   areaName: string,
@@ -312,6 +360,15 @@ const handleStorageChanged = (
     syncBottomCleanupState(enabled);
   }
 
+  const youtubeRecommendationBlockerChange = changes[StorageKeys.YOUTUBE_RECOMMENDATION_BLOCKER_ENABLED];
+  if (youtubeRecommendationBlockerChange) {
+    const enabled = resolveEnabledValue(youtubeRecommendationBlockerChange.newValue);
+    debugService.log('storage', 'youtube-recommendation-blocker-enabled-changed', {
+      enabled,
+    });
+    syncYoutubeRecommendationBlockerState(enabled);
+  }
+
   const mermaidChange = changes[StorageKeys.MERMAID_RENDER_ENABLED];
   if (mermaidChange) {
     const enabled = resolveEnabledValue(mermaidChange.newValue);
@@ -339,6 +396,11 @@ const handleStorageChanged = (
     debugService.log('storage', 'debug-mode-enabled-changed', { enabled });
     syncDebugModeState(enabled);
   }
+
+  const customFontsChange = changes[StorageKeys.GEMINI_CUSTOM_FONTS];
+  if (customFontsChange) {
+    traceCustomFontStorage('changed', customFontsChange.newValue);
+  }
 };
 
 const initExtension = async () => {
@@ -355,15 +417,20 @@ const initExtension = async () => {
       StorageKeys.QUOTE_REPLY_ENABLED,
       StorageKeys.WATERMARK_REMOVER_ENABLED,
       StorageKeys.BOTTOM_CLEANUP_ENABLED,
+      StorageKeys.YOUTUBE_RECOMMENDATION_BLOCKER_ENABLED,
       StorageKeys.MERMAID_RENDER_ENABLED,
       StorageKeys.SVG_RENDER_ENABLED,
       StorageKeys.THOUGHT_TRANSLATION_ENABLED,
       StorageKeys.DEBUG_MODE,
+      StorageKeys.GEMINI_CUSTOM_FONTS,
     ]);
     syncFormulaCopyState(resolveEnabledValue(settings[StorageKeys.FORMULA_COPY_ENABLED]));
     syncQuoteReplyState(resolveEnabledValue(settings[StorageKeys.QUOTE_REPLY_ENABLED]));
     syncWatermarkRemoverState(resolveEnabledValue(settings[StorageKeys.WATERMARK_REMOVER_ENABLED]));
     syncBottomCleanupState(resolveEnabledValue(settings[StorageKeys.BOTTOM_CLEANUP_ENABLED]));
+    syncYoutubeRecommendationBlockerState(
+      resolveEnabledValue(settings[StorageKeys.YOUTUBE_RECOMMENDATION_BLOCKER_ENABLED]),
+    );
     syncMermaidState(resolveEnabledValue(settings[StorageKeys.MERMAID_RENDER_ENABLED]));
     syncSvgRenderState(resolveEnabledValue(settings[StorageKeys.SVG_RENDER_ENABLED]));
     traceThoughtTranslation('initial-setting', {
@@ -372,11 +439,11 @@ const initExtension = async () => {
     });
     syncThoughtTranslationState(resolveThoughtTranslationValue(settings[StorageKeys.THOUGHT_TRANSLATION_ENABLED]));
     syncDebugModeState(settings[StorageKeys.DEBUG_MODE] === true);
+    traceCustomFontStorage('initial', settings[StorageKeys.GEMINI_CUSTOM_FONTS]);
 
     // Initialize Timeline with SPA route handling
     startTimeline();
     folderManagerInstance = await startFolderManager();
-    void startExportButton();
 
     // Layout features
     startChatWidthAdjuster();
@@ -401,6 +468,7 @@ const initExtension = async () => {
       }
       stopWatermarkRemover();
       stopBottomCleanup();
+      stopYoutubeRecommendationBlocker();
       stopMermaid();
       stopSvgRenderer();
       stopThoughtTranslation();

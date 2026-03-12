@@ -1,68 +1,235 @@
-# 🍌 GeminiMate
+# GeminiMate v2.0.0
 
-> **Premium Google Gemini Assistant with LaTeX Fixing & Advanced Vibe.**
-> 打造最优雅、最强大的 Gemini 深度定制体验。
+GeminiMate 是一个面向 Google Gemini 网页端的本地增强扩展，目标不是替代 Gemini，而是在不依赖云端中转服务的前提下，修复公式与 Markdown 渲染问题，补足长对话导航、阅读排版和页内操作体验。
 
----
+当前版本号：
+- `package.json`: `2.0.0`
+- `manifest.json`: `2.0.0`
+- 弹窗底部构建标识：`GEMINIMATE_V2.0.0_STABLE`
 
-## ✨ 核心亮点 (Key Features)
+## 1. 项目定位
 
-GeminiMate 不仅仅是一个插件，它是对 Gemini 交互灵魂的重塑。
+GeminiMate 当前默认构建主要做三件事：
 
-### 🎨 极致视觉 (Aesthetic UI)
-- **Glassmorphism Design**：基于 Tailwind CSS 4.0 打造的毛玻璃拟物化菜单，视觉体验降维打击。
-- **Control Capsule**：独创的交互胶囊浮窗，让控制触手可及。
+1. 修复 Gemini 页面里常见的 LaTeX / Markdown / 思维链展示问题。
+2. 为长对话提供更强的布局、导航、字体和交互控制。
+3. 把部分高频操作做成页内能力，例如公式复制、文件夹管理、控制胶囊面板。
 
-### 🔬 生产力增强 (Productivity)
-- **RepairEngine v2**：**[重磅重构]** 整合了延迟渲染与 DOM 快照技术，完美修复 LaTeX 公式乱码、中文间距及 Markdown 标签破损。
-- **Thought Translation**：**[独家创新]** 针对 Gemini 思考过程 (Thinking Process) 的即时自动翻译增强，跨越语言鸿沟。
-- **NanoBanana (🍌)**：基于 Alpha 映射算法的无损去水印技术，让生成的图片真正纤毫毕现。
+它不做的事情：
 
-### 🛠️ 深度导航 (Navigation)
-- **Visual Timeline**：可视化对话时间线，支持多分支跳转与关键节点星标。
-- **Folder Manager**：两级嵌套文件夹，像管理文件一样管理你的灵感。
-- **Formula Copy**：支持 LaTeX/MathML/纯文本一键提取。
+- 不代理 Gemini 请求。
+- 不上传用户对话到自建服务器。
+- 不承诺兼容所有历史 DOM 结构。
+- 不用“静默降级”掩盖错误，功能异常时以便于定位根因为优先。
 
----
+## 2. 当前默认构建包含什么
 
-## � 快速开始 (Quick Start)
+### 2.1 支持站点
 
-### 开发环境配置
-项目基于现代前端栈构建：
-- **Bundler**: Vite + CRXJS
-- **Logic**: React 19 + TypeScript
-- **Style**: Tailwind CSS v4
+- `https://gemini.google.com/*`
+- `https://business.gemini.google/*`
 
-```bash
-# 安装依赖
+### 2.2 用户入口
+
+- 浏览器扩展弹窗：完整设置面板。
+- 页内控制胶囊：挂载在 Gemini 左上区域附近，可直接打开同一套控制面板。
+- 页内文件夹系统：在 Gemini 对话侧栏内工作。
+
+## 3. Popup UI 功能总表
+
+下面这份清单完全按当前 `src/pages/popup/Popup.tsx` 实现整理，包含默认值、作用范围和实际行为。
+
+### 3.1 主面板：内容渲染与修复
+
+| 功能 | 默认值 | 作用 |
+| --- | --- | --- |
+| LaTeX 公式修复 | 开 | 修复公式乱码、符号缺失、中英混排间距等问题。 |
+| Markdown 修复 | 开 | 修复标题、强调、列表等常见 Markdown 渲染异常。 |
+| 强调文本样式 | `加粗` | 控制 Markdown 强调文本显示为原生加粗或下划线。 |
+| 思维链翻译 | 关 | 仅翻译 reasoning / thoughts 面板，不改主回答正文。 |
+| 思维链翻译模式 | `对照模式` | `对照模式` 为中英双栏，`替换模式` 为只显示中文。 |
+| 视频推荐屏蔽 | 开 | 基于 DOM 结构隐藏 YouTube 推荐卡片。 |
+
+### 3.2 主面板：布局与导航
+
+| 功能 | 默认值 | 范围 / 行为 |
+| --- | --- | --- |
+| 对话区域宽度 | `100%` | 可调到 `170%`，只允许比原生更宽。 |
+| 编辑输入框宽度 | `100%` | 可调到 `50% - 170%`。 |
+| 侧边栏宽度 | `312px` | 可调到 `180px - 540px`。 |
+| 侧栏自动收起 | 关 | 鼠标离开时收起，移入时展开。 |
+| 全景模式 | 关 | 精简底部说明与遮罩，扩大可视区域。 |
+| 侧边时间线 | 开 | 为长对话显示右侧时间线轨道。 |
+| 平滑滚动模式 | 开 | 开启为平滑滚动，关闭为立即跳转。 |
+| 隐藏原生容器 | 关 | 减少长对话滚动闪跳。 |
+| 自动贴边 | 关 | 时间线空闲时贴边，悬浮时展开。 |
+| 时间线宽度 | `24px` | 可调到 `8px - 32px`。 |
+
+### 3.3 主面板：阅读排版
+
+| 功能 | 默认值 | 范围 / 行为 |
+| --- | --- | --- |
+| 字体大小 | `100%` | 可调到 `80% - 130%`，只影响正文与公式。 |
+| 字间距 | `0` | 每格增加 `0.01em`。 |
+| 行间距 | `0` | 每格增加 `0.1` 倍行高。 |
+| 首行缩进 | 关 | 仅作用于正文段落，不作用于代码块和图表。 |
+| 字重调节 | `400` | 范围 `200 - 900`，步进 `50`。 |
+| 字体类型 | `默认` | 可选 `默认 / 非衬线 / 衬线 / 本地导入字体`。 |
+
+### 3.4 主面板：文本交互
+
+| 功能 | 默认值 | 作用 |
+| --- | --- | --- |
+| 公式点击复制 | 开 | 点击公式即可复制。 |
+| 公式复制格式 | `LaTeX` | 可选 `LaTeX`、`MathML (Word)`、`纯文本 LaTeX`。 |
+| 引用回复 | 开 | 选中文本后快速插入引用回复。 |
+
+### 3.5 主面板：图像处理
+
+| 功能 | 默认值 | 作用 |
+| --- | --- | --- |
+| 水印移除 (NanoBanana) | 开 | 对生成图片做背景隐形水印移除。 |
+
+### 3.6 设置页：字体方案与调试
+
+| 分组 | 功能 |
+| --- | --- |
+| 预置字体方案 | 7 组非衬线预设 + 7 组衬线预设，切换后会同步把当前字体类型设为对应 `sans` 或 `serif`。 |
+| 本地字体导入 | 支持导入 `.ttf / .woff / .woff2 / .otf`，导入后可在主面板直接选中并应用。 |
+| 图表与图形显示 | `Mermaid 图表渲染`、`SVG 图形渲染` 两个开关。 |
+| 调试与诊断 | `调试模式`、`日志落盘`、`缓存快照采集`、`立即导出日志`、`立即抓取缓存`。 |
+
+## 4. 弹窗之外，当前构建还启用了什么
+
+这些能力不一定在 popup 里有独立开关，但在当前内容脚本入口里已经启动。
+
+### 4.1 页内控制胶囊
+
+- 会在 Gemini 左上区域附近注入一个 `GeminiMate` 胶囊按钮。
+- 点击后打开和浏览器弹窗同一套控制面板。
+- 面板使用 Shadow DOM 隔离样式，不直接污染 Gemini 页面样式。
+
+### 4.2 文件夹管理
+
+文件夹系统当前已经接线并启动，核心能力包括：
+
+- 两级文件夹嵌套。
+- 对话拖拽进文件夹、文件夹之间拖拽、拖回根级。
+- 文件夹重命名、删除、颜色标记。
+- 文件夹内对话星标、重命名、多选拖拽。
+- Gem 对话图标识别。
+- 侧栏内文件夹导入 / 导出。
+- 面向多账号路由的存储隔离适配。
+
+## 5. 仓库里有，但当前默认入口未启用的模块
+
+这部分特意单列，是为了避免 README 把“代码存在”误写成“用户现在就能用”。
+
+### 5.1 对话导出模块
+
+仓库里已经有完整导出实现，包括：
+
+- 对话导出为 `JSON / Markdown / PDF / Image`
+- 单条回复导出为 `Word`
+- 回复复制为图片
+- Share Viewer 页面
+
+但以当前 `src/pages/content/index.tsx` 为准，默认内容脚本入口**没有启动**导出按钮注入逻辑。因此：
+
+- 这些导出代码目前属于“仓库内存在”
+- 不应在面向最终用户的功能清单里表述为“当前默认构建已可直接使用”
+
+如果后续要恢复这条链路，需要把导出模块重新接回内容脚本初始化入口，并重新验证 DOM 注入路径。
+
+## 6. 数据、权限与隐私
+
+### 6.1 使用的浏览器权限
+
+- `storage`: 保存开关、布局、字体、文件夹等本地配置。
+- `unlimitedStorage`: 为字体、文件夹和调试快照留足空间。
+- `scripting`: 注册主世界拦截脚本。
+- `downloads`: 导出日志、缓存快照、PDF 等文件。
+
+### 6.2 Host 权限
+
+- `gemini.google.com`
+- `business.gemini.google`
+- `*.googleusercontent.com`
+- `*.ggpht.com`
+- `translate.googleapis.com`
+
+### 6.3 数据策略
+
+- 配置主要保存在 `chrome.storage.local`。
+- 调试模式下可将运行日志写入下载目录下的 `GeminiMate/.log/`。
+- 思维链翻译依赖 `translate.googleapis.com`。
+- 项目当前没有自建后端，也没有账号系统。
+
+## 7. 技术栈
+
+- Build: `Vite`
+- Extension tooling: `@crxjs/vite-plugin`
+- UI: `React 19 + TypeScript`
+- Styling: `Tailwind CSS 4`
+- Formula / Math: `KaTeX + Temml + mathml2omml`
+- Doc / Export related deps: `docx`, `jspdf`, `jszip`, `html-to-image`
+
+## 8. 本地开发与构建
+
+### 8.1 开发
+
+```powershell
 npm install
-
-# 启动开发服务器 (热更新)
 npm run dev
+```
 
-# 编译生产版本
+### 8.2 类型检查与生产构建
+
+```powershell
+npm run typecheck
 npm run build
 ```
 
----
+构建完成后产物位于：
 
-## ⚖️ 开源声明与致谢 (License & Credits)
+- `dist/`
 
-GeminiMate 是一个“站在巨人肩膀上”的作品。我们推崇开源精神，并严格遵守开源协议。
+可通过 Chrome 的“加载已解压的扩展程序”直接安装。
 
-### 血缘与致谢
-本项目的核心架构及部分功能思路深受 **[Gemini Voyager](https://github.com/Nagi-ovo/gemini-voyager)** (by [Jesse Zhang / Nagi-ovo](https://github.com/Nagi-ovo)) 的启发。
-- **借鉴/移植功能**：Timeline 导航逻辑、Folder 管理架构、Fetch 拦截器通信机制。
-- **魔改/创新点**：单例化 `RepairEngine` 性能优化、`Thought Translation` 翻译增强、全新的视觉设计。
+## 9. Release v2.0.0 打包
 
-### 协议 (License)
-本项目基于 **[GPLv3](LICENSE)** 协议开源。
-> [!IMPORTANT]
-> 如果您基于本项目进行二次开发或分发，请务必保留原作者及本项目的署名，并同样以 GPLv3 协议开源。
+当前版本发布资产放在：
 
----
+- `release/GeminiMate-v2.0.0.zip`
+- `release/RELEASE_NOTES_v2.0.0.md`
 
-<p align="center">
-  Made with 🍌 and ❤️ by GeminiMate Team<br>
-  <sub>STAY VIBE. STAY CREATIVE.</sub>
-</p>
+本地重新打包命令：
+
+```powershell
+npm run build
+Compress-Archive -Path .\dist\* -DestinationPath .\release\GeminiMate-v2.0.0.zip -Force
+```
+
+## 10. 仓库结构
+
+```text
+src/pages/popup/            扩展弹窗与页内控制面板 UI
+src/pages/content/          内容脚本入口与页内能力
+src/pages/content/folder/   文件夹系统
+src/pages/background/       Service Worker、调试与消息总线
+src/features/               功能模块（公式复制、时间线、排版、图表等）
+public/                     静态资源
+dist/                       构建产物
+release/                    发布压缩包与发布说明
+_verification_scripts/      临时验证与回归脚本
+```
+
+## 11. 已知边界
+
+- Gemini DOM 结构变化会直接影响修复器、时间线、文件夹和推荐屏蔽逻辑。
+- 思维链翻译依赖页面中存在可识别的 thoughts / reasoning 容器。
+- 当前 README 只把“默认已接线能力”视为正式功能；未接线模块需要重新验证后再对外宣传。
+
+## 12. 许可证
+
+当前仓库按 `GPLv3` 口径维护。若进行二次开发或分发，请保留来源与协议说明。
