@@ -1,5 +1,6 @@
 ﻿import { debugService } from '../../core/services/DebugService';
 import { logger } from '../../core/services/LoggerService';
+import { checkLatestRelease } from '../../core/services/UpdateService';
 import { StorageKeys } from '../../core/types/common';
 import type { StarredMessage, StarredMessagesData } from '../../features/timeline/starredTypes';
 
@@ -41,6 +42,15 @@ type PdfDownloadRequest = {
   type: 'gm.pdf.download';
   dataUrl?: unknown;
   filename?: unknown;
+};
+
+type UpdateCheckRequest = {
+  type: 'gm.update.check';
+};
+
+type UpdateOpenRequest = {
+  type: 'gm.update.open';
+  url?: unknown;
 };
 
 type DebugIngestRequest = {
@@ -104,6 +114,10 @@ const isShareOpenRequest = (message: unknown): message is ShareOpenRequest =>
   isRecord(message) && message.type === 'gm.share.open';
 const isPdfDownloadRequest = (message: unknown): message is PdfDownloadRequest =>
   isRecord(message) && message.type === 'gm.pdf.download';
+const isUpdateCheckRequest = (message: unknown): message is UpdateCheckRequest =>
+  isRecord(message) && message.type === 'gm.update.check';
+const isUpdateOpenRequest = (message: unknown): message is UpdateOpenRequest =>
+  isRecord(message) && message.type === 'gm.update.open';
 
 const isDebugMessageRequest = (message: unknown): message is DebugMessageRequest =>
   isRecord(message) && typeof message.type === 'string' && message.type.startsWith('gm.debug.');
@@ -770,6 +784,26 @@ chrome.runtime.onMessage.addListener((message: unknown, _sender, sendResponse) =
 
     void downloadPdfAndResolvePath(dataUrl, filename)
       .then((filePath) => sendResponse({ ok: true, filePath }))
+      .catch((error: unknown) => sendResponse({ ok: false, error: getErrorMessage(error) }));
+    return true;
+  }
+
+  if (isUpdateCheckRequest(message)) {
+    void checkLatestRelease()
+      .then((result) => sendResponse({ ok: true, result }))
+      .catch((error: unknown) => sendResponse({ ok: false, error: getErrorMessage(error) }));
+    return true;
+  }
+
+  if (isUpdateOpenRequest(message)) {
+    const url = typeof message.url === 'string' ? message.url : '';
+    if (!/^https:\/\/github\.com\//i.test(url)) {
+      sendResponse({ ok: false, error: 'invalid_update_url' });
+      return;
+    }
+
+    void chrome.tabs.create({ url })
+      .then(() => sendResponse({ ok: true }))
       .catch((error: unknown) => sendResponse({ ok: false, error: getErrorMessage(error) }));
     return true;
   }

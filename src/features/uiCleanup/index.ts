@@ -28,6 +28,16 @@ const INPUT_MASK_DIAGNOSTIC_SELECTORS = [
   'fieldset.input-area-container',
 ] as const;
 
+const ULTRA_UPSELL_TEXT = '升级到 Google AI Ultra';
+const ULTRA_UPSELL_BLOCK_ATTR = 'data-gm-ultra-upsell-blocked';
+const ULTRA_UPSELL_SELECTORS = [
+  'span.dynamic-upsell-label',
+  '.dynamic-upsell-label',
+  'button:has(.dynamic-upsell-label)',
+  '[role="button"]:has(.dynamic-upsell-label)',
+  'a:has(.dynamic-upsell-label)',
+] as const;
+
 let cleanupObserver: MutationObserver | null = null;
 let refreshRafId: number | null = null;
 
@@ -78,6 +88,16 @@ chat-window-content > .autosuggest-scrim {
   pointer-events: none !important;
   background: transparent !important;
   background-image: none !important;
+}
+
+${ULTRA_UPSELL_SELECTORS.join(',\n')},
+[${ULTRA_UPSELL_BLOCK_ATTR}="1"] {
+  display: none !important;
+  visibility: hidden !important;
+  opacity: 0 !important;
+  max-height: 0 !important;
+  overflow: hidden !important;
+  pointer-events: none !important;
 }`;
 
   return `${disclaimerCss}\n${shadowCss}\n${gradientCss}`;
@@ -116,8 +136,40 @@ const reportMatchCounts = (event: string): void => {
   logTrace(event, collectInputDiagnostics());
 };
 
+const markUltraUpsellRoot = (element: Element | null): void => {
+  if (!(element instanceof HTMLElement)) return;
+  element.setAttribute(ULTRA_UPSELL_BLOCK_ATTR, '1');
+};
+
+const resolveUltraUpsellRoot = (node: HTMLElement): HTMLElement => {
+  const directRoot = node.closest<HTMLElement>(
+    'button, a, [role="button"], mat-card, message-content, link-block, div, span',
+  );
+  return directRoot ?? node;
+};
+
+const applyUltraUpsellCleanup = (): void => {
+  ULTRA_UPSELL_SELECTORS.forEach((selector) => {
+    document.querySelectorAll(selector).forEach((node) => {
+      if (!(node instanceof HTMLElement)) return;
+      if (node.textContent?.includes(ULTRA_UPSELL_TEXT)) {
+        markUltraUpsellRoot(resolveUltraUpsellRoot(node));
+      }
+    });
+  });
+
+  const candidates = document.querySelectorAll<HTMLElement>('button, a, div, span, li');
+  candidates.forEach((node) => {
+    const text = node.textContent?.replace(/\s+/g, ' ').trim();
+    if (!text || !text.includes(ULTRA_UPSELL_TEXT)) return;
+    if (text.length > 80) return;
+    markUltraUpsellRoot(resolveUltraUpsellRoot(node));
+  });
+};
+
 export function startBottomCleanup(): void {
   ensureStyle();
+  applyUltraUpsellCleanup();
   reportMatchCounts('start');
 
   if (cleanupObserver) {
@@ -135,6 +187,7 @@ export function startBottomCleanup(): void {
         return;
       }
       ensureStyle();
+      applyUltraUpsellCleanup();
       reportMatchCounts('mutation-refresh');
     });
   });

@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Range Step Probe</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      padding: 24px;
+    }
+
+    input[type="range"] {
+      width: 320px;
+    }
+
+    .row {
+      margin-bottom: 16px;
+    }
+  </style>
+</head>
+<body>
+  <div class="row">
+    <label for="sidebar">sidebar</label>
+    <input id="sidebar" type="range" min="180" max="540" step="10" value="312" />
+    <span id="sidebar-out"></span>
+  </div>
+
+  <div class="row">
+    <label for="edit">edit</label>
+    <input id="edit" type="range" min="100" max="170" step="1" value="119" />
+    <span id="edit-out"></span>
+  </div>
+
+  <script>
+    const sidebar = document.getElementById('sidebar');
+    const edit = document.getElementById('edit');
+    const sidebarOut = document.getElementById('sidebar-out');
+    const editOut = document.getElementById('edit-out');
+
+    sidebarOut.textContent = `attr=312 dom=${sidebar.value}`;
+    editOut.textContent = `attr=119 dom=${edit.value}`;
+  </script>
+</body>
+</html>

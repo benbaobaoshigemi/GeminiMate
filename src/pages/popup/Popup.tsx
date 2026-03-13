@@ -1,11 +1,20 @@
 ﻿import React, { useEffect, useRef, useState } from 'react';
-import { Settings, PenTool, Layout, Zap, Clock, Type, ChevronLeft, Upload, Trash2 } from 'lucide-react';
+import { Settings, PenTool, Layout, Zap, Clock, Type, ChevronLeft, Upload, Trash2, RefreshCw, ExternalLink, Download } from 'lucide-react';
 
 import { StorageKeys } from '@/core/types/common';
+import { EXTENSION_VERSION } from '@/core/utils/version';
 import type { CustomFont } from '@/features/layout/customFont';
 
 type FormulaCopyFormat = 'latex' | 'unicodemath' | 'no-dollar';
 type WordResponseExportMode = 'default' | 'academic';
+type UpdateStatus = 'idle' | 'checking' | 'available' | 'latest' | 'error';
+
+interface UpdateInfo {
+  latestVersion: string;
+  releaseUrl: string;
+  downloadUrl: string | null;
+  publishedAt: string | null;
+}
 
 const SANS_PRESET_OPTIONS = [
   {
@@ -271,6 +280,7 @@ const Slider = ({
 }: SliderProps) => {
   const percentage = ((value - min) / (max - min)) * 100;
   const isAtDefault = defaultValue !== undefined && value === defaultValue;
+  const thumbSize = 10;
   return (
     <div className={`p-3 rounded-xl bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/5 transition-all ${disabled ? 'opacity-60' : ''}`}>
       <div className="flex items-center gap-3 mb-3">
@@ -317,7 +327,7 @@ const Slider = ({
         >
           <div
             className="h-full rounded-full"
-            style={{ width: `calc(12px + (100% - 10px) * ${percentage / 100})`, background: '#3b82f6' }}
+            style={{ width: `calc(12px + (100% - ${thumbSize}px) * ${percentage / 100})`, background: '#3b82f6' }}
           />
         </div>
         <input
@@ -405,6 +415,9 @@ export default function Popup() {
   const [wordResponseExportEnabled, setWordResponseExportEnabled] = useState(true);
   const [wordResponseExportMode, setWordResponseExportMode] =
     useState<WordResponseExportMode>('default');
+  const [updateStatus, setUpdateStatus] = useState<UpdateStatus>('idle');
+  const [updateMessage, setUpdateMessage] = useState('未检查更新');
+  const [updateInfo, setUpdateInfo] = useState<UpdateInfo | null>(null);
 
   useEffect(() => {
     const keys = [
@@ -649,6 +662,58 @@ export default function Popup() {
     return () => chrome.storage.onChanged.removeListener(onChanged);
   }, []);
 
+  const runUpdateCheck = (): void => {
+    setUpdateStatus('checking');
+    setUpdateMessage('正在检查 GitHub Release...');
+
+    chrome.runtime.sendMessage(
+      { type: 'gm.update.check' },
+      (response?: {
+        ok?: boolean;
+        error?: string;
+        result?: {
+          latestVersion: string;
+          releaseUrl: string;
+          downloadUrl: string | null;
+          publishedAt: string | null;
+          updateAvailable: boolean;
+        };
+      }) => {
+        if (chrome.runtime.lastError) {
+          setUpdateStatus('error');
+          setUpdateMessage(`检查失败：${chrome.runtime.lastError.message}`);
+          return;
+        }
+
+        if (!response?.ok || !response.result) {
+          setUpdateStatus('error');
+          setUpdateMessage(`检查失败：${response?.error ?? 'unknown_error'}`);
+          return;
+        }
+
+        setUpdateInfo({
+          latestVersion: response.result.latestVersion,
+          releaseUrl: response.result.releaseUrl,
+          downloadUrl: response.result.downloadUrl,
+          publishedAt: response.result.publishedAt,
+        });
+
+        if (response.result.updateAvailable) {
+          setUpdateStatus('available');
+          setUpdateMessage(`发现 v${response.result.latestVersion}`);
+          return;
+        }
+
+        setUpdateStatus('latest');
+        setUpdateMessage('已是最新版');
+      },
+    );
+  };
+
+  useEffect(() => {
+    runUpdateCheck();
+  }, []);
+
   const updateSetting = (key: string, value: boolean, setter: (v: boolean) => void): void => {
     setter(value);
     chrome.storage.local.set({ [key]: value });
@@ -661,6 +726,10 @@ export default function Popup() {
   const updateFormulaCopyFormat = (value: FormulaCopyFormat): void => {
     setFormulaCopyFormat(value);
     updateValueSetting(StorageKeys.FORMULA_COPY_FORMAT, value);
+  };
+
+  const openUpdateUrl = (url: string): void => {
+    chrome.runtime.sendMessage({ type: 'gm.update.open', url });
   };
 
   const triggerDebugAction = (message: { type: 'gm.debug.exportNow' | 'gm.debug.captureNow'; reason: string }, successText: string): void => {
@@ -1069,6 +1138,39 @@ export default function Popup() {
         </div>
 
         <div className="relative z-10 bg-white dark:bg-white/[0.02] backdrop-blur-xl border border-slate-200 dark:border-white/10 rounded-2xl p-4 shadow-sm dark:shadow-none">
+          <div className="mb-3 px-1 flex items-center gap-2 min-w-0">
+            <Zap size={14} className="text-blue-400 shrink-0" />
+            <p className="text-xs font-semibold text-slate-800 dark:text-white/90 shrink-0">
+              v{EXTENSION_VERSION}
+            </p>
+            <p className="text-[11px] text-slate-500 dark:text-white/50 truncate flex-1">
+              {updateMessage}
+            </p>
+            <button
+              type="button"
+              onClick={runUpdateCheck}
+              disabled={updateStatus === 'checking'}
+              title="检查更新"
+              className={`px-2 py-0.5 rounded-md border text-[10px] transition-colors shrink-0 ${
+                updateStatus === 'checking'
+                  ? 'border-slate-200 dark:border-white/10 text-slate-400 dark:text-white/30 cursor-not-allowed'
+                  : 'border-slate-200 dark:border-white/10 text-slate-600 dark:text-white/70 hover:bg-slate-100 dark:hover:bg-white/10'
+              }`}
+            >
+              <RefreshCw size={12} className={updateStatus === 'checking' ? 'animate-spin' : ''} />
+            </button>
+            {updateInfo ? (
+              <button
+                type="button"
+                onClick={() => openUpdateUrl(updateStatus === 'available' ? (updateInfo.downloadUrl ?? updateInfo.releaseUrl) : updateInfo.releaseUrl)}
+                title={updateStatus === 'available' ? '立即更新' : '查看发布页'}
+                className="px-2 py-0.5 rounded-md bg-blue-500 text-white text-[10px] hover:bg-blue-600 transition-colors shrink-0"
+              >
+                {updateStatus === 'available' ? <Download size={12} /> : <ExternalLink size={12} />}
+              </button>
+            ) : null}
+          </div>
+
           <SectionHeader icon={PenTool} title="内容渲染与修复" />
           <div className="space-y-2">
             <SettingRow
@@ -1151,7 +1253,7 @@ export default function Popup() {
               value={sidebarWidth}
               min={180}
               max={540}
-              step={10}
+              step={2}
               unit="px"
               defaultValue={312}
               onReset={() => {
@@ -1172,8 +1274,8 @@ export default function Popup() {
             />
             <SettingRow
               icon={Layout}
-              title="全景模式"
-              description="精简底部说明与遮罩，提升可视区域"
+              title="纯净模式"
+              description="精简底部说明、遮罩与升级提示，提升可视区域"
               checked={bottomCleanupEnabled}
               onChange={(v) =>
                 updateSetting(StorageKeys.BOTTOM_CLEANUP_ENABLED, v, setBottomCleanupEnabled)
@@ -1445,6 +1547,22 @@ export default function Popup() {
                   disabled={!timelineEnabled}
                   onChange={(v) => updateSetting(StorageKeys.TIMELINE_AUTO_HIDE, v, setTimelineAutoHide)}
                 />
+                <Slider
+                  icon={Layout}
+                  title="时间线粗细"
+                  description="调整轨道宽度与点击热区"
+                  value={timelineWidth}
+                  min={8}
+                  max={32}
+                  step={2}
+                  unit="px"
+                  defaultValue={24}
+                  disabled={!timelineEnabled}
+                  onChange={(v) => {
+                    setTimelineWidth(v);
+                    chrome.storage.local.set({ [StorageKeys.TIMELINE_WIDTH]: v });
+                  }}
+                />
               </div>
             </div>
           </div>
@@ -1453,7 +1571,7 @@ export default function Popup() {
 
         <div className="mt-4 text-center">
           <p className="text-[10px] text-slate-400 dark:text-white/30 font-medium tracking-wider font-mono">
-            GEMINIMATE_V2.1.0_STABLE
+            GEMINIMATE_V2.2.1_STABLE
           </p>
         </div>
       </div>
