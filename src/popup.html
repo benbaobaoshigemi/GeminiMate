@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+    <meta charset="UTF-8">
+    <title>Gemini TexFixer</title>
+    <style>
+        body {
+            width: 280px;
+            padding: 15px;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: #fdfdfd;
+            color: #333;
+        }
+
+        h3 {
+            margin-top: 0;
+            padding-bottom: 8px;
+            border-bottom: 1px solid #ddd;
+            font-size: 16px;
+            color: #1a73e8;
+        }
+
+        .control-group {
+            margin: 12px 0;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .control-group label {
+            font-size: 14px;
+            cursor: pointer;
+        }
+
+        .debug-notice {
+            margin-top: 15px;
+            font-size: 12px;
+            color: #666;
+            font-style: italic;
+            text-align: center;
+        }
+
+        /* Switch styling */
+        .switch {
+            position: relative;
+            display: inline-block;
+            width: 40px;
+            height: 20px;
+            flex-shrink: 0;
+        }
+
+        .switch input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+
+        .slider {
+            position: absolute;
+            cursor: pointer;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: #ccc;
+            transition: .4s;
+            border-radius: 20px;
+        }
+
+        .slider:before {
+            position: absolute;
+            content: "";
+            height: 16px;
+            width: 16px;
+            left: 2px;
+            bottom: 2px;
+            background-color: white;
+            transition: .4s;
+            border-radius: 50%;
+        }
+
+        input:checked+.slider {
+            background-color: #1a73e8;
+        }
+
+        input:checked+.slider:before {
+            transform: translateX(20px);
+        }
+    </style>
+</head>
+
+<body>
+    <h3>✨ Gemini 格式修复器</h3>
+
+    <div class="control-group">
+        <label for="fix-latex-toggle">修复 LaTeX</label>
+        <label class="switch">
+            <input type="checkbox" id="fix-latex-toggle" checked>
+            <span class="slider"></span>
+        </label>
+    </div>
+
+    <div class="control-group">
+        <label for="fix-markdown-toggle">修复 Markdown</label>
+        <label class="switch">
+            <input type="checkbox" id="fix-markdown-toggle" checked>
+            <span class="slider"></span>
+        </label>
+    </div>
+
+    <div class="debug-notice">
+        调试信息已自动打印至页面 Console。<br>
+        寻找前缀为 [GeminiTexFixer] 的日志。
+    </div>
+
+    <script src="popup.js"></script>
+</body>
+
+</html>

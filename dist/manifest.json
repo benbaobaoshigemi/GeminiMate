@@ -1,0 +1,86 @@
+{
+  "manifest_version": 3,
+  "name": "GeminiMate",
+  "description": "Premium Gemini assistant with LaTeX fixing and advanced features.",
+  "version": "2.0.0",
+  "action": {
+    "default_popup": "src/pages/popup/index.html"
+  },
+  "permissions": [
+    "storage",
+    "scripting",
+    "downloads"
+  ],
+  "host_permissions": [
+    "https://gemini.google.com/*",
+    "https://business.gemini.google/*",
+    "https://translate.googleapis.com/*",
+    "https://*.googleusercontent.com/*",
+    "https://*.ggpht.com/*"
+  ],
+  "background": {
+    "service_worker": "service-worker-loader.js",
+    "type": "module"
+  },
+  "sandbox": {
+    "pages": [
+      "sandbox/runner.html"
+    ]
+  },
+  "content_security_policy": {
+    "sandbox": "sandbox allow-scripts allow-forms allow-modals allow-popups; script-src 'self' 'unsafe-inline' 'unsafe-eval'; child-src 'self' data: blob:;"
+  },
+  "content_scripts": [
+    {
+      "js": [
+        "assets/index.tsx-loader-C9au2YHM.js"
+      ],
+      "matches": [
+        "https://gemini.google.com/*",
+        "https://business.gemini.google/*"
+      ],
+      "css": [
+        "contentStyle.css",
+        "assets/index-BonOGykZ.css"
+      ],
+      "run_at": "document_start"
+    }
+  ],
+  "web_accessible_resources": [
+    {
+      "matches": [
+        "<all_urls>"
+      ],
+      "resources": [
+        "contentStyle.css",
+        "assets/*",
+        "fetchInterceptor.js",
+        "sandbox/*"
+      ],
+      "use_dynamic_url": false
+    },
+    {
+      "matches": [
+        "https://business.gemini.google/*",
+        "https://gemini.google.com/*"
+      ],
+      "resources": [
+        "assets/bg_96-C2FFcR6-.png",
+        "assets/feature-reading-DmivFZYK.js",
+        "assets/feature-layout-BP_pyHkN.js",
+        "assets/treemap-GDKQZRPO-x_93pYMx.js",
+        "assets/feature-timeline-BsHhSx2l.js",
+        "assets/vendor-react-B-sxFqXu.js",
+        "assets/Popup-L4IzrCHu.js",
+        "assets/vendor-mermaid-CCWOkseN.js",
+        "assets/app-locales-DlJG-aFp.js",
+        "assets/index.tsx-uPVG9CPe.js",
+        "assets/jspdf.es.min-BIY42dcE.js",
+        "assets/html2canvas.esm-DXEQVQnt.js",
+        "assets/purify.es-DrLDRNlj.js",
+        "assets/index.es-BO5CFpMY.js"
+      ],
+      "use_dynamic_url": false
+    }
+  ]
+}

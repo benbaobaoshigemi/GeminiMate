@@ -1,0 +1,694 @@
+{
+  "timestamp": "2026-03-04T17:41:36.147Z",
+  "latex": {
+    "reverted_inline": 100,
+    "reverted_block": 10,
+    "rendered": 113,
+    "failed": 0,
+    "sanitized": [
+      {
+        "raw": "\\Delta E=h\\nu",
+        "prefix": "",
+        "math": "\\Delta E=h\\nu",
+        "suffix": ""
+      },
+      {
+        "raw": "^1H",
+        "prefix": "",
+        "math": "^1H",
+        "suffix": ""
+      },
+      {
+        "raw": "H_0",
+        "prefix": "",
+        "math": "H_0",
+        "suffix": ""
+      },
+      {
+        "raw": "\\alpha",
+        "prefix": "",
+        "math": "\\alpha",
+        "suffix": ""
+      },
+      {
+        "raw": "\\beta",
+        "prefix": "",
+        "math": "\\beta",
+        "suffix": ""
+      },
+      {
+        "raw": "\\alpha",
+        "prefix": "",
+        "math": "\\alpha",
+        "suffix": ""
+      },
+      {
+        "raw": "N+1",
+        "prefix": "",
+        "math": "N+1",
+        "suffix": ""
+      },
+      {
+        "raw": "J",
+        "prefix": "",
+        "math": "J",
+        "suffix": ""
+      },
+      {
+        "raw": "\\Delta \\nu",
+        "prefix": "",
+        "math": "\\Delta \\nu",
+        "suffix": ""
+      },
+      {
+        "raw": "CH_3",
+        "prefix": "",
+        "math": "CH_3",
+        "suffix": ""
+      },
+      {
+        "raw": "CH_2",
+        "prefix": "",
+        "math": "CH_2",
+        "suffix": ""
+      },
+      {
+        "raw": "inline",
+        "prefix": "",
+        "math": "inline",
+        "suffix": ""
+      },
+      {
+        "raw": "block",
+        "prefix": "",
+        "math": "block",
+        "suffix": ""
+      },
+      {
+        "raw": "inline",
+        "prefix": "",
+        "math": "inline",
+        "suffix": ""
+      },
+      {
+        "raw": "H_0",
+        "prefix": "",
+        "math": "H_0",
+        "suffix": ""
+      },
+      {
+        "raw": "\\nu",
+        "prefix": "",
+        "math": "\\nu",
+        "suffix": ""
+      },
+      {
+        "raw": "block",
+        "prefix": "",
+        "math": "block",
+        "suffix": ""
+      },
+      {
+        "raw": "\\Delta E = h\\nu",
+        "prefix": "",
+        "math": "\\Delta E = h\\nu",
+        "suffix": ""
+      },
+      {
+        "raw": "inline",
+        "prefix": "",
+        "math": "inline",
+        "suffix": ""
+      },
+      {
+        "raw": "block",
+        "prefix": "",
+        "math": "block",
+        "suffix": ""
+      },
+      {
+        "raw": "\\lambda",
+        "prefix": "",
+        "math": "\\lambda",
+        "suffix": ""
+      },
+      {
+        "raw": "\\nu",
+        "prefix": "",
+        "math": "\\nu",
+        "suffix": ""
+      },
+      {
+        "raw": "c",
+        "prefix": "",
+        "math": "c",
+        "suffix": ""
+      },
+      {
+        "raw": "\\nu = \\frac{c}{\\lambda}",
+        "prefix": "",
+        "math": "\\nu = \\frac{c}{\\lambda}",
+        "suffix": ""
+      },
+      {
+        "raw": "\\Delta E = h\\nu",
+        "prefix": "",
+        "math": "\\Delta E = h\\nu",
+        "suffix": ""
+      },
+      {
+        "raw": "X",
+        "prefix": "",
+        "math": "X",
+        "suffix": ""
+      },
+      {
+        "raw": "^1H",
+        "prefix": "",
+        "math": "^1H",
+        "suffix": ""
+      },
+      {
+        "raw": "H_0",
+        "prefix": "",
+        "math": "H_0",
+        "suffix": ""
+      },
+      {
+        "raw": "H_0",
+        "prefix": "",
+        "math": "H_0",
+        "suffix": ""
+      },
+      {
+        "raw": "\\alpha",
+        "prefix": "",
+        "math": "\\alpha",
+        "suffix": ""
+      },
+      {
+        "raw": "\\beta",
+        "prefix": "",
+        "math": "\\beta",
+        "suffix": ""
+      },
+      {
+        "raw": "\\Delta E",
+        "prefix": "",
+        "math": "\\Delta E",
+        "suffix": ""
+      },
+      {
+        "raw": "H_0",
+        "prefix": "",
+        "math": "H_0",
+        "suffix": ""
+      },
+      {
+        "raw": "h_{local}",
+        "prefix": "",
+        "math": "h_{local}",
+        "suffix": ""
+      },
+      {
+        "raw": "\\delta",
+        "prefix": "",
+        "math": "\\delta",
+        "suffix": ""
+      },
+      {
+        "raw": "N+1",
+        "prefix": "",
+        "math": "N+1",
+        "suffix": ""
+      },
+      {
+        "raw": "N",
+        "prefix": "",
+        "math": "N",
+        "suffix": ""
+      },
+      {
+        "raw": "J",
+        "prefix": "",
+        "math": "J",
+        "suffix": ""
+      },
+      {
+        "raw": "\\Delta \\nu",
+        "prefix": "",
+        "math": "\\Delta \\nu",
+        "suffix": ""
+      },
+      {
+        "raw": "J",
+        "prefix": "",
+        "math": "J",
+        "suffix": ""
+      },
+      {
+        "raw": "^{13}C",
+        "prefix": "",
+        "math": "^{13}C",
+        "suffix": ""
+      },
+      {
+        "raw": "^{13}C",
+        "prefix": "",
+        "math": "^{13}C",
+        "suffix": ""
+      },
+      {
+        "raw": "H-C",
+        "prefix": "",
+        "math": "H-C",
+        "suffix": ""
+      },
+      {
+        "raw": "^{13}C",
+        "prefix": "",
+        "math": "^{13}C",
+        "suffix": ""
+      },
+      {
+        "raw": "CH_3",
+        "prefix": "",
+        "math": "CH_3",
+        "suffix": ""
+      },
+      {
+        "raw": "CH_2",
+        "prefix": "",
+        "math": "CH_2",
+        "suffix": ""
+      },
+      {
+        "raw": "CH",
+        "prefix": "",
+        "math": "CH",
+        "suffix": ""
+      },
+      {
+        "raw": "C_7H_{16}O",
+        "prefix": "",
+        "math": "C_7H_{16}O",
+        "suffix": ""
+      },
+      {
+        "raw": "\\nu",
+        "prefix": "",
+        "math": "\\nu",
+        "suffix": ""
+      },
+      {
+        "raw": "h\\nu",
+        "prefix": "",
+        "math": "h\\nu",
+        "suffix": ""
+      },
+      {
+        "raw": "\\Delta E",
+        "prefix": "",
+        "math": "\\Delta E",
+        "suffix": ""
+      },
+      {
+        "raw": "\\Delta E = h\\nu",
+        "prefix": "",
+        "math": "\\Delta E = h\\nu",
+        "suffix": ""
+      },
+      {
+        "raw": "X",
+        "prefix": "",
+        "math": "X",
+        "suffix": ""
+      },
+      {
+        "raw": "> 300",
+        "prefix": "",
+        "math": "> 300",
+        "suffix": ""
+      },
+      {
+        "raw": "mol^{-1}",
+        "prefix": "",
+        "math": "mol^{-1}",
+        "suffix": ""
+      },
+      {
+        "raw": "mol^{-1}",
+        "prefix": "",
+        "math": "mol^{-1}",
+        "suffix": ""
+      },
+      {
+        "raw": "mol^{-1}",
+        "prefix": "",
+        "math": "mol^{-1}",
+        "suffix": ""
+      },
+      {
+        "raw": "\\bar{\\nu}",
+        "prefix": "",
+        "math": "\\bar{\\nu}",
+        "suffix": ""
+      },
+      {
+        "raw": "cm^{-1}",
+        "prefix": "",
+        "math": "cm^{-1}",
+        "suffix": ""
+      },
+      {
+        "raw": "1/\\lambda",
+        "prefix": "",
+        "math": "1/\\lambda",
+        "suffix": ""
+      },
+      {
+        "raw": "\\sim 10^{-4}",
+        "prefix": "",
+        "math": "\\sim 10^{-4}",
+        "suffix": ""
+      },
+      {
+        "raw": "mol^{-1}",
+        "prefix": "",
+        "math": "mol^{-1}",
+        "suffix": ""
+      },
+      {
+        "raw": "\\sim 10^{-6}",
+        "prefix": "",
+        "math": "\\sim 10^{-6}",
+        "suffix": ""
+      },
+      {
+        "raw": "mol^{-1}",
+        "prefix": "",
+        "math": "mol^{-1}",
+        "suffix": ""
+      },
+      {
+        "raw": "H_0",
+        "prefix": "",
+        "math": "H_0",
+        "suffix": ""
+      },
+      {
+        "raw": "^1H",
+        "prefix": "",
+        "math": "^1H",
+        "suffix": ""
+      },
+      {
+        "raw": "\\alpha",
+        "prefix": "",
+        "math": "\\alpha",
+        "suffix": ""
+      },
+      {
+        "raw": "\\beta",
+        "prefix": "",
+        "math": "\\beta",
+        "suffix": ""
+      },
+      {
+        "raw": "C_{7}H_{16}O",
+        "prefix": "",
+        "math": "C_{7}H_{16}O",
+        "suffix": ""
+      },
+      {
+        "raw": "\\nu",
+        "prefix": "",
+        "math": "\\nu",
+        "suffix": ""
+      },
+      {
+        "raw": "\\lambda",
+        "prefix": "",
+        "math": "\\lambda",
+        "suffix": ""
+      },
+      {
+        "raw": "c",
+        "prefix": "",
+        "math": "c",
+        "suffix": ""
+      },
+      {
+        "raw": "\\nu = \\frac{c}{\\lambda}",
+        "prefix": "",
+        "math": "\\nu = \\frac{c}{\\lambda}",
+        "suffix": ""
+      },
+      {
+        "raw": "\\Delta E = h\\nu",
+        "prefix": "",
+        "math": "\\Delta E = h\\nu",
+        "suffix": ""
+      },
+      {
+        "raw": "h",
+        "prefix": "",
+        "math": "h",
+        "suffix": ""
+      },
+      {
+        "raw": "6.626\\times10^{-34} J \\cdot s",
+        "prefix": "",
+        "math": "6.626\\times10^{-34} J \\cdot s",
+        "suffix": ""
+      },
+      {
+        "raw": "X",
+        "prefix": "",
+        "math": "X",
+        "suffix": ""
+      },
+      {
+        "raw": "mol^{-1}",
+        "prefix": "",
+        "math": "mol^{-1}",
+        "suffix": ""
+      },
+      {
+        "raw": "mol^{-1}",
+        "prefix": "",
+        "math": "mol^{-1}",
+        "suffix": ""
+      },
+      {
+        "raw": "mol^{-1}",
+        "prefix": "",
+        "math": "mol^{-1}",
+        "suffix": ""
+      },
+      {
+        "raw": "1/\\lambda",
+        "prefix": "",
+        "math": "1/\\lambda",
+        "suffix": ""
+      },
+      {
+        "raw": "10^{-4}",
+        "prefix": "",
+        "math": "10^{-4}",
+        "suffix": ""
+      },
+      {
+        "raw": "mol^{-1}",
+        "prefix": "",
+        "math": "mol^{-1}",
+        "suffix": ""
+      },
+      {
+        "raw": "10^{-6}",
+        "prefix": "",
+        "math": "10^{-6}",
+        "suffix": ""
+      },
+      {
+        "raw": "mol^{-1}",
+        "prefix": "",
+        "math": "mol^{-1}",
+        "suffix": ""
+      },
+      {
+        "raw": "C",
+        "prefix": "",
+        "math": "C",
+        "suffix": ""
+      },
+      {
+        "raw": "H",
+        "prefix": "",
+        "math": "H",
+        "suffix": ""
+      },
+      {
+        "raw": "^{13}C",
+        "prefix": "",
+        "math": "^{13}C",
+        "suffix": ""
+      },
+      {
+        "raw": "^{13}C",
+        "prefix": "",
+        "math": "^{13}C",
+        "suffix": ""
+      },
+      {
+        "raw": "f",
+        "prefix": "",
+        "math": "f",
+        "suffix": ""
+      },
+      {
+        "raw": "\\cos(2\\pi ft)",
+        "prefix": "",
+        "math": "\\cos(2\\pi ft)",
+        "suffix": ""
+      },
+      {
+        "raw": "0.01",
+        "prefix": "",
+        "math": "0.01",
+        "suffix": ""
+      },
+      {
+        "raw": "0.01",
+        "prefix": "",
+        "math": "0.01",
+        "suffix": ""
+      },
+      {
+        "raw": "\\delta",
+        "prefix": "",
+        "math": "\\delta",
+        "suffix": ""
+      },
+      {
+        "raw": "f(t) = \\sum A_i e^{-t/T_2} \\cos(2\\pi \\nu_i t)",
+        "prefix": "",
+        "math": "f(t) = \\sum A_i e^{-t/T_2} \\cos(2\\pi \\nu_i t)",
+        "suffix": ""
+      },
+      {
+        "raw": "^{13}C",
+        "prefix": "",
+        "math": "^{13}C",
+        "suffix": ""
+      },
+      {
+        "raw": "1.11\\%",
+        "prefix": "",
+        "math": "1.11\\%",
+        "suffix": ""
+      },
+      {
+        "raw": "^{13}C",
+        "prefix": "",
+        "math": "^{13}C",
+        "suffix": ""
+      },
+      {
+        "raw": "n",
+        "prefix": "",
+        "math": "n",
+        "suffix": ""
+      },
+      {
+        "raw": "\\sqrt{n}",
+        "prefix": "",
+        "math": "\\sqrt{n}",
+        "suffix": ""
+      },
+      {
+        "raw": "\\sqrt{n}",
+        "prefix": "",
+        "math": "\\sqrt{n}",
+        "suffix": ""
+      },
+      {
+        "raw": "^{13}C",
+        "prefix": "",
+        "math": "^{13}C",
+        "suffix": ""
+      },
+      {
+        "raw": "^{13}C",
+        "prefix": "",
+        "math": "^{13}C",
+        "suffix": ""
+      },
+      {
+        "raw": "H_0",
+        "prefix": "",
+        "math": "H_0",
+        "suffix": ""
+      },
+      {
+        "raw": "n",
+        "prefix": "",
+        "math": "n",
+        "suffix": ""
+      },
+      {
+        "raw": "n",
+        "prefix": "",
+        "math": "n",
+        "suffix": ""
+      },
+      {
+        "raw": "^{1}H",
+        "prefix": "",
+        "math": "^{1}H",
+        "suffix": ""
+      },
+      {
+        "raw": "^{13}C",
+        "prefix": "",
+        "math": "^{13}C",
+        "suffix": ""
+      },
+      {
+        "raw": "^{1}H",
+        "prefix": "",
+        "math": "^{1}H",
+        "suffix": ""
+      },
+      {
+        "raw": "1/6000",
+        "prefix": "",
+        "math": "1/6000",
+        "suffix": ""
+      },
+      {
+        "raw": "^{13}C",
+        "prefix": "",
+        "math": "^{13}C",
+        "suffix": ""
+      },
+      {
+        "raw": "^{13}C",
+        "prefix": "",
+        "math": "^{13}C",
+        "suffix": ""
+      },
+      {
+        "raw": "^{13}C",
+        "prefix": "",
+        "math": "^{13}C",
+        "suffix": ""
+      }
+    ]
+  },
+  "markdown": {
+    "bold_hydrated": 0,
+    "bold_trimmed": 0
+  },
+  "containers": 9
+}

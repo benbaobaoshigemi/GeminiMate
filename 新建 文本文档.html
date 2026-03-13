@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>长截图分页转PDF处理工具</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <style>
+        body {
+            font-family: system-ui, -apple-system, sans-serif;
+            background-color: #f4f4f9;
+            color: #333;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 50px 20px;
+        }
+        .container {
+            background: #ffffff;
+            padding: 40px;
+            border-radius: 12px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.05);
+            max-width: 600px;
+            width: 100%;
+            text-align: center;
+        }
+        h1 {
+            font-size: 24px;
+            margin-bottom: 10px;
+        }
+        p.desc {
+            color: #666;
+            font-size: 14px;
+            margin-bottom: 30px;
+            line-height: 1.6;
+        }
+        .file-upload-wrapper {
+            margin-bottom: 25px;
+        }
+        input[type="file"] {
+            display: block;
+            margin: 0 auto;
+            padding: 10px;
+            border: 2px dashed #ccc;
+            border-radius: 8px;
+            width: 80%;
+            cursor: pointer;
+        }
+        button {
+            background-color: #0056b3;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            font-size: 16px;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: background-color 0.3s;
+        }
+        button:hover {
+            background-color: #004494;
+        }
+        button:disabled {
+            background-color: #a0c4e8;
+            cursor: not-allowed;
+        }
+        #status {
+            margin-top: 20px;
+            font-size: 14px;
+            color: #d9534f;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        <h1>长截图转PDF分割器</h1>
+        <p class="desc">请在下方选择您的长截图文件。系统将在本地浏览器内存中将其按A4比例切分，并合成多页PDF文件供您下载。处理过程不经过任何外部服务器。</p>
+        
+        <div class="file-upload-wrapper">
+            <input type="file" id="imageInput" accept="image/png, image/jpeg, image/webp">
+        </div>
+        
+        <button id="processBtn" onclick="startProcessing()">开始切分并导出PDF</button>
+        <div id="status"></div>
+    </div>
+
+    <script>
+        function updateStatus(message, isError = false) {
+            const statusDiv = document.getElementById('status');
+            statusDiv.style.color = isError ? '#d9534f' : '#5cb85c';
+            statusDiv.innerText = message;
+        }
+
+        async function startProcessing() {
+            const fileInput = document.getElementById('imageInput');
+            const processBtn = document.getElementById('processBtn');
+            
+            if (fileInput.files.length === 0) {
+                updateStatus('错误：请先选择一张图片文件。', true);
+                return;
+            }
+
+            const file = fileInput.files[0];
+            processBtn.disabled = true;
+            updateStatus('正在将图像载入内存并解析，请稍候...');
+
+            // 利用 ObjectURL 将本地文件挂载到 Image 对象
+            const img = new Image();
+            const objectUrl = URL.createObjectURL(file);
+            
+            img.onload = function() {
+                try {
+                    updateStatus('图像解析成功，正在执行矩阵切分与PDF构建...');
+                    
+                    // 初始化 jsPDF 实例，设定为纵向(p)，单位毫米(mm)，A4纸张尺寸
+                    const { jsPDF } = window.jspdf;
+                    const pdf = new jsPDF('p', 'mm', 'a4');
+                    
+                    const a4Width = 210;
+                    const a4Height = 297;
+                    const a4AspectRatio = a4Height / a4Width;
+                    
+                    // 核心计算：原图宽度在A4比例下对应的切割像素高度
+                    const slicePixelHeight = img.width * a4AspectRatio;
+                    const totalPixelHeight = img.height;
+                    
+                    let currentY = 0;
+                    let pageCount = 1;
+
+                    // 创建用于承载切片的隐形 Canvas
+                    const canvas = document.createElement('canvas');
+                    const ctx = canvas.getContext('2d');
+                    canvas.width = img.width;
+
+                    while (currentY < totalPixelHeight) {
+                        // 计算当前切片的实际高度（处理最后一页可能不满一页的情况）
+                        const currentSliceHeight = Math.min(slicePixelHeight, totalPixelHeight - currentY);
+                        canvas.height = currentSliceHeight;
+
+                        // 清空画布，准备绘制新切片
+                        ctx.clearRect(0, 0, canvas.width, canvas.height);
+                        
+                        // 从原大图中抠出指定坐标范围的矩阵并绘制到 Canvas 上
+                        ctx.drawImage(
+                            img, 
+                            0, currentY, img.width, currentSliceHeight, // 源图像的裁剪参数 (X, Y, 宽, 高)
+                            0, 0, canvas.width, currentSliceHeight      // 目标 Canvas 的绘制参数
+                        );
+
+                        // 将 Canvas 压缩导出为 JPEG 数据流
+                        const pageDataUrl = canvas.toDataURL('image/jpeg', 0.95);
+                        
+                        // 计算贴入PDF时的物理高度（按比例换算为毫米）
+                        const pdfPageHeight = (currentSliceHeight / slicePixelHeight) * a4Height;
+                        
+                        // 将图像贴入当前 PDF 页
+                        pdf.addImage(pageDataUrl, 'JPEG', 0, 0, a4Width, pdfPageHeight);
+
+                        currentY += slicePixelHeight;
+                        
+                        // 如果尚未到达图像底部，则在 PDF 中追加新页
+                        if (currentY < totalPixelHeight) {
+                            pdf.addPage();
+                            pageCount++;
+                        }
+                    }
+
+                    updateStatus(`处理完成！共生成  ${pageCount} 页，正在唤起系统下载...`);
+                    
+                    // 构造输出文件名并触发保存
+                    const originalName = file.name.split('.')[0];
+                    pdf.save(`$ {originalName}_分块排版.pdf`);
+                    
+                } catch (error) {
+                    console.error(error);
+                    updateStatus('处理过程中发生异常，可能是图像尺寸过大导致内存溢出。', true);
+                } finally {
+                    // 释放对象内存与恢复UI状态
+                    URL.revokeObjectURL(objectUrl);
+                    processBtn.disabled = false;
+                }
+            };
+
+            img.onerror = function() {
+                updateStatus('图像读取失败，请检查文件格式是否损坏。', true);
+                URL.revokeObjectURL(objectUrl);
+                processBtn.disabled = false;
+            };
+
+            // 触发加载
+            img.src = objectUrl;
+        }
+    </script>
+</body>
+</html>

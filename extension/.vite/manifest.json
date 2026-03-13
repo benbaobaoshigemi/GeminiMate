@@ -1,0 +1,64 @@
+{
+  "../../../../../@crx/manifest": {
+    "file": "assets/crx-manifest.js-CH5qE8L8.js",
+    "name": "crx-manifest.js",
+    "src": "../../../../../@crx/manifest",
+    "isEntry": true
+  },
+  "_DebugService-CNKif1ZD.js": {
+    "file": "assets/DebugService-CNKif1ZD.js",
+    "name": "DebugService"
+  },
+  "_LoggerService-Ft5-Edxa.js": {
+    "file": "assets/LoggerService-Ft5-Edxa.js",
+    "name": "LoggerService",
+    "imports": [
+      "_DebugService-CNKif1ZD.js"
+    ]
+  },
+  "__commonjsHelpers-CqkleIqs.js": {
+    "file": "assets/_commonjsHelpers-CqkleIqs.js",
+    "name": "_commonjsHelpers"
+  },
+  "_index.tsx-loader--A50UJB-.js": {
+    "file": "assets/index.tsx-loader--A50UJB-.js",
+    "src": "_index.tsx-loader--A50UJB-.js"
+  },
+  "src/pages/background/index.ts": {
+    "file": "assets/index.ts-B-BLCxs-.js",
+    "name": "index.ts",
+    "src": "src/pages/background/index.ts",
+    "isEntry": true,
+    "imports": [
+      "_DebugService-CNKif1ZD.js",
+      "_LoggerService-Ft5-Edxa.js"
+    ]
+  },
+  "src/pages/content/index.tsx": {
+    "file": "assets/index.tsx-DwthUp7L.js",
+    "name": "index.tsx",
+    "src": "src/pages/content/index.tsx",
+    "isEntry": true,
+    "imports": [
+      "_DebugService-CNKif1ZD.js",
+      "_LoggerService-Ft5-Edxa.js",
+      "__commonjsHelpers-CqkleIqs.js"
+    ],
+    "css": [
+      "assets/index-FzZDO7DB.css"
+    ]
+  },
+  "src/pages/popup/index.html": {
+    "file": "assets/popup-CGUDBaPZ.js",
+    "name": "popup",
+    "src": "src/pages/popup/index.html",
+    "isEntry": true,
+    "imports": [
+      "__commonjsHelpers-CqkleIqs.js",
+      "_DebugService-CNKif1ZD.js"
+    ],
+    "css": [
+      "assets/popup-DejSeQag.css"
+    ]
+  }
+}

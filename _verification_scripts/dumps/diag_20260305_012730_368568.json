@@ -1,0 +1,1187 @@
+{
+  "timestamp": "2026-03-04T17:27:30.334Z",
+  "phase1_demolish": {
+    "footnotes_removed": 255,
+    "citations_unwrapped": 651,
+    "math_inline_reverted": 100,
+    "math_block_reverted": 10,
+    "cite_tags_stripped": 1
+  },
+  "phase2_sanitize": [
+    {
+      "raw": "\\Delta E=h\\nu",
+      "prefix": "",
+      "mathSrc": "\\Delta E=h\\nu",
+      "suffix": ""
+    },
+    {
+      "raw": "^1H",
+      "prefix": "",
+      "mathSrc": "^1H",
+      "suffix": ""
+    },
+    {
+      "raw": "H_0",
+      "prefix": "",
+      "mathSrc": "H_0",
+      "suffix": ""
+    },
+    {
+      "raw": "\\alpha",
+      "prefix": "",
+      "mathSrc": "\\alpha",
+      "suffix": ""
+    },
+    {
+      "raw": "\\beta",
+      "prefix": "",
+      "mathSrc": "\\beta",
+      "suffix": ""
+    },
+    {
+      "raw": "\\alpha",
+      "prefix": "",
+      "mathSrc": "\\alpha",
+      "suffix": ""
+    },
+    {
+      "raw": "N+1",
+      "prefix": "",
+      "mathSrc": "N+1",
+      "suffix": ""
+    },
+    {
+      "raw": "J",
+      "prefix": "",
+      "mathSrc": "J",
+      "suffix": ""
+    },
+    {
+      "raw": "\\Delta \\nu",
+      "prefix": "",
+      "mathSrc": "\\Delta \\nu",
+      "suffix": ""
+    },
+    {
+      "raw": "CH_3",
+      "prefix": "",
+      "mathSrc": "CH_3",
+      "suffix": ""
+    },
+    {
+      "raw": "CH_2",
+      "prefix": "",
+      "mathSrc": "CH_2",
+      "suffix": ""
+    },
+    {
+      "raw": "inline",
+      "prefix": "",
+      "mathSrc": "inline",
+      "suffix": ""
+    },
+    {
+      "raw": "block",
+      "prefix": "",
+      "mathSrc": "block",
+      "suffix": ""
+    },
+    {
+      "raw": "inline",
+      "prefix": "",
+      "mathSrc": "inline",
+      "suffix": ""
+    },
+    {
+      "raw": "H_0",
+      "prefix": "",
+      "mathSrc": "H_0",
+      "suffix": ""
+    },
+    {
+      "raw": "\\nu",
+      "prefix": "",
+      "mathSrc": "\\nu",
+      "suffix": ""
+    },
+    {
+      "raw": "block",
+      "prefix": "",
+      "mathSrc": "block",
+      "suffix": ""
+    },
+    {
+      "raw": "\\Delta E = h\\nu",
+      "prefix": "",
+      "mathSrc": "\\Delta E = h\\nu",
+      "suffix": ""
+    },
+    {
+      "raw": "inline",
+      "prefix": "",
+      "mathSrc": "inline",
+      "suffix": ""
+    },
+    {
+      "raw": "block",
+      "prefix": "",
+      "mathSrc": "block",
+      "suffix": ""
+    },
+    {
+      "raw": "\\lambda",
+      "prefix": "",
+      "mathSrc": "\\lambda",
+      "suffix": ""
+    },
+    {
+      "raw": "\\nu",
+      "prefix": "",
+      "mathSrc": "\\nu",
+      "suffix": ""
+    },
+    {
+      "raw": "c",
+      "prefix": "",
+      "mathSrc": "c",
+      "suffix": ""
+    },
+    {
+      "raw": "\\nu = \\frac{c}{\\lambda}",
+      "prefix": "",
+      "mathSrc": "\\nu = \\frac{c}{\\lambda}",
+      "suffix": ""
+    },
+    {
+      "raw": "\\Delta E = h\\nu",
+      "prefix": "",
+      "mathSrc": "\\Delta E = h\\nu",
+      "suffix": ""
+    },
+    {
+      "raw": "X",
+      "prefix": "",
+      "mathSrc": "X",
+      "suffix": ""
+    },
+    {
+      "raw": "^1H",
+      "prefix": "",
+      "mathSrc": "^1H",
+      "suffix": ""
+    },
+    {
+      "raw": "H_0",
+      "prefix": "",
+      "mathSrc": "H_0",
+      "suffix": ""
+    },
+    {
+      "raw": "H_0",
+      "prefix": "",
+      "mathSrc": "H_0",
+      "suffix": ""
+    },
+    {
+      "raw": "\\alpha",
+      "prefix": "",
+      "mathSrc": "\\alpha",
+      "suffix": ""
+    },
+    {
+      "raw": "\\beta",
+      "prefix": "",
+      "mathSrc": "\\beta",
+      "suffix": ""
+    },
+    {
+      "raw": "\\Delta E",
+      "prefix": "",
+      "mathSrc": "\\Delta E",
+      "suffix": ""
+    },
+    {
+      "raw": "H_0",
+      "prefix": "",
+      "mathSrc": "H_0",
+      "suffix": ""
+    },
+    {
+      "raw": "h_{local}",
+      "prefix": "",
+      "mathSrc": "h_{local}",
+      "suffix": ""
+    },
+    {
+      "raw": "\\delta",
+      "prefix": "",
+      "mathSrc": "\\delta",
+      "suffix": ""
+    },
+    {
+      "raw": "N+1",
+      "prefix": "",
+      "mathSrc": "N+1",
+      "suffix": ""
+    },
+    {
+      "raw": "N",
+      "prefix": "",
+      "mathSrc": "N",
+      "suffix": ""
+    },
+    {
+      "raw": "J",
+      "prefix": "",
+      "mathSrc": "J",
+      "suffix": ""
+    },
+    {
+      "raw": "\\Delta \\nu",
+      "prefix": "",
+      "mathSrc": "\\Delta \\nu",
+      "suffix": ""
+    },
+    {
+      "raw": "J",
+      "prefix": "",
+      "mathSrc": "J",
+      "suffix": ""
+    },
+    {
+      "raw": "^{13}C",
+      "prefix": "",
+      "mathSrc": "^{13}C",
+      "suffix": ""
+    },
+    {
+      "raw": "^{13}C",
+      "prefix": "",
+      "mathSrc": "^{13}C",
+      "suffix": ""
+    },
+    {
+      "raw": "H-C",
+      "prefix": "",
+      "mathSrc": "H-C",
+      "suffix": ""
+    },
+    {
+      "raw": "^{13}C",
+      "prefix": "",
+      "mathSrc": "^{13}C",
+      "suffix": ""
+    },
+    {
+      "raw": "CH_3",
+      "prefix": "",
+      "mathSrc": "CH_3",
+      "suffix": ""
+    },
+    {
+      "raw": "CH_2",
+      "prefix": "",
+      "mathSrc": "CH_2",
+      "suffix": ""
+    },
+    {
+      "raw": "CH",
+      "prefix": "",
+      "mathSrc": "CH",
+      "suffix": ""
+    },
+    {
+      "raw": "C_7H_{16}O",
+      "prefix": "",
+      "mathSrc": "C_7H_{16}O",
+      "suffix": ""
+    },
+    {
+      "raw": "\\nu",
+      "prefix": "",
+      "mathSrc": "\\nu",
+      "suffix": ""
+    },
+    {
+      "raw": "h\\nu",
+      "prefix": "",
+      "mathSrc": "h\\nu",
+      "suffix": ""
+    },
+    {
+      "raw": "\\Delta E",
+      "prefix": "",
+      "mathSrc": "\\Delta E",
+      "suffix": ""
+    },
+    {
+      "raw": "\\Delta E = h\\nu",
+      "prefix": "",
+      "mathSrc": "\\Delta E = h\\nu",
+      "suffix": ""
+    },
+    {
+      "raw": "X",
+      "prefix": "",
+      "mathSrc": "X",
+      "suffix": ""
+    },
+    {
+      "raw": "> 300",
+      "prefix": "",
+      "mathSrc": "> 300",
+      "suffix": ""
+    },
+    {
+      "raw": "mol^{-1}",
+      "prefix": "",
+      "mathSrc": "mol^{-1}",
+      "suffix": ""
+    },
+    {
+      "raw": "mol^{-1}",
+      "prefix": "",
+      "mathSrc": "mol^{-1}",
+      "suffix": ""
+    },
+    {
+      "raw": "mol^{-1}",
+      "prefix": "",
+      "mathSrc": "mol^{-1}",
+      "suffix": ""
+    },
+    {
+      "raw": "\\bar{\\nu}",
+      "prefix": "",
+      "mathSrc": "\\bar{\\nu}",
+      "suffix": ""
+    },
+    {
+      "raw": "cm^{-1}",
+      "prefix": "",
+      "mathSrc": "cm^{-1}",
+      "suffix": ""
+    },
+    {
+      "raw": "1/\\lambda",
+      "prefix": "",
+      "mathSrc": "1/\\lambda",
+      "suffix": ""
+    },
+    {
+      "raw": "\\sim 10^{-4}",
+      "prefix": "",
+      "mathSrc": "\\sim 10^{-4}",
+      "suffix": ""
+    },
+    {
+      "raw": "mol^{-1}",
+      "prefix": "",
+      "mathSrc": "mol^{-1}",
+      "suffix": ""
+    },
+    {
+      "raw": "\\sim 10^{-6}",
+      "prefix": "",
+      "mathSrc": "\\sim 10^{-6}",
+      "suffix": ""
+    },
+    {
+      "raw": "mol^{-1}",
+      "prefix": "",
+      "mathSrc": "mol^{-1}",
+      "suffix": ""
+    },
+    {
+      "raw": "H_0",
+      "prefix": "",
+      "mathSrc": "H_0",
+      "suffix": ""
+    },
+    {
+      "raw": "^1H",
+      "prefix": "",
+      "mathSrc": "^1H",
+      "suffix": ""
+    },
+    {
+      "raw": "\\alpha",
+      "prefix": "",
+      "mathSrc": "\\alpha",
+      "suffix": ""
+    },
+    {
+      "raw": "\\beta",
+      "prefix": "",
+      "mathSrc": "\\beta",
+      "suffix": ""
+    },
+    {
+      "raw": "C_{7}H_{16}O",
+      "prefix": "",
+      "mathSrc": "C_{7}H_{16}O",
+      "suffix": ""
+    },
+    {
+      "raw": "\\nu",
+      "prefix": "",
+      "mathSrc": "\\nu",
+      "suffix": ""
+    },
+    {
+      "raw": "\\lambda",
+      "prefix": "",
+      "mathSrc": "\\lambda",
+      "suffix": ""
+    },
+    {
+      "raw": "c",
+      "prefix": "",
+      "mathSrc": "c",
+      "suffix": ""
+    },
+    {
+      "raw": "\\nu = \\frac{c}{\\lambda}",
+      "prefix": "",
+      "mathSrc": "\\nu = \\frac{c}{\\lambda}",
+      "suffix": ""
+    },
+    {
+      "raw": "\\Delta E = h\\nu",
+      "prefix": "",
+      "mathSrc": "\\Delta E = h\\nu",
+      "suffix": ""
+    },
+    {
+      "raw": "h",
+      "prefix": "",
+      "mathSrc": "h",
+      "suffix": ""
+    },
+    {
+      "raw": "6.626\\times10^{-34} J \\cdot s",
+      "prefix": "",
+      "mathSrc": "6.626\\times10^{-34} J \\cdot s",
+      "suffix": ""
+    },
+    {
+      "raw": "X",
+      "prefix": "",
+      "mathSrc": "X",
+      "suffix": ""
+    },
+    {
+      "raw": "mol^{-1}",
+      "prefix": "",
+      "mathSrc": "mol^{-1}",
+      "suffix": ""
+    },
+    {
+      "raw": "mol^{-1}",
+      "prefix": "",
+      "mathSrc": "mol^{-1}",
+      "suffix": ""
+    },
+    {
+      "raw": "mol^{-1}",
+      "prefix": "",
+      "mathSrc": "mol^{-1}",
+      "suffix": ""
+    },
+    {
+      "raw": "1/\\lambda",
+      "prefix": "",
+      "mathSrc": "1/\\lambda",
+      "suffix": ""
+    },
+    {
+      "raw": "10^{-4}",
+      "prefix": "",
+      "mathSrc": "10^{-4}",
+      "suffix": ""
+    },
+    {
+      "raw": "mol^{-1}",
+      "prefix": "",
+      "mathSrc": "mol^{-1}",
+      "suffix": ""
+    },
+    {
+      "raw": "10^{-6}",
+      "prefix": "",
+      "mathSrc": "10^{-6}",
+      "suffix": ""
+    },
+    {
+      "raw": "mol^{-1}",
+      "prefix": "",
+      "mathSrc": "mol^{-1}",
+      "suffix": ""
+    },
+    {
+      "raw": "C",
+      "prefix": "",
+      "mathSrc": "C",
+      "suffix": ""
+    },
+    {
+      "raw": "H",
+      "prefix": "",
+      "mathSrc": "H",
+      "suffix": ""
+    },
+    {
+      "raw": "^{13}C",
+      "prefix": "",
+      "mathSrc": "^{13}C",
+      "suffix": ""
+    },
+    {
+      "raw": "^{13}C",
+      "prefix": "",
+      "mathSrc": "^{13}C",
+      "suffix": ""
+    },
+    {
+      "raw": "f",
+      "prefix": "",
+      "mathSrc": "f",
+      "suffix": ""
+    },
+    {
+      "raw": "\\cos(2\\pi ft)",
+      "prefix": "",
+      "mathSrc": "\\cos(2\\pi ft)",
+      "suffix": ""
+    },
+    {
+      "raw": "0.01",
+      "prefix": "",
+      "mathSrc": "0.01",
+      "suffix": ""
+    },
+    {
+      "raw": "0.01",
+      "prefix": "",
+      "mathSrc": "0.01",
+      "suffix": ""
+    },
+    {
+      "raw": "\\delta",
+      "prefix": "",
+      "mathSrc": "\\delta",
+      "suffix": ""
+    },
+    {
+      "raw": "f(t) = \\sum A_i e^{-t/T_2} \\cos(2\\pi \\nu_i t)",
+      "prefix": "",
+      "mathSrc": "f(t) = \\sum A_i e^{-t/T_2} \\cos(2\\pi \\nu_i t)",
+      "suffix": ""
+    },
+    {
+      "raw": "^{13}C",
+      "prefix": "",
+      "mathSrc": "^{13}C",
+      "suffix": ""
+    },
+    {
+      "raw": "1.11\\%",
+      "prefix": "",
+      "mathSrc": "1.11\\%",
+      "suffix": ""
+    },
+    {
+      "raw": "^{13}C",
+      "prefix": "",
+      "mathSrc": "^{13}C",
+      "suffix": ""
+    },
+    {
+      "raw": "n",
+      "prefix": "",
+      "mathSrc": "n",
+      "suffix": ""
+    },
+    {
+      "raw": "\\sqrt{n}",
+      "prefix": "",
+      "mathSrc": "\\sqrt{n}",
+      "suffix": ""
+    },
+    {
+      "raw": "\\sqrt{n}",
+      "prefix": "",
+      "mathSrc": "\\sqrt{n}",
+      "suffix": ""
+    },
+    {
+      "raw": "^{13}C",
+      "prefix": "",
+      "mathSrc": "^{13}C",
+      "suffix": ""
+    },
+    {
+      "raw": "^{13}C",
+      "prefix": "",
+      "mathSrc": "^{13}C",
+      "suffix": ""
+    },
+    {
+      "raw": "H_0",
+      "prefix": "",
+      "mathSrc": "H_0",
+      "suffix": ""
+    },
+    {
+      "raw": "n",
+      "prefix": "",
+      "mathSrc": "n",
+      "suffix": ""
+    },
+    {
+      "raw": "n",
+      "prefix": "",
+      "mathSrc": "n",
+      "suffix": ""
+    },
+    {
+      "raw": "^{1}H",
+      "prefix": "",
+      "mathSrc": "^{1}H",
+      "suffix": ""
+    },
+    {
+      "raw": "^{13}C",
+      "prefix": "",
+      "mathSrc": "^{13}C",
+      "suffix": ""
+    },
+    {
+      "raw": "^{1}H",
+      "prefix": "",
+      "mathSrc": "^{1}H",
+      "suffix": ""
+    },
+    {
+      "raw": "1/6000",
+      "prefix": "",
+      "mathSrc": "1/6000",
+      "suffix": ""
+    },
+    {
+      "raw": "^{13}C",
+      "prefix": "",
+      "mathSrc": "^{13}C",
+      "suffix": ""
+    },
+    {
+      "raw": "^{13}C",
+      "prefix": "",
+      "mathSrc": "^{13}C",
+      "suffix": ""
+    },
+    {
+      "raw": "^{13}C",
+      "prefix": "",
+      "mathSrc": "^{13}C",
+      "suffix": ""
+    }
+  ],
+  "phase3_render": [
+    {
+      "mathSrc": "\\Delta E=h\\nu",
+      "success": true
+    },
+    {
+      "mathSrc": "^1H",
+      "success": true
+    },
+    {
+      "mathSrc": "H_0",
+      "success": true
+    },
+    {
+      "mathSrc": "\\alpha",
+      "success": true
+    },
+    {
+      "mathSrc": "\\beta",
+      "success": true
+    },
+    {
+      "mathSrc": "\\alpha",
+      "success": true
+    },
+    {
+      "mathSrc": "N+1",
+      "success": true
+    },
+    {
+      "mathSrc": "J",
+      "success": true
+    },
+    {
+      "mathSrc": "\\Delta \\nu",
+      "success": true
+    },
+    {
+      "mathSrc": "CH_3",
+      "success": true
+    },
+    {
+      "mathSrc": "CH_2",
+      "success": true
+    },
+    {
+      "mathSrc": "inline",
+      "success": true
+    },
+    {
+      "mathSrc": "block",
+      "success": true
+    },
+    {
+      "mathSrc": "inline",
+      "success": true
+    },
+    {
+      "mathSrc": "H_0",
+      "success": true
+    },
+    {
+      "mathSrc": "\\nu",
+      "success": true
+    },
+    {
+      "mathSrc": "block",
+      "success": true
+    },
+    {
+      "mathSrc": "\\Delta E = h\\nu",
+      "success": true
+    },
+    {
+      "mathSrc": "inline",
+      "success": true
+    },
+    {
+      "mathSrc": "block",
+      "success": true
+    },
+    {
+      "mathSrc": "\\lambda",
+      "success": true
+    },
+    {
+      "mathSrc": "\\nu",
+      "success": true
+    },
+    {
+      "mathSrc": "c",
+      "success": true
+    },
+    {
+      "mathSrc": "\\nu = \\frac{c}{\\lambda}",
+      "success": true
+    },
+    {
+      "mathSrc": "\\Delta E = h\\nu",
+      "success": true
+    },
+    {
+      "mathSrc": "X",
+      "success": true
+    },
+    {
+      "mathSrc": "^1H",
+      "success": true
+    },
+    {
+      "mathSrc": "H_0",
+      "success": true
+    },
+    {
+      "mathSrc": "H_0",
+      "success": true
+    },
+    {
+      "mathSrc": "\\alpha",
+      "success": true
+    },
+    {
+      "mathSrc": "\\beta",
+      "success": true
+    },
+    {
+      "mathSrc": "\\Delta E",
+      "success": true
+    },
+    {
+      "mathSrc": "H_0",
+      "success": true
+    },
+    {
+      "mathSrc": "h_{local}",
+      "success": true
+    },
+    {
+      "mathSrc": "\\delta",
+      "success": true
+    },
+    {
+      "mathSrc": "N+1",
+      "success": true
+    },
+    {
+      "mathSrc": "N",
+      "success": true
+    },
+    {
+      "mathSrc": "J",
+      "success": true
+    },
+    {
+      "mathSrc": "\\Delta \\nu",
+      "success": true
+    },
+    {
+      "mathSrc": "J",
+      "success": true
+    },
+    {
+      "mathSrc": "^{13}C",
+      "success": true
+    },
+    {
+      "mathSrc": "^{13}C",
+      "success": true
+    },
+    {
+      "mathSrc": "H-C",
+      "success": true
+    },
+    {
+      "mathSrc": "^{13}C",
+      "success": true
+    },
+    {
+      "mathSrc": "CH_3",
+      "success": true
+    },
+    {
+      "mathSrc": "CH_2",
+      "success": true
+    },
+    {
+      "mathSrc": "CH",
+      "success": true
+    },
+    {
+      "mathSrc": "C_7H_{16}O",
+      "success": true
+    },
+    {
+      "mathSrc": "\\nu",
+      "success": true
+    },
+    {
+      "mathSrc": "h\\nu",
+      "success": true
+    },
+    {
+      "mathSrc": "\\Delta E",
+      "success": true
+    },
+    {
+      "mathSrc": "\\Delta E = h\\nu",
+      "success": true
+    },
+    {
+      "mathSrc": "X",
+      "success": true
+    },
+    {
+      "mathSrc": "> 300",
+      "success": true
+    },
+    {
+      "mathSrc": "mol^{-1}",
+      "success": true
+    },
+    {
+      "mathSrc": "mol^{-1}",
+      "success": true
+    },
+    {
+      "mathSrc": "mol^{-1}",
+      "success": true
+    },
+    {
+      "mathSrc": "\\bar{\\nu}",
+      "success": true
+    },
+    {
+      "mathSrc": "cm^{-1}",
+      "success": true
+    },
+    {
+      "mathSrc": "1/\\lambda",
+      "success": true
+    },
+    {
+      "mathSrc": "\\sim 10^{-4}",
+      "success": true
+    },
+    {
+      "mathSrc": "mol^{-1}",
+      "success": true
+    },
+    {
+      "mathSrc": "\\sim 10^{-6}",
+      "success": true
+    },
+    {
+      "mathSrc": "mol^{-1}",
+      "success": true
+    },
+    {
+      "mathSrc": "H_0",
+      "success": true
+    },
+    {
+      "mathSrc": "^1H",
+      "success": true
+    },
+    {
+      "mathSrc": "\\alpha",
+      "success": true
+    },
+    {
+      "mathSrc": "\\beta",
+      "success": true
+    },
+    {
+      "mathSrc": "C_{7}H_{16}O",
+      "success": true
+    },
+    {
+      "mathSrc": "\\nu",
+      "success": true
+    },
+    {
+      "mathSrc": "\\lambda",
+      "success": true
+    },
+    {
+      "mathSrc": "c",
+      "success": true
+    },
+    {
+      "mathSrc": "\\nu = \\frac{c}{\\lambda}",
+      "success": true
+    },
+    {
+      "mathSrc": "\\Delta E = h\\nu",
+      "success": true
+    },
+    {
+      "mathSrc": "h",
+      "success": true
+    },
+    {
+      "mathSrc": "6.626\\times10^{-34} J \\cdot s",
+      "success": true
+    },
+    {
+      "mathSrc": "X",
+      "success": true
+    },
+    {
+      "mathSrc": "mol^{-1}",
+      "success": true
+    },
+    {
+      "mathSrc": "mol^{-1}",
+      "success": true
+    },
+    {
+      "mathSrc": "mol^{-1}",
+      "success": true
+    },
+    {
+      "mathSrc": "1/\\lambda",
+      "success": true
+    },
+    {
+      "mathSrc": "10^{-4}",
+      "success": true
+    },
+    {
+      "mathSrc": "mol^{-1}",
+      "success": true
+    },
+    {
+      "mathSrc": "10^{-6}",
+      "success": true
+    },
+    {
+      "mathSrc": "mol^{-1}",
+      "success": true
+    },
+    {
+      "mathSrc": "C",
+      "success": true
+    },
+    {
+      "mathSrc": "H",
+      "success": true
+    },
+    {
+      "mathSrc": "^{13}C",
+      "success": true
+    },
+    {
+      "mathSrc": "^{13}C",
+      "success": true
+    },
+    {
+      "mathSrc": "f",
+      "success": true
+    },
+    {
+      "mathSrc": "\\cos(2\\pi ft)",
+      "success": true
+    },
+    {
+      "mathSrc": "0.01",
+      "success": true
+    },
+    {
+      "mathSrc": "0.01",
+      "success": true
+    },
+    {
+      "mathSrc": "\\delta",
+      "success": true
+    },
+    {
+      "mathSrc": "f(t) = \\sum A_i e^{-t/T_2} \\cos(2\\pi \\nu_i t)",
+      "success": true
+    },
+    {
+      "mathSrc": "^{13}C",
+      "success": true
+    },
+    {
+      "mathSrc": "1.11\\%",
+      "success": true
+    },
+    {
+      "mathSrc": "^{13}C",
+      "success": true
+    },
+    {
+      "mathSrc": "n",
+      "success": true
+    },
+    {
+      "mathSrc": "\\sqrt{n}",
+      "success": true
+    },
+    {
+      "mathSrc": "\\sqrt{n}",
+      "success": true
+    },
+    {
+      "mathSrc": "^{13}C",
+      "success": true
+    },
+    {
+      "mathSrc": "^{13}C",
+      "success": true
+    },
+    {
+      "mathSrc": "H_0",
+      "success": true
+    },
+    {
+      "mathSrc": "n",
+      "success": true
+    },
+    {
+      "mathSrc": "n",
+      "success": true
+    },
+    {
+      "mathSrc": "^{1}H",
+      "success": true
+    },
+    {
+      "mathSrc": "^{13}C",
+      "success": true
+    },
+    {
+      "mathSrc": "^{1}H",
+      "success": true
+    },
+    {
+      "mathSrc": "1/6000",
+      "success": true
+    },
+    {
+      "mathSrc": "^{13}C",
+      "success": true
+    },
+    {
+      "mathSrc": "^{13}C",
+      "success": true
+    },
+    {
+      "mathSrc": "^{13}C",
+      "success": true
+    }
+  ],
+  "phase4_replace": {
+    "text_nodes_processed": 66,
+    "total_fragments_created": 344,
+    "containers_handled": 9
+  },
+  "raw_text_snapshot": [
+    {
+      "idx": 0,
+      "text": "〈2026年03月03日-20:20〉\n〈0.我不询问用户下一步需要什么，我没有调用了联网检索，因为（当前任务是基于您上传的有机化学课件进行课程框架的梳理和备课，不涉及需要验证的最新事实问题），我觉得"
+    },
+    {
+      "idx": 1,
+      "text": "〈2026年03月03日-20:25〉\n〈0.我不询问用户下一步需要什么，我没有调用了联网检索，因为（本次对话为针对格式约定的自我纠正与规范确认），我觉得没有必要〉非常抱歉，这确实是我的疏忽。我刚才在"
+    },
+    {
+      "idx": 2,
+      "text": "〈2026年03月03日-20:26〉\n〈0.我不询问用户下一步需要什么，我没有调用了联网检索，因为（当前任务是基于您上传的有机化学课件进行课程框架的梳理和备课，内容完全涵盖在课件内且不涉及2025年"
+    },
+    {
+      "idx": 3,
+      "text": "〈2026年03月03日-20:30〉\n〈0.我不询问用户下一步需要什么，我没有调用了联网检索，因为（当前任务是基于您上传的有机化学课件进行第一部分的深度讲解，课件内容详尽且不涉及需要联网验证的202"
+    },
+    {
+      "idx": 4,
+      "text": "〈2026年03月03日-20：45〉\n〈0.我不询问用户下一步需要什么，我不推荐视频，我调用了联网检索，因为（当前任务是基于您上传的有机化学课件进行第一部分的深度讲解，课件内容详尽且不涉及需要联网验"
+    },
+    {
+      "idx": 5,
+      "text": "〈2026年03月03日-20：55〉\n〈0.我不询问用户下一步需要什么，我不推荐视频，我调用了联网检索，因为（当前讲解涉及傅里叶变换的物理直觉，其基本原理在课件 11-12 页已有阐述，属于波谱学经"
+    },
+    {
+      "idx": 6,
+      "text": "〈2026年03月03日-21：02〉\n〈0.我不询问用户下一步需要什么，我不推荐视频，我没有调用了联网检索，因为（当前的讲解是对波谱学傅里叶变换原理的逻辑核实，所有论据均基于课件内容及经典物理学常识"
+    },
+    {
+      "idx": 7,
+      "text": "〈2026年03月03日-21：15〉\n〈0.我不询问用户下一步需要什么，我不推荐视频，我没有调用了联网检索，因为（当前讲解涉及傅里叶变换与连续波扫描的物理本质对比，所有逻辑推导均基于课件 10-11"
+    },
+    {
+      "idx": 8,
+      "text": ""
+    }
+  ]
+}
