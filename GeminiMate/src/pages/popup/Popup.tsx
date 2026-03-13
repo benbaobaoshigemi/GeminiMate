@@ -317,7 +317,7 @@ const Slider = ({
         >
           <div
             className="h-full rounded-full"
-            style={{ width: `calc(10px + (100% - 10px) * ${percentage / 100})`, background: '#3b82f6' }}
+            style={{ width: `calc(12px + (100% - 10px) * ${percentage / 100})`, background: '#3b82f6' }}
           />
         </div>
         <input
@@ -354,8 +354,6 @@ const SectionHeader = ({ icon: Icon, title }: { icon: React.ElementType; title: 
 );
 
 export default function Popup() {
-  const BUILD_MARK = 'build-20260307-s20-mermaid-scan-boost';
-
   // View routing: 'main' or 'settings'
   const [view, setView] = useState<'main' | 'settings'>('main');
 
@@ -1185,6 +1183,63 @@ export default function Popup() {
 
           <SectionHeader icon={Type} title="阅读排版" />
           <div className="space-y-4">
+            <div className="p-3 rounded-xl bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/5">
+              <div className="flex items-center gap-3 mb-3">
+                <div className="p-2 rounded-lg bg-blue-500/20 text-blue-400 shrink-0">
+                  <Type size={16} />
+                </div>
+                <div>
+                  <p className="text-sm font-medium text-slate-800 dark:text-white/90">字重与字体</p>
+                  <p className="text-xs text-slate-500 dark:text-white/50">统一控制正文与公式的字重和字体风格</p>
+                </div>
+              </div>
+              <Slider
+                icon={Type}
+                title="字重调节"
+                description="范围 200-900，步进 50（正文与公式同步）"
+                value={fontWeight}
+                min={200}
+                max={900}
+                step={50}
+                unit=""
+                defaultValue={400}
+                onChange={(v) => {
+                  const next = clampFontWeight(v);
+                  setFontWeight(next);
+                  chrome.storage.local.set({ [StorageKeys.GEMINI_FONT_WEIGHT]: next });
+                }}
+              />
+              <p className="text-[11px] text-slate-400 dark:text-white/40 uppercase tracking-wider mb-1.5">字体类型</p>
+              <div className="grid grid-cols-3 gap-1.5">
+                {([
+                  { value: 'default', label: '默认', fontFamily: 'inherit', description: '跟随 Gemini 原生' },
+                  { value: 'sans', label: '非衬线', fontFamily: currentSansPreset.fontFamily, description: currentSansPreset.label },
+                  { value: 'serif', label: '衬线', fontFamily: currentSerifPreset.fontFamily, description: currentSerifPreset.label },
+                  ...customFonts.map((f) => ({ value: f.name, label: f.name, fontFamily: f.name, description: '本地字体' })),
+                ] as { value: string; label: string; fontFamily: string; description: string }[]).map((opt) => (
+                  <button
+                    key={opt.value}
+                    type="button"
+                    onClick={() => {
+                      setFontFamily(opt.value);
+                      chrome.storage.local.set({ [StorageKeys.GEMINI_FONT_FAMILY]: opt.value });
+                    }}
+                    style={{ fontFamily: opt.fontFamily }}
+                    className={`py-2 rounded-lg border text-xs transition-all ${
+                      fontFamily === opt.value
+                        ? 'border-blue-400/60 bg-blue-500/15 text-blue-400'
+                        : 'border-slate-200 dark:border-white/10 bg-white dark:bg-white/5 hover:bg-slate-100 dark:hover:bg-white/10 text-slate-600 dark:text-white/70'
+                    }`}
+                  >
+                    <span className="block font-medium">{opt.label}</span>
+                    <span className="block text-[10px] opacity-60 mt-0.5">{opt.description}</span>
+                  </button>
+                ))}
+              </div>
+              <p className="text-[11px] text-slate-400 dark:text-white/40 mt-2 px-0.5">
+                预置字体可在“设置”中继续切换：当前非衬线为 {currentSansPreset.label}，衬线为 {currentSerifPreset.label}。
+              </p>
+            </div>
             <Slider
               icon={Type}
               title="字体大小"
@@ -1276,63 +1331,6 @@ export default function Popup() {
                   </button>
                 ))}
               </div>
-            </div>
-            <div className="p-3 rounded-xl bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/5">
-              <div className="flex items-center gap-3 mb-3">
-                <div className="p-2 rounded-lg bg-blue-500/20 text-blue-400 shrink-0">
-                  <Type size={16} />
-                </div>
-                <div>
-                  <p className="text-sm font-medium text-slate-800 dark:text-white/90">字重与字体</p>
-                  <p className="text-xs text-slate-500 dark:text-white/50">统一控制正文与公式的字重和字体风格</p>
-                </div>
-              </div>
-              <Slider
-                icon={Type}
-                title="字重调节"
-                description="范围 200-900，步进 50（正文与公式同步）"
-                value={fontWeight}
-                min={200}
-                max={900}
-                step={50}
-                unit=""
-                defaultValue={400}
-                onChange={(v) => {
-                  const next = clampFontWeight(v);
-                  setFontWeight(next);
-                  chrome.storage.local.set({ [StorageKeys.GEMINI_FONT_WEIGHT]: next });
-                }}
-              />
-              <p className="text-[11px] text-slate-400 dark:text-white/40 uppercase tracking-wider mb-1.5">字体类型</p>
-              <div className="grid grid-cols-3 gap-1.5">
-                {([
-                  { value: 'default', label: '默认', fontFamily: 'inherit', description: '跟随 Gemini 原生' },
-                  { value: 'sans', label: '非衬线', fontFamily: currentSansPreset.fontFamily, description: currentSansPreset.label },
-                  { value: 'serif', label: '衬线', fontFamily: currentSerifPreset.fontFamily, description: currentSerifPreset.label },
-                  ...customFonts.map((f) => ({ value: f.name, label: f.name, fontFamily: f.name, description: '本地字体' })),
-                ] as { value: string; label: string; fontFamily: string; description: string }[]).map((opt) => (
-                  <button
-                    key={opt.value}
-                    type="button"
-                    onClick={() => {
-                      setFontFamily(opt.value);
-                      chrome.storage.local.set({ [StorageKeys.GEMINI_FONT_FAMILY]: opt.value });
-                    }}
-                    style={{ fontFamily: opt.fontFamily }}
-                    className={`py-2 rounded-lg border text-xs transition-all ${
-                      fontFamily === opt.value
-                        ? 'border-blue-400/60 bg-blue-500/15 text-blue-400'
-                        : 'border-slate-200 dark:border-white/10 bg-white dark:bg-white/5 hover:bg-slate-100 dark:hover:bg-white/10 text-slate-600 dark:text-white/70'
-                    }`}
-                  >
-                    <span className="block font-medium">{opt.label}</span>
-                    <span className="block text-[10px] opacity-60 mt-0.5">{opt.description}</span>
-                  </button>
-                ))}
-              </div>
-              <p className="text-[11px] text-slate-400 dark:text-white/40 mt-2 px-0.5">
-                预置字体可在“设置”中继续切换：当前非衬线为 {currentSansPreset.label}，衬线为 {currentSerifPreset.label}。
-              </p>
             </div>
           </div>
 
@@ -1455,7 +1453,7 @@ export default function Popup() {
 
         <div className="mt-4 text-center">
           <p className="text-[10px] text-slate-400 dark:text-white/30 font-medium tracking-wider font-mono">
-            GEMINIMATE_V1.0_STABLE | {BUILD_MARK}
+            GEMINIMATE_V2.1.0_STABLE
           </p>
         </div>
       </div>
