@@ -7,3 +7,65 @@ yarn-error.log*
 pnpm-debug.log*
 Thumbs.db
 .DS_Store
+
+# Build outputs and packaged artifacts
+dist/
+release/*.zip
+extension/
+extension_legacy_backup_*/
+extension_sync_backup_*/
+
+# Agent and IDE helper folders
+.adal/
+.agent/
+.agents/
+.augment/
+.claude/
+.codebuddy/
+.commandcode/
+.continue/
+.cortex/
+.crush/
+.factory/
+.goose/
+.iflow/
+.junie/
+.kilocode/
+.kiro/
+.kode/
+.mcpjam/
+.mux/
+.neovate/
+.openhands/
+.pi/
+.playwright-cli/
+.pochi/
+.qoder/
+.qwen/
+.roo/
+.trae/
+.vibe/
+.windsurf/
+.zencoder/
+
+# Generated verification and scratch files
+_reference/
+GeminiMate-v1.0.0/
+*_files/
+old_popup.txt
+old_popup_master.txt
+popup_temp.tsx
+export_dialog.css.txt
+fix_*.py
+replace_css.py
+move_font.py
+m3_mega_fix.mjs
+
+# Local scratch exports and captured pages
+Google Gemini*.html
+G样本i.html
+yangben1.html
+挑战样本.html
+样本*.html
+硬骨头.html
+新建 文本文档.*
