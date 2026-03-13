@@ -1,0 +1,126 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Slider Repro</title>
+    <style>
+      body {
+        margin: 0;
+        padding: 40px;
+        background: #f3f4f6;
+        font-family: "Segoe UI", sans-serif;
+      }
+
+      .frame {
+        width: 540px;
+        padding: 24px;
+        border-radius: 24px;
+        background: #ffffff;
+      }
+
+      .slider-shell {
+        position: relative;
+        display: flex;
+        align-items: center;
+        margin-top: 12px;
+        height: 22px;
+      }
+
+      .slider-track {
+        position: absolute;
+        inset: 0;
+        overflow: hidden;
+        border-radius: 9999px;
+        background: rgba(148, 163, 184, 0.15);
+        box-shadow: inset 0 1px 4px rgba(15, 23, 42, 0.16);
+      }
+
+      .slider-fill {
+        position: absolute;
+        inset-block: 0;
+        left: 0;
+        border-radius: 9999px;
+        background: #3b82f6;
+      }
+
+      .slider-thumb {
+        position: absolute;
+        top: 50%;
+        z-index: 10;
+        box-sizing: border-box;
+        width: 18px;
+        height: 18px;
+        border: 2px solid #3b82f6;
+        border-radius: 9999px;
+        background: #ffffff;
+        box-shadow: 0 2px 6px rgba(15, 23, 42, 0.2);
+        transform: translateY(-50%);
+      }
+
+      .label {
+        margin-top: 18px;
+        color: #1e293b;
+        font-size: 14px;
+        font-weight: 600;
+      }
+
+      .slider-thumb-fixed {
+        position: absolute;
+        top: 50%;
+        z-index: 10;
+        box-sizing: border-box;
+        width: 18px;
+        height: 18px;
+        border: 2px solid #3b82f6;
+        border-radius: 9999px;
+        background: #ffffff;
+        box-shadow: inset 0 1px 2px rgba(15, 23, 42, 0.12);
+        transform: translateY(-50%);
+      }
+    </style>
+  </head>
+  <body>
+    <div class="frame">
+      <div class="label">Current implementation, min position</div>
+      <div class="slider-shell" id="slider-min">
+        <div class="slider-track">
+          <div class="slider-fill" id="fill-min"></div>
+        </div>
+        <div class="slider-thumb" id="thumb-min"></div>
+      </div>
+
+      <div class="label">Current implementation, 40%</div>
+      <div class="slider-shell" id="slider-mid">
+        <div class="slider-track">
+          <div class="slider-fill" id="fill-mid"></div>
+        </div>
+        <div class="slider-thumb" id="thumb-mid"></div>
+      </div>
+
+      <div class="label">Fixed implementation, min position</div>
+      <div class="slider-shell" id="slider-fixed">
+        <div class="slider-track">
+          <div class="slider-fill" id="fill-fixed"></div>
+          <div class="slider-thumb-fixed" id="thumb-fixed"></div>
+        </div>
+      </div>
+    </div>
+
+    <script>
+      const trackPaddingPx = 2;
+      const thumbSizePx = 18;
+      const thumbTravelOffsetPx = thumbSizePx + trackPaddingPx * 2;
+
+      function applyPosition(trackId, fillId, thumbId, percentage) {
+        const thumbLeft = `calc(${trackPaddingPx}px + (${percentage} * (100% - ${thumbTravelOffsetPx}px) / 100))`;
+        const fillWidth = `calc(${trackPaddingPx + thumbSizePx / 2}px + (${percentage} * (100% - ${thumbTravelOffsetPx}px) / 100))`;
+        document.getElementById(fillId).style.width = fillWidth;
+        document.getElementById(thumbId).style.left = thumbLeft;
+      }
+
+      applyPosition("slider-min", "fill-min", "thumb-min", 0);
+      applyPosition("slider-mid", "fill-mid", "thumb-mid", 40);
+      applyPosition("slider-fixed", "fill-fixed", "thumb-fixed", 0);
+    </script>
+  </body>
+</html>

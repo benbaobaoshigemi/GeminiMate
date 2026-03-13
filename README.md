@@ -1,0 +1,201 @@
+# GeminiMate
+
+GeminiMate 是一个给 Google Gemini 网页版用的增强扩展。
+
+它主要解决三类问题：
+
+- 公式和 Markdown 显示不顺眼
+- 长对话太长，不好找、不好读
+- 页面默认排版不舒服，想自己调
+
+装上以后，你可以直接在 Gemini 页面里获得更清晰的公式显示、更好用的时间线导航、更自由的字体和版式控制，以及一些高频小功能，比如公式点击复制、引用回复、文件夹整理对话等。
+
+## 适合谁
+
+- 经常在 Gemini 里看数学公式、技术回答的人
+- 会开很长对话，希望快速跳转历史内容的人
+- 对排版比较敏感，想把字体、宽度、间距调成自己习惯的人
+- 想把 Gemini 用得更顺手，但不想折腾复杂配置的人
+
+## 主要功能
+
+### 1. 内容修复
+
+- LaTeX 公式修复
+- Markdown 渲染修复
+- 强调文本样式切换
+- 思维链翻译
+- YouTube 推荐卡片屏蔽
+
+简单说，就是把 Gemini 原本有时会乱掉、挤在一起、显示不舒服的内容修正回来。
+
+### 2. 长对话导航
+
+- 右侧时间线快速跳转
+- 平滑滚动 / 立即跳转切换
+- 时间线自动贴边
+- 隐藏原生容器，减少长对话闪跳
+
+如果你经常和 Gemini 连续聊很多轮，这部分会非常明显地提升效率。
+
+### 3. 阅读排版
+
+- 调整对话区宽度
+- 调整输入框宽度
+- 调整侧边栏宽度
+- 字体大小、字重、字间距、行间距可调
+- 支持首行缩进
+- 支持非衬线、衬线和本地导入字体
+
+不是“换皮”，而是真的把阅读体验调到更适合长时间使用。
+
+### 4. 实用交互
+
+- 点击公式直接复制
+- 公式复制格式可选 `LaTeX / MathML (Word) / 纯文本 LaTeX`
+- 选中文本后快速引用回复
+- 图片水印移除
+
+### 5. 页内增强
+
+- 页面左上可呼出的 GeminiMate 控制胶囊
+- 侧栏文件夹整理对话
+- 文件夹支持拖拽、重命名、颜色标记、星标
+
+## Popup 里能调什么
+
+扩展弹窗就是 GeminiMate 的主控制台，常用设置基本都在里面。
+
+你可以直接调这些内容：
+
+- LaTeX 公式修复
+- Markdown 修复
+- 思维链翻译及翻译模式
+- 对话区域宽度
+- 输入框宽度
+- 侧边栏宽度
+- 时间线开关和宽度
+- 字体大小、字重、字间距、行间距
+- 字体类型和本地字体导入
+- 公式复制格式
+- 引用回复
+- 水印移除
+- Mermaid 图表渲染
+- SVG 图形渲染
+- 调试模式与日志导出
+
+## 安装方法
+
+### 方法一：直接使用 Release 压缩包
+
+1. 打开 Release 页面  
+   `https://github.com/benbaobaoshigemi/GeminiMate/releases/tag/v2.0.0`
+2. 下载 `GeminiMate-v2.0.0.zip`
+3. 解压到本地文件夹
+4. 打开 Chrome 扩展管理页：`chrome://extensions/`
+5. 开启右上角“开发者模式”
+6. 点击“加载已解压的扩展程序”
+7. 选择刚刚解压后的文件夹
+
+### 方法二：从源码本地构建
+
+```powershell
+npm install
+npm run build
+```
+
+构建完成后，加载 `dist/` 目录即可。
+
+## 支持的网站
+
+- `https://gemini.google.com/*`
+- `https://business.gemini.google/*`
+
+## 怎么开始用
+
+安装完成后，打开 Gemini 网页。
+
+你会主要从两个入口使用它：
+
+- 浏览器工具栏里的扩展弹窗
+- Gemini 页面左上区域附近的 `GeminiMate` 控制胶囊
+
+建议第一次安装后先做这几步：
+
+1. 打开弹窗，确认 `LaTeX 公式修复` 和 `Markdown 修复` 已开启
+2. 如果你经常看长对话，开启并试用 `侧边时间线`
+3. 按你的习惯调一下对话宽度和字体大小
+4. 如果你会把公式粘到 Word，顺手把公式复制格式改成 `MathML (Word)`
+
+## 隐私说明
+
+GeminiMate 主要在本地工作：
+
+- 配置保存在浏览器本地
+- 不需要自建账号
+- 不走自有服务器转发对话
+
+需要说明的一点是：
+
+- 思维链翻译依赖 `translate.googleapis.com`
+- 调试模式开启后，会生成日志和缓存快照文件，方便排查问题
+
+## 当前版本
+
+- 版本号：`2.0.0`
+- Release 资产：`release/GeminiMate-v2.0.0.zip`
+
+## 已知说明
+
+- Gemini 页面结构如果大改，部分增强功能可能需要跟着更新
+- 某些功能依赖 Gemini 当前 DOM 结构，不保证永久零维护
+- 仓库里有一些还在整理中的模块，但 README 这里只写当前用户能直接理解和实际会用到的部分
+
+## 来源与致谢
+
+GeminiMate 并不是从零凭空长出来的。
+
+根据 Gemini Voyager 公开仓库、官方文档，以及 GeminiMate 当前代码中的命名和格式痕迹，可以明确确认：GeminiMate 里有一部分用户可见功能，源自或延续自 `Gemini Voyager` 项目。
+
+目前可以明确写明的包括：
+
+- 时间线导航
+- 文件夹管理
+- 引用回复
+- 聊天宽度 / 布局调节思路
+- 公式复制
+- Mermaid 图表渲染
+- 聊天导出相关能力
+- 文件夹导入导出格式与兼容口径
+- 文件夹账户隔离相关设计
+
+其中，`NanoBanana` 水印去除这项功能在 Gemini Voyager 官方文档中也明确作为其公开功能提供。
+
+但需要额外说明的是：
+
+- GeminiMate 当前代码中的去水印核心模块，显式标注为移植自 `journey-ad/gemini-watermark-remover`
+- 因此更准确的说法是：GeminiMate 的“水印去除功能入口与产品能力”可追溯到 Gemini Voyager 这条功能线，而当前去水印算法实现本身还应同时致谢 `journey-ad` 项目
+
+致谢项目：
+
+- Gemini Voyager: `https://github.com/Nagi-ovo/gemini-voyager`
+- Gemini Voyager 文档: `https://voyager.nagi.fun/en/`
+- gemini-watermark-remover: `https://github.com/journey-ad/gemini-watermark-remover`
+
+## 给开发者
+
+如果你是来改代码的，核心目录如下：
+
+```text
+src/pages/popup/            弹窗 UI
+src/pages/content/          内容脚本入口
+src/pages/content/folder/   文件夹系统
+src/pages/background/       后台脚本
+src/features/               各功能模块
+dist/                       构建产物
+release/                    发布包
+```
+
+## License
+
+GPLv3

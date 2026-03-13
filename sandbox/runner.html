@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>GeminiMate Preview Runner</title>
+    <style>
+      html,
+      body {
+        width: 100%;
+        height: 100%;
+        margin: 0;
+        padding: 0;
+        background: #0f172a;
+      }
+
+      #preview {
+        width: 100vw;
+        height: 100vh;
+        border: none;
+        background: #ffffff;
+      }
+    </style>
+  </head>
+  <body>
+    <iframe
+      id="preview"
+      sandbox="allow-scripts allow-forms allow-modals allow-popups"
+      referrerpolicy="no-referrer"
+    ></iframe>
+    <script type="module" src="./runner.js"></script>
+  </body>
+</html>
