@@ -193,9 +193,11 @@ export class TimelineManager {
     'a.gb_B.gb_Oa.gb_1',
     // Fallback if class names shift slightly.
     'a[aria-label*="Google"][aria-label*="Account"]',
-    'a[aria-label*="Google"][aria-label*="闂佽崵濮甸崝褏绮婚幋锝冧汗?]',
-    // Last-resort fallback to previous logo anchor.
-    '#app-root > main > div > bard-mode-switcher > a > bard-logo > div > span',
+    'button[aria-label*="Google"][aria-label*="Account"]',
+    'a[aria-label*="Google 账户"]',
+    'button[aria-label*="Google 账户"]',
+    'a[aria-label*="Google 賬戶"]',
+    'button[aria-label*="Google 賬戶"]',
   ];
   private readonly timelineBottomBoundaryAnchorSelector =
     '#app-root > main > side-navigation-v2 > bard-sidenav-container > bard-sidenav-content > div.content-wrapper > div > div.content-container > chat-window > div > input-container > fieldset > input-area-v2 > div > div';
@@ -465,6 +467,9 @@ export class TimelineManager {
   private applyAutoHide(): void {
     if (!this.ui.timelineBar) return;
     this.ui.timelineBar.classList.toggle('timeline-auto-hide', !!this.autoHide);
+    if (this.previewPanel) {
+      this.previewPanel.setAutoHide(!!this.autoHide);
+    }
   }
 
   private computeConversationId(): string {
@@ -973,6 +978,7 @@ export class TimelineManager {
         },
         (query) => this.highlightSearchInDOM(query),
       );
+      this.previewPanel.setAutoHide(this.autoHide);
     }
   }
 
@@ -3007,10 +3013,7 @@ export class TimelineManager {
     const rightAccessoryLane = this.rtl ? 4 : 28;
 
     // X-axis anchor: align timeline center to the avatar center line.
-    const xAnchor = this.timelineXAxisAnchorSelectors
-      .map((selector) => document.querySelector(selector) as HTMLElement | null)
-      .find((el) => el instanceof HTMLElement) ?? null;
-    const xAnchorRect = xAnchor?.getBoundingClientRect();
+    const xAnchorRect = this.resolveRightSideAnchorRect(viewportWidth);
     const desiredLeft = xAnchorRect
       ? (xAnchorRect.left + xAnchorRect.width / 2) - barWidth / 2
       : viewportWidth - barWidth - rightAccessoryLane;
@@ -3026,7 +3029,8 @@ export class TimelineManager {
     const viewportCenterY = viewportHeight / 2;
     const halfSpan = Math.max(70, Math.abs(targetBottom - viewportCenterY));
     const rawHeight = Math.min(viewportHeight - 20, Math.max(120, halfSpan * 2));
-    const desiredHeight = Math.max(96, rawHeight * 0.8);
+    // Shrink timeline length by 20% while keeping vertical center anchored.
+    const desiredHeight = Math.max(96, rawHeight * 0.64);
     const desiredTop = viewportCenterY - desiredHeight / 2;
 
     const padding = 10;
@@ -3044,6 +3048,25 @@ export class TimelineManager {
       left: clampedLeft,
       height: desiredHeight,
     };
+  }
+
+  private resolveRightSideAnchorRect(viewportWidth: number): DOMRect | null {
+    for (const selector of this.timelineXAxisAnchorSelectors) {
+      const element = document.querySelector(selector) as HTMLElement | null;
+      if (!(element instanceof HTMLElement)) {
+        continue;
+      }
+      const rect = element.getBoundingClientRect();
+      if (rect.width <= 0 || rect.height <= 0) {
+        continue;
+      }
+      // Reject left-side or center anchors to prevent timeline drifting to the left rail.
+      if (rect.left + rect.width / 2 < viewportWidth * 0.62) {
+        continue;
+      }
+      return rect;
+    }
+    return null;
   }
 
   private applyReferenceAnchoredPosition(): void {

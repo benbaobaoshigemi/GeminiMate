@@ -8,7 +8,7 @@ import type { PreviewMarkerData } from './types';
 
 const SEARCH_DEBOUNCE_MS = 200;
 
-const LIST_ICON_SVG = `<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>`;
+const SEARCH_ICON_SVG = `<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>`;
 
 export class TimelinePreviewPanel {
   private panelEl: HTMLElement | null = null;
@@ -153,14 +153,18 @@ export class TimelinePreviewPanel {
       this.panelEl.style.display = visible ? '' : 'none';
     }
   }
-
+  setAutoHide(autoHide: boolean): void {
+    if (this.toggleBtn) {
+      this.toggleBtn.classList.toggle('timeline-auto-hide', autoHide);
+    }
+  }
   private createDOM(): void {
     // Toggle button — fixed position to the left of the timeline bar
     this.toggleBtn = document.createElement('button');
     this.toggleBtn.className = 'timeline-preview-toggle';
-    this.toggleBtn.setAttribute('aria-label', '打开书架目录');
-    this.toggleBtn.setAttribute('title', '打开书架目录');
-    this.toggleBtn.innerHTML = LIST_ICON_SVG;
+    this.toggleBtn.setAttribute('aria-label', '打开大纲搜索');
+    this.toggleBtn.setAttribute('title', '打开大纲搜索');
+    this.toggleBtn.innerHTML = SEARCH_ICON_SVG;
     this.toggleBtn.addEventListener('click', (e) => {
       e.stopPropagation();
       this.toggle();
@@ -277,13 +281,14 @@ export class TimelinePreviewPanel {
     this.toggleBtn.style.opacity = this._isOpen ? '1' : `${Math.max(0, Math.min(1, barOpacity))}`;
     this.toggleBtn.style.pointerEvents = this._isOpen || barOpacity > 0.35 ? 'auto' : 'none';
 
-    const btnWidth = 24;
-    const btnHeight = 44;
-    const gap = 10;
+    const btnWidth = 36;
+    const btnHeight = 36;
+    const gap = 16;
     const leftPx = this.isRTLContext()
       ? Math.min(window.innerWidth - btnWidth - 8, Math.round(barRect.right + gap))
       : Math.max(8, Math.round(barRect.left - gap - btnWidth));
     this.toggleBtn.style.left = `${leftPx}px`;
+    // Align with the middle of the timeline bar
     this.toggleBtn.style.top = `${Math.round(barRect.top + barRect.height / 2 - btnHeight / 2)}px`;
   }
 

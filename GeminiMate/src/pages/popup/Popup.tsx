@@ -6,7 +6,6 @@ import type { CustomFont } from '@/features/layout/customFont';
 
 type FormulaCopyFormat = 'latex' | 'unicodemath' | 'no-dollar';
 type WordResponseExportMode = 'default' | 'academic';
-type ThoughtTranslationMode = 'compare' | 'replace';
 
 const SANS_PRESET_OPTIONS = [
   {
@@ -118,20 +117,15 @@ const MAX_FONT_WEIGHT = 900;
 const clampFontWeight = (value: number): number =>
   Math.max(MIN_FONT_WEIGHT, Math.min(MAX_FONT_WEIGHT, Math.round(value)));
 const MIN_LAYOUT_SCALE = 100;
-const MIN_EDIT_INPUT_LAYOUT_SCALE = 50;
 const MAX_LAYOUT_SCALE = 170;
 const clampLayoutScale = (value: number): number =>
   Math.max(MIN_LAYOUT_SCALE, Math.min(MAX_LAYOUT_SCALE, Math.round(value)));
-const clampEditInputLayoutScale = (value: number): number =>
-  Math.max(MIN_EDIT_INPUT_LAYOUT_SCALE, Math.min(MAX_LAYOUT_SCALE, Math.round(value)));
 const CHAT_WIDTH_LEGACY_MIN = 30;
 const CHAT_WIDTH_LEGACY_DEFAULT = 70;
 const CHAT_WIDTH_LEGACY_MAX = 100;
 const EDIT_WIDTH_LEGACY_MIN = 30;
 const EDIT_WIDTH_LEGACY_DEFAULT = 60;
 const EDIT_WIDTH_LEGACY_MAX = 100;
-const normalizeThoughtTranslationMode = (value: unknown): ThoughtTranslationMode =>
-  value === 'replace' ? 'replace' : 'compare';
 
 const legacyWidthToUiScale = (value: number, legacyDefault: number, legacyMax: number): number => {
   if (legacyMax <= legacyDefault) return MIN_LAYOUT_SCALE;
@@ -145,20 +139,16 @@ const normalizeLayoutScale = (
   legacyMin: number,
   legacyDefault: number,
   legacyMax: number,
-  minScale = MIN_LAYOUT_SCALE,
 ): number => {
   const numeric = Number(raw);
-  const clamp = minScale === MIN_EDIT_INPUT_LAYOUT_SCALE
-    ? clampEditInputLayoutScale
-    : clampLayoutScale;
-  if (!Number.isFinite(numeric)) return minScale;
-  if (numeric >= minScale && numeric <= MAX_LAYOUT_SCALE) {
-    return clamp(numeric);
+  if (!Number.isFinite(numeric)) return MIN_LAYOUT_SCALE;
+  if (numeric >= MIN_LAYOUT_SCALE && numeric <= MAX_LAYOUT_SCALE) {
+    return clampLayoutScale(numeric);
   }
   if (numeric >= legacyMin && numeric <= legacyMax) {
     return legacyWidthToUiScale(numeric, legacyDefault, legacyMax);
   }
-  return minScale;
+  return MIN_LAYOUT_SCALE;
 };
 
 const resolveToggleValue = (value: unknown, fallback = true): boolean => {
@@ -322,12 +312,12 @@ const Slider = ({
       {/* Ball-in-track slider: track is taller than the thumb so the ball appears embedded */}
       <div className="relative h-[14px] flex items-center mt-1">
         <div
-          className="absolute rounded-full overflow-hidden pointer-events-none"
-          style={{ left: '5px', right: '5px', top: 0, bottom: 0, background: 'rgba(148,163,184,0.15)', boxShadow: 'inset 0 1px 3px rgba(0,0,0,0.18)' }}
+          className="absolute inset-0 rounded-full overflow-hidden pointer-events-none"
+          style={{ background: 'rgba(148,163,184,0.15)', boxShadow: 'inset 0 1px 3px rgba(0,0,0,0.18)' }}
         >
           <div
             className="h-full rounded-full"
-            style={{ width: `${percentage}%`, background: '#3b82f6' }}
+            style={{ width: `calc(10px + (100% - 10px) * ${percentage / 100})`, background: '#3b82f6' }}
           />
         </div>
         <input
@@ -381,7 +371,6 @@ export default function Popup() {
   const [mermaidEnabled, setMermaidEnabled] = useState(true);
   const [svgRenderEnabled, setSvgRenderEnabled] = useState(true);
   const [thoughtTranslationEnabled, setThoughtTranslationEnabled] = useState(false);
-  const [thoughtTranslationMode, setThoughtTranslationMode] = useState<ThoughtTranslationMode>('compare');
 
   const [formulaCopyEnabled, setFormulaCopyEnabled] = useState(true);
   const [formulaCopyFormat, setFormulaCopyFormat] = useState<FormulaCopyFormat>('latex');
@@ -418,10 +407,6 @@ export default function Popup() {
   const [wordResponseExportEnabled, setWordResponseExportEnabled] = useState(true);
   const [wordResponseExportMode, setWordResponseExportMode] =
     useState<WordResponseExportMode>('default');
-  const [wordResponseExportPureBody, setWordResponseExportPureBody] = useState(true);
-  const [wordResponseExportFontSizeScale, setWordResponseExportFontSizeScale] = useState(100);
-  const [wordResponseExportLineHeightScale, setWordResponseExportLineHeightScale] = useState(100);
-  const [wordResponseExportLetterSpacingScale, setWordResponseExportLetterSpacingScale] = useState(100);
 
   useEffect(() => {
     const keys = [
@@ -430,7 +415,6 @@ export default function Popup() {
       StorageKeys.MERMAID_RENDER_ENABLED,
       StorageKeys.SVG_RENDER_ENABLED,
       StorageKeys.THOUGHT_TRANSLATION_ENABLED,
-      StorageKeys.THOUGHT_TRANSLATION_MODE,
       StorageKeys.FORMULA_COPY_ENABLED,
       StorageKeys.FORMULA_COPY_FORMAT,
       StorageKeys.WATERMARK_REMOVER_ENABLED,
@@ -460,10 +444,6 @@ export default function Popup() {
       StorageKeys.DEBUG_CACHE_CAPTURE_ENABLED,
       StorageKeys.WORD_RESPONSE_EXPORT_ENABLED,
       StorageKeys.WORD_RESPONSE_EXPORT_MODE,
-      StorageKeys.WORD_RESPONSE_EXPORT_PURE_BODY,
-      StorageKeys.WORD_RESPONSE_EXPORT_FONT_SIZE_SCALE,
-      StorageKeys.WORD_RESPONSE_EXPORT_LINE_HEIGHT_SCALE,
-      StorageKeys.WORD_RESPONSE_EXPORT_LETTER_SPACING_SCALE,
     ];
 
     const applyResult = (result: Record<string, unknown>): void => {
@@ -472,7 +452,6 @@ export default function Popup() {
       setMermaidEnabled(resolveToggleValue(result[StorageKeys.MERMAID_RENDER_ENABLED]));
       setSvgRenderEnabled(resolveToggleValue(result[StorageKeys.SVG_RENDER_ENABLED]));
       setThoughtTranslationEnabled(resolveToggleValue(result[StorageKeys.THOUGHT_TRANSLATION_ENABLED], false));
-      setThoughtTranslationMode(normalizeThoughtTranslationMode(result[StorageKeys.THOUGHT_TRANSLATION_MODE]));
 
       setFormulaCopyEnabled(result[StorageKeys.FORMULA_COPY_ENABLED] ?? true);
       const rawFormat = result[StorageKeys.FORMULA_COPY_FORMAT];
@@ -504,7 +483,6 @@ export default function Popup() {
           EDIT_WIDTH_LEGACY_MIN,
           EDIT_WIDTH_LEGACY_DEFAULT,
           EDIT_WIDTH_LEGACY_MAX,
-          MIN_EDIT_INPUT_LAYOUT_SCALE,
         ),
       );
       setSidebarWidth(Number(result[StorageKeys.GEMINI_SIDEBAR_WIDTH]) || 312);
@@ -528,18 +506,6 @@ export default function Popup() {
       setWordResponseExportMode(
         result[StorageKeys.WORD_RESPONSE_EXPORT_MODE] === 'academic' ? 'academic' : 'default',
       );
-      setWordResponseExportPureBody(
-        resolveToggleValue(result[StorageKeys.WORD_RESPONSE_EXPORT_PURE_BODY], true),
-      );
-      setWordResponseExportFontSizeScale(
-        Number(result[StorageKeys.WORD_RESPONSE_EXPORT_FONT_SIZE_SCALE]) || 100,
-      );
-      setWordResponseExportLineHeightScale(
-        Number(result[StorageKeys.WORD_RESPONSE_EXPORT_LINE_HEIGHT_SCALE]) || 100,
-      );
-      setWordResponseExportLetterSpacingScale(
-        Number(result[StorageKeys.WORD_RESPONSE_EXPORT_LETTER_SPACING_SCALE]) || 100,
-      );
     };
 
     const applyStorageChanges = (changes: Record<string, chrome.storage.StorageChange>): void => {
@@ -557,11 +523,6 @@ export default function Popup() {
       }
       if (changes[StorageKeys.THOUGHT_TRANSLATION_ENABLED]) {
         setThoughtTranslationEnabled(resolveToggleValue(changes[StorageKeys.THOUGHT_TRANSLATION_ENABLED].newValue, false));
-      }
-      if (changes[StorageKeys.THOUGHT_TRANSLATION_MODE]) {
-        setThoughtTranslationMode(
-          normalizeThoughtTranslationMode(changes[StorageKeys.THOUGHT_TRANSLATION_MODE].newValue),
-        );
       }
       if (changes[StorageKeys.FORMULA_COPY_ENABLED]) {
         setFormulaCopyEnabled(changes[StorageKeys.FORMULA_COPY_ENABLED].newValue ?? true);
@@ -611,7 +572,6 @@ export default function Popup() {
             EDIT_WIDTH_LEGACY_MIN,
             EDIT_WIDTH_LEGACY_DEFAULT,
             EDIT_WIDTH_LEGACY_MAX,
-            MIN_EDIT_INPUT_LAYOUT_SCALE,
           ),
         );
       }
@@ -677,26 +637,6 @@ export default function Popup() {
             : 'default',
         );
       }
-      if (changes[StorageKeys.WORD_RESPONSE_EXPORT_PURE_BODY]) {
-        setWordResponseExportPureBody(
-          resolveToggleValue(changes[StorageKeys.WORD_RESPONSE_EXPORT_PURE_BODY].newValue, true),
-        );
-      }
-      if (changes[StorageKeys.WORD_RESPONSE_EXPORT_FONT_SIZE_SCALE]) {
-        setWordResponseExportFontSizeScale(
-          Number(changes[StorageKeys.WORD_RESPONSE_EXPORT_FONT_SIZE_SCALE].newValue) || 100,
-        );
-      }
-      if (changes[StorageKeys.WORD_RESPONSE_EXPORT_LINE_HEIGHT_SCALE]) {
-        setWordResponseExportLineHeightScale(
-          Number(changes[StorageKeys.WORD_RESPONSE_EXPORT_LINE_HEIGHT_SCALE].newValue) || 100,
-        );
-      }
-      if (changes[StorageKeys.WORD_RESPONSE_EXPORT_LETTER_SPACING_SCALE]) {
-        setWordResponseExportLetterSpacingScale(
-          Number(changes[StorageKeys.WORD_RESPONSE_EXPORT_LETTER_SPACING_SCALE].newValue) || 100,
-        );
-      }
     };
 
     chrome.storage.local.get(keys, applyResult);
@@ -748,39 +688,19 @@ export default function Popup() {
 
   const updateSansPreset = (value: string): void => {
     setSansPreset(value);
-    setFontFamily('sans');
-    chrome.storage.local.set({
-      [StorageKeys.GEMINI_SANS_PRESET]: value,
-      [StorageKeys.GEMINI_FONT_FAMILY]: 'sans',
-    });
+    chrome.storage.local.set({ [StorageKeys.GEMINI_SANS_PRESET]: value });
   };
 
   const updateSerifPreset = (value: string): void => {
     setSerifPreset(value);
-    setFontFamily('serif');
-    chrome.storage.local.set({
-      [StorageKeys.GEMINI_SERIF_PRESET]: value,
-      [StorageKeys.GEMINI_FONT_FAMILY]: 'serif',
-    });
+    chrome.storage.local.set({ [StorageKeys.GEMINI_SERIF_PRESET]: value });
   };
 
   // ── Custom Font Handlers ─────────────────────────────────────────────────────
 
   const saveCustomFonts = (fonts: CustomFont[]): void => {
     setCustomFonts(fonts);
-    chrome.storage.local.set({ [StorageKeys.GEMINI_CUSTOM_FONTS]: fonts }, () => {
-      if (chrome.runtime.lastError) {
-        console.error('[VIBE_DEBUG_TRACE][CUSTOM_FONT_STORAGE_WRITE_FAILED]', {
-          message: chrome.runtime.lastError.message,
-          fontNames: fonts.map((font) => font.name),
-        });
-        return;
-      }
-
-      console.error('[VIBE_DEBUG_TRACE][CUSTOM_FONT_STORAGE_WRITE_OK]', {
-        fontNames: fonts.map((font) => font.name),
-      });
-    });
+    chrome.storage.local.set({ [StorageKeys.GEMINI_CUSTOM_FONTS]: fonts });
   };
 
   const handleFontFileSelect = (e: React.ChangeEvent<HTMLInputElement>): void => {
@@ -1002,16 +922,16 @@ export default function Popup() {
                     <Type size={16} />
                   </div>
                   <div>
-                    <p className="text-sm font-medium text-slate-800 dark:text-white/90">Word 导出排版</p>
+                    <p className="text-sm font-medium text-slate-800 dark:text-white/90">Word 样式模式</p>
                     <p className="text-xs text-slate-500 dark:text-white/50">
-                      调整单条回复导出为 Word 时的文档风格
+                      默认模式跟随当前排版；学术模式使用固定论文风格
                     </p>
                   </div>
                 </div>
                 <div className="grid grid-cols-2 gap-1.5">
                   {([
-                    { value: 'default' as const, label: '默认', desc: '跟随当前阅读排版参数' },
-                    { value: 'academic' as const, label: '学术', desc: '使用 Times 风格衬线正文' },
+                    { value: 'default' as const, label: '默认模式', desc: '继承当前字号、字重、缩进设置' },
+                    { value: 'academic' as const, label: '学术模式', desc: '固定 Times 风格与更宽行距' },
                   ] as {
                     value: WordResponseExportMode;
                     label: string;
@@ -1038,70 +958,6 @@ export default function Popup() {
                     </button>
                   ))}
                 </div>
-                <div className="mt-3">
-                  <SettingRow
-                    icon={Type}
-                    title="纯正文导出"
-                    description="不导出标题与导出时间等文档头信息"
-                    checked={wordResponseExportPureBody}
-                    onChange={(v) =>
-                      updateSetting(
-                        StorageKeys.WORD_RESPONSE_EXPORT_PURE_BODY,
-                        v,
-                        setWordResponseExportPureBody,
-                      )
-                    }
-                  />
-                </div>
-                {wordResponseExportMode === 'default' ? (
-                  <div className="mt-3 space-y-3">
-                    <Slider
-                      icon={Type}
-                      title="字体大小"
-                      description="以 100% 为基线调整正文字号"
-                      value={wordResponseExportFontSizeScale}
-                      min={80}
-                      max={130}
-                      step={2}
-                      unit="%"
-                      defaultValue={100}
-                      onChange={(v) => {
-                        setWordResponseExportFontSizeScale(v);
-                        chrome.storage.local.set({ [StorageKeys.WORD_RESPONSE_EXPORT_FONT_SIZE_SCALE]: v });
-                      }}
-                    />
-                    <Slider
-                      icon={Type}
-                      title="行间距"
-                      description="以 100% 为基线调整段落行距"
-                      value={wordResponseExportLineHeightScale}
-                      min={80}
-                      max={160}
-                      step={5}
-                      unit="%"
-                      defaultValue={100}
-                      onChange={(v) => {
-                        setWordResponseExportLineHeightScale(v);
-                        chrome.storage.local.set({ [StorageKeys.WORD_RESPONSE_EXPORT_LINE_HEIGHT_SCALE]: v });
-                      }}
-                    />
-                    <Slider
-                      icon={Type}
-                      title="字间距"
-                      description="以 100% 为基线调整正文字符间距"
-                      value={wordResponseExportLetterSpacingScale}
-                      min={100}
-                      max={200}
-                      step={10}
-                      unit="%"
-                      defaultValue={100}
-                      onChange={(v) => {
-                        setWordResponseExportLetterSpacingScale(v);
-                        chrome.storage.local.set({ [StorageKeys.WORD_RESPONSE_EXPORT_LETTER_SPACING_SCALE]: v });
-                      }}
-                    />
-                  </div>
-                ) : null}
               </div>
             </div>
           </div>
@@ -1246,40 +1102,6 @@ export default function Popup() {
                 )
               }
             />
-            <div className="p-3 rounded-xl bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/5">
-              <div className="flex items-center gap-3 mb-3">
-                <div className="p-2 rounded-lg bg-blue-500/20 text-blue-400 shrink-0">
-                  <PenTool size={16} />
-                </div>
-                <div>
-                  <p className="text-sm font-medium text-slate-800 dark:text-white/90">思维链翻译模式</p>
-                  <p className="text-xs text-slate-500 dark:text-white/50">对照显示中英双栏，替换仅显示中文</p>
-                </div>
-              </div>
-              <div className="grid grid-cols-2 gap-1.5">
-                {([
-                  { value: 'compare' as const, label: '对照模式', desc: '中英左右分栏' },
-                  { value: 'replace' as const, label: '替换模式', desc: '隐藏英文，仅显示中文' },
-                ] as { value: ThoughtTranslationMode; label: string; desc: string }[]).map((opt) => (
-                  <button
-                    key={opt.value}
-                    type="button"
-                    onClick={() => {
-                      setThoughtTranslationMode(opt.value);
-                      chrome.storage.local.set({ [StorageKeys.THOUGHT_TRANSLATION_MODE]: opt.value });
-                    }}
-                    className={`py-2 px-3 rounded-lg border text-xs transition-all text-left ${
-                      thoughtTranslationMode === opt.value
-                        ? 'border-blue-400/60 bg-blue-500/15 text-blue-400'
-                        : 'border-slate-200 dark:border-white/10 bg-white dark:bg-white/5 hover:bg-slate-100 dark:hover:bg-white/10 text-slate-600 dark:text-white/70'
-                    }`}
-                  >
-                    <span className="block font-medium">{opt.label}</span>
-                    <span className="block text-[10px] opacity-60 mt-0.5">{opt.desc}</span>
-                  </button>
-                ))}
-              </div>
-            </div>
           </div>
 
           <SectionHeader icon={Layout} title="页面布局" />
@@ -1307,9 +1129,9 @@ export default function Popup() {
             <Slider
               icon={Layout}
               title="编辑输入框宽度"
-              description="以原生 100% 为基线，可收窄至 50% 或扩展至 170%"
+              description="以原生 100% 为基线，仅向更宽方向调节"
               value={editInputWidth}
-              min={50}
+              min={100}
               max={170}
               step={1}
               unit="%"
@@ -1319,7 +1141,7 @@ export default function Popup() {
                 chrome.storage.local.remove(StorageKeys.GEMINI_EDIT_INPUT_WIDTH);
               }}
               onChange={(v) => {
-                const next = clampEditInputLayoutScale(v);
+                const next = clampLayoutScale(v);
                 setEditInputWidth(next);
                 chrome.storage.local.set({ [StorageKeys.GEMINI_EDIT_INPUT_WIDTH]: next });
               }}
@@ -1625,22 +1447,6 @@ export default function Popup() {
                   disabled={!timelineEnabled}
                   onChange={(v) => updateSetting(StorageKeys.TIMELINE_AUTO_HIDE, v, setTimelineAutoHide)}
                 />
-                <Slider
-                  icon={Layout}
-                  title="时间线宽度"
-                  description="调整轨道与点击热区宽度"
-                  value={timelineWidth}
-                  min={8}
-                  max={32}
-                  step={2}
-                  unit="px"
-                  defaultValue={24}
-                  disabled={!timelineEnabled}
-                  onChange={(v) => {
-                    setTimelineWidth(v);
-                    chrome.storage.local.set({ [StorageKeys.TIMELINE_WIDTH]: v });
-                  }}
-                />
               </div>
             </div>
           </div>
@@ -1656,7 +1462,3 @@ export default function Popup() {
     </div>
   );
 }
-
-
-
-
