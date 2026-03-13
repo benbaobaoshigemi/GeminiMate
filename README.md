@@ -151,6 +151,37 @@ GeminiMate 主要在本地工作：
 - 某些功能依赖 Gemini 当前 DOM 结构，不保证永久零维护
 - 仓库里有一些还在整理中的模块，但 README 这里只写当前用户能直接理解和实际会用到的部分
 
+## 来源与致谢
+
+GeminiMate 并不是从零凭空长出来的。
+
+根据 Gemini Voyager 公开仓库、官方文档，以及 GeminiMate 当前代码中的命名和格式痕迹，可以明确确认：GeminiMate 里有一部分用户可见功能，源自或延续自 `Gemini Voyager` 项目。
+
+目前可以明确写明的包括：
+
+- 时间线导航
+- 文件夹管理
+- 引用回复
+- 聊天宽度 / 布局调节思路
+- 公式复制
+- Mermaid 图表渲染
+- 聊天导出相关能力
+- 文件夹导入导出格式与兼容口径
+- 文件夹账户隔离相关设计
+
+其中，`NanoBanana` 水印去除这项功能在 Gemini Voyager 官方文档中也明确作为其公开功能提供。
+
+但需要额外说明的是：
+
+- GeminiMate 当前代码中的去水印核心模块，显式标注为移植自 `journey-ad/gemini-watermark-remover`
+- 因此更准确的说法是：GeminiMate 的“水印去除功能入口与产品能力”可追溯到 Gemini Voyager 这条功能线，而当前去水印算法实现本身还应同时致谢 `journey-ad` 项目
+
+致谢项目：
+
+- Gemini Voyager: `https://github.com/Nagi-ovo/gemini-voyager`
+- Gemini Voyager 文档: `https://voyager.nagi.fun/en/`
+- gemini-watermark-remover: `https://github.com/journey-ad/gemini-watermark-remover`
+
 ## 给开发者
 
 如果你是来改代码的，核心目录如下：
