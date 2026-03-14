@@ -8,6 +8,7 @@ import {
   computePreviewPanelLeft,
   resolvePreviewPanelGap,
 } from '../src/features/timeline/previewLayout.ts';
+import { isCanvasImmersiveModeActive } from '../src/features/timeline/canvasMode.ts';
 import {
   buildLinearLayoutWidths,
   CHAT_DUAL_COLUMN_BASELINE_PX,
@@ -136,5 +137,26 @@ assert.equal(isExactUltraUpsellLabel('Upgrade to Google AI Ultra'), true);
 assert.equal(isExactUltraUpsellLabel('Upgrade to  Google AI Ultra'), true);
 assert.equal(isExactUltraUpsellLabel('Upgrade to Google AI Ultra learn more'), false);
 assert.equal(isExactUltraUpsellLabel('show Upgrade to Google AI Ultra in sidebar'), false);
+assert.equal(
+  isCanvasImmersiveModeActive({
+    querySelector(selector) {
+      if (selector.includes('immersive-panel')) {
+        return {} ;
+      }
+      return null;
+    },
+  }),
+  true,
+  'canvas immersive shell should suppress the whole timeline UI',
+);
+assert.equal(
+  isCanvasImmersiveModeActive({
+    querySelector() {
+      return null;
+    },
+  }),
+  false,
+  'normal chat view should keep timeline UI available',
+);
 
 console.log('sidebar_search_thought_cleanup_regression: ok');

@@ -7,6 +7,7 @@ import { StorageKeys } from '@/core/types/common';
 import { GV_RTL_CLASS, applyRTLClass } from '@/core/utils/rtl';
 
 import { getTranslationSync, getTranslationSyncUnsafe, initI18n } from '@/utils/i18n';
+import { isCanvasImmersiveModeActive } from './canvasMode';
 import { eventBus } from './EventBus';
 import { StarredMessagesService } from './StarredMessagesService';
 import { TimelinePreviewPanel } from './TimelinePreviewPanel';
@@ -27,6 +28,29 @@ const TURN_LABEL_PREFIXES =
   /^[\u200B\u200C\u200D\u200E\u200F\uFEFF]*(?:you said|you wrote|user message|your prompt|you asked)[:\s]*/i;
 const VISUALLY_HIDDEN_CLASS_FRAGMENT = 'visually-hidden';
 const INJECTED_UI_SELECTOR = '.gv-fork-btn, .gv-fork-confirm, .gv-fork-indicator-group';
+const ASSISTANT_TURN_SELECTORS = [
+  '[aria-label="Gemini response"]',
+  '[data-message-author-role="assistant"]',
+  '[data-message-author-role="model"]',
+  'article[data-author="assistant"]',
+  'article[data-turn="assistant"]',
+  'article[data-turn="model"]',
+  '.model-response, model-response',
+  '.response-container',
+  'div[role="listitem"]:not([data-user="true"])',
+] as const;
+
+type TimelineMarker = {
+  id: string;
+  element: HTMLElement;
+  summary: string;
+  replyText: string;
+  replyElements: HTMLElement[];
+  n: number;
+  baseN: number;
+  dotElement: DotElement | null;
+  starred: boolean;
+};
 
 type ExtGlobal = typeof globalThis & {
   chrome?: {
@@ -61,15 +85,7 @@ type ExtGlobal = typeof globalThis & {
 export class TimelineManager {
   private scrollContainer: HTMLElement | null = null;
   private conversationContainer: HTMLElement | null = null;
-  private markers: Array<{
-    id: string;
-    element: HTMLElement;
-    summary: string;
-    n: number;
-    baseN: number;
-    dotElement: DotElement | null;
-    starred: boolean;
-  }> = [];
+  private markers: TimelineMarker[] = [];
   private activeTurnId: string | null = null;
   private ui: {
     timelineBar: HTMLElement | null;
@@ -150,18 +166,7 @@ export class TimelineManager {
     | ((changes: Record<string, chrome.storage.StorageChange>, areaName: string) => void)
     | null = null;
   private starred: Set<string> = new Set();
-  private markerMap: Map<
-    string,
-    {
-      id: string;
-      element: HTMLElement;
-      dotElement: DotElement | null;
-      starred: boolean;
-      n: number;
-      baseN: number;
-      summary: string;
-    }
-  > = new Map();
+  private markerMap: Map<string, TimelineMarker> = new Map();
   private conversationId: string | null = null;
   private userTurnSelector: string = '';
   private markerLevels: Map<string, MarkerLevel> = new Map();
@@ -204,7 +209,9 @@ export class TimelineManager {
   private readonly sidebarExpansionHostSelector =
     '#app-root > main > side-navigation-v2 > mat-sidenav-container > mat-sidenav > div > side-navigation-content > div';
   private sidebarVisibilityObserver: MutationObserver | null = null;
+  private immersiveCanvasObserver: MutationObserver | null = null;
   private sidebarVisibilityRafId: number | null = null;
+  private immersiveCanvasActive = false;
   private barDragging = false;
   private barStartPos = { x: 0, y: 0 };
   private barStartOffset = { x: 0, y: 0 };
@@ -286,6 +293,7 @@ export class TimelineManager {
       if (m === 'flow' || m === 'jump') this.scrollMode = m;
       this.hideContainer = !!res?.geminiTimelineHideContainer;
       this.applyContainerVisibility();
+      this.syncImmersiveCanvasState();
       this.timelineEnabled = !!(res?.geminimate_timeline_enabled ?? true);
       this.applyTimelineVisibility();
       this.timelineWidth = Number(res?.[StorageKeys.TIMELINE_WIDTH]) || 24;
@@ -436,16 +444,29 @@ export class TimelineManager {
 
   private applyTimelineVisibility(): void {
     if (!this.ui.timelineBar) return;
-    const visible = this.timelineEnabled;
+    const visible = this.timelineEnabled && !this.immersiveCanvasActive;
     this.ui.timelineBar.style.display = visible ? 'flex' : 'none';
     if (this.ui.slider) {
       this.ui.slider.style.display = visible ? '' : 'none';
     }
     this.previewPanel?.setHostVisibility(visible);
     if (!visible) {
+      this.hideTooltip(true);
       this.hideContextMenu();
     } else if (this.lockTimelineToReferenceAnchors) {
       this.applyReferenceAnchoredPosition();
+    }
+  }
+
+  private syncImmersiveCanvasState(): void {
+    const nextActive = isCanvasImmersiveModeActive(document);
+    if (this.immersiveCanvasActive === nextActive) {
+      return;
+    }
+    this.immersiveCanvasActive = nextActive;
+    this.applyTimelineVisibility();
+    if (!nextActive) {
+      this.previewPanel?.reposition();
     }
   }
 
@@ -976,7 +997,7 @@ export class TimelineManager {
           }
           this.smoothScrollTo(marker.element, dur);
         },
-        (query) => this.highlightSearchInDOM(query),
+        (state) => this.highlightSearchInDOM(state.query, state.includeReplies),
       );
       this.previewPanel.setAutoHide(this.autoHide);
     }
@@ -1595,6 +1616,49 @@ export class TimelineManager {
     }
   }
 
+  private getAssistantTurnCandidates(): HTMLElement[] {
+    if (!this.conversationContainer) return [];
+    const nodeList = this.conversationContainer.querySelectorAll<HTMLElement>(
+      ASSISTANT_TURN_SELECTORS.join(','),
+    );
+    if (nodeList.length === 0) return [];
+    return this.filterTopLevel(Array.from(nodeList));
+  }
+
+  private isElementAfter(left: Element, right: Element): boolean {
+    return (left.compareDocumentPosition(right) & Node.DOCUMENT_POSITION_FOLLOWING) !== 0;
+  }
+
+  private collectReplyDataForUsers(
+    userElements: HTMLElement[],
+  ): Array<{ replyText: string; replyElements: HTMLElement[] }> {
+    if (userElements.length === 0) return [];
+
+    const assistantCandidates = this.getAssistantTurnCandidates();
+    if (assistantCandidates.length === 0) {
+      return userElements.map(() => ({ replyText: '', replyElements: [] }));
+    }
+
+    return userElements.map((userElement, index) => {
+      const nextUserElement = userElements[index + 1] ?? null;
+      const replyElements = assistantCandidates.filter((candidate) => {
+        if (candidate === userElement) return false;
+        if (userElement.contains(candidate) || candidate.contains(userElement)) return false;
+        if (!this.isElementAfter(userElement, candidate)) return false;
+        if (nextUserElement && !this.isElementAfter(candidate, nextUserElement)) return false;
+        return true;
+      });
+
+      return {
+        replyText: replyElements
+          .map((candidate) => this.extractTurnText(candidate))
+          .filter((text) => text.length > 0)
+          .join('\n\n'),
+        replyElements,
+      };
+    });
+  }
+
   /**
    * Performance-optimized filter to remove nested elements.
    * Sorts elements by depth first, which can prune the search space in the average case.
@@ -1908,6 +1972,7 @@ export class TimelineManager {
     if (contentSpan <= 0) contentSpan = 1;
     this.firstUserTurnOffset = firstTurnOffset;
     this.contentSpanPx = contentSpan;
+    const replyData = this.collectReplyDataForUsers(allEls);
 
     this.markerMap.clear();
     this.markers = Array.from(allEls).map((el, idx) => {
@@ -1916,10 +1981,13 @@ export class TimelineManager {
       let n = offsetFromStart / contentSpan;
       n = Math.max(0, Math.min(1, n));
       const id = this.ensureTurnId(element, idx);
+      const markerReplyData = replyData[idx] ?? { replyText: '', replyElements: [] };
       const m = {
         id,
         element,
         summary: this.extractTurnText(element),
+        replyText: markerReplyData.replyText,
+        replyElements: markerReplyData.replyElements,
         n,
         baseN: n,
         dotElement: null,
@@ -1938,7 +2006,13 @@ export class TimelineManager {
     this.updateActiveDotUI();
     this.scheduleScrollSync();
     this.previewPanel?.updateMarkers(
-      this.markers.map((m, i) => ({ id: m.id, summary: m.summary, index: i, starred: m.starred })),
+      this.markers.map((m, i) => ({
+        id: m.id,
+        summary: m.summary,
+        replyText: m.replyText,
+        index: i,
+        starred: m.starred,
+      })),
     );
   };
 
@@ -1955,6 +2029,11 @@ export class TimelineManager {
       this.updateVirtualRangeAndRender();
     });
     if (this.ui.timelineBar) this.resizeObserver.observe(this.ui.timelineBar);
+
+    this.immersiveCanvasObserver = new MutationObserver(() => {
+      this.syncImmersiveCanvasState();
+    });
+    this.immersiveCanvasObserver.observe(document.body, { childList: true, subtree: true });
 
     this.intersectionObserver = new IntersectionObserver(
       () => {
@@ -2388,30 +2467,33 @@ export class TimelineManager {
     });
   }
 
-  private highlightSearchInDOM(query: string): void {
+  private highlightSearchInDOM(query: string, includeReplies = false): void {
     this.clearSearchHighlights();
     if (!query || !this.conversationContainer) return;
     const lowerQuery = query.toLowerCase();
     for (const marker of this.markers) {
-      if (!marker.element) continue;
-      const walker = document.createTreeWalker(marker.element, NodeFilter.SHOW_TEXT);
-      const matches: { node: Text; index: number }[] = [];
-      let node: Text | null;
-      while ((node = walker.nextNode() as Text | null)) {
-        const idx = node.textContent?.toLowerCase().indexOf(lowerQuery) ?? -1;
-        if (idx !== -1) matches.push({ node, index: idx });
-      }
-      // Process in reverse to keep offsets stable
-      for (let i = matches.length - 1; i >= 0; i--) {
-        const { node: textNode, index: matchIdx } = matches[i];
-        const after = textNode.splitText(matchIdx + query.length);
-        const matchText = textNode.splitText(matchIdx);
-        const mark = document.createElement('mark');
-        mark.className = TimelineManager.SEARCH_HIGHLIGHT_CLASS;
-        mark.textContent = matchText.textContent;
-        matchText.parentNode!.replaceChild(mark, matchText);
-        // keep reference to 'after' to avoid TS unused warning
-        void after;
+      const targetElements = includeReplies
+        ? [marker.element, ...marker.replyElements]
+        : [marker.element];
+      for (const targetElement of targetElements) {
+        const walker = document.createTreeWalker(targetElement, NodeFilter.SHOW_TEXT);
+        const matches: { node: Text; index: number }[] = [];
+        let node: Text | null;
+        while ((node = walker.nextNode() as Text | null)) {
+          const idx = node.textContent?.toLowerCase().indexOf(lowerQuery) ?? -1;
+          if (idx !== -1) matches.push({ node, index: idx });
+        }
+        // Process in reverse to keep offsets stable
+        for (let i = matches.length - 1; i >= 0; i--) {
+          const { node: textNode, index: matchIdx } = matches[i];
+          const after = textNode.splitText(matchIdx + query.length);
+          const matchText = textNode.splitText(matchIdx);
+          const mark = document.createElement('mark');
+          mark.className = TimelineManager.SEARCH_HIGHLIGHT_CLASS;
+          mark.textContent = matchText.textContent;
+          matchText.parentNode!.replaceChild(mark, matchText);
+          void after;
+        }
       }
     }
   }
@@ -4034,7 +4116,11 @@ export class TimelineManager {
     try {
       this.sidebarVisibilityObserver?.disconnect();
     } catch { }
+    try {
+      this.immersiveCanvasObserver?.disconnect();
+    } catch { }
     this.sidebarVisibilityObserver = null;
+    this.immersiveCanvasObserver = null;
     if (this.sidebarVisibilityRafId !== null) {
       try {
         cancelAnimationFrame(this.sidebarVisibilityRafId);
@@ -4215,4 +4301,3 @@ export class TimelineManager {
     this.pendingActiveId = null;
   }
 }
-
