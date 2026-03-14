@@ -830,7 +830,7 @@ body[dir='rtl'] .timeline-preview-toggle,
 
 .timeline-preview-panel {
   position: fixed;
-  width: 336px;
+  width: 288px;
   direction: ltr;
   background: var(--timeline-preview-surface);
   border: 1px solid var(--timeline-preview-border);
@@ -863,8 +863,15 @@ body[dir='rtl'] .timeline-preview-toggle,
   flex-shrink: 0;
 }
 
+.timeline-preview-search-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
 .timeline-preview-search input {
-  width: 100%;
+  width: auto;
+  flex: 1 1 auto;
   box-sizing: border-box;
   border: 1px solid var(--timeline-preview-border);
   border-radius: 8px;
@@ -889,6 +896,36 @@ body[dir='rtl'] .timeline-preview-toggle,
 .timeline-preview-search input:focus {
   border-color: var(--timeline-dot-active-color);
   box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.14);
+}
+
+.timeline-preview-filter-button {
+  flex: 0 0 auto;
+  border: 1px solid var(--timeline-preview-border);
+  border-radius: 9999px;
+  background: transparent;
+  color: var(--timeline-tooltip-text);
+  font-size: 12px;
+  line-height: 1;
+  padding: 9px 12px;
+  white-space: nowrap;
+  cursor: pointer;
+  transition:
+    background-color 0.14s ease,
+    border-color 0.14s ease,
+    color 0.14s ease,
+    transform 0.14s ease;
+}
+
+.timeline-preview-filter-button:hover {
+  background: var(--timeline-preview-item-hover);
+  border-color: rgba(59, 130, 246, 0.2);
+  transform: translateY(-1px);
+}
+
+.timeline-preview-filter-button.active {
+  background: var(--timeline-preview-item-active);
+  border-color: rgba(59, 130, 246, 0.32);
+  color: var(--timeline-dot-active-color);
 }
 
 .timeline-preview-list {
@@ -956,13 +993,16 @@ body[dir='rtl'] .timeline-preview-toggle,
 }
 
 .timeline-preview-text {
-  flex: 1;
+  flex: 1 1 auto;
+  min-width: 0;
   overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
   text-align: start;
   unicode-bidi: plaintext;
-  padding-top: 3px;
+  padding-top: 2px;
 }
 
 .timeline-preview-empty {

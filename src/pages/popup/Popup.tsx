@@ -4,6 +4,17 @@ import { Settings, PenTool, Layout, Zap, Clock, Type, ChevronLeft, Upload, Trash
 import { StorageKeys } from '@/core/types/common';
 import { EXTENSION_VERSION } from '@/core/utils/version';
 import type { CustomFont } from '@/features/layout/customFont';
+import {
+  clampLayoutScale,
+  DEFAULT_LAYOUT_SCALE,
+  normalizeStoredLayoutScale,
+  SIDEBAR_EXPANDED_BASELINE_PX,
+} from '@/features/layout/layoutScale';
+import {
+  resolveThoughtTranslationEnabled,
+  resolveThoughtTranslationMode,
+  type ThoughtTranslationMode,
+} from '@/features/thoughtTranslation/settings';
 
 type FormulaCopyFormat = 'latex' | 'unicodemath' | 'no-dollar';
 type WordResponseExportMode = 'default' | 'academic';
@@ -125,40 +136,12 @@ const MIN_FONT_WEIGHT = 200;
 const MAX_FONT_WEIGHT = 900;
 const clampFontWeight = (value: number): number =>
   Math.max(MIN_FONT_WEIGHT, Math.min(MAX_FONT_WEIGHT, Math.round(value)));
-const MIN_LAYOUT_SCALE = 100;
-const MAX_LAYOUT_SCALE = 170;
-const clampLayoutScale = (value: number): number =>
-  Math.max(MIN_LAYOUT_SCALE, Math.min(MAX_LAYOUT_SCALE, Math.round(value)));
 const CHAT_WIDTH_LEGACY_MIN = 30;
 const CHAT_WIDTH_LEGACY_DEFAULT = 70;
 const CHAT_WIDTH_LEGACY_MAX = 100;
 const EDIT_WIDTH_LEGACY_MIN = 30;
 const EDIT_WIDTH_LEGACY_DEFAULT = 60;
 const EDIT_WIDTH_LEGACY_MAX = 100;
-
-const legacyWidthToUiScale = (value: number, legacyDefault: number, legacyMax: number): number => {
-  if (legacyMax <= legacyDefault) return MIN_LAYOUT_SCALE;
-  const ratio = (value - legacyDefault) / (legacyMax - legacyDefault);
-  const mapped = MIN_LAYOUT_SCALE + ratio * (MAX_LAYOUT_SCALE - MIN_LAYOUT_SCALE);
-  return clampLayoutScale(mapped);
-};
-
-const normalizeLayoutScale = (
-  raw: unknown,
-  legacyMin: number,
-  legacyDefault: number,
-  legacyMax: number,
-): number => {
-  const numeric = Number(raw);
-  if (!Number.isFinite(numeric)) return MIN_LAYOUT_SCALE;
-  if (numeric >= MIN_LAYOUT_SCALE && numeric <= MAX_LAYOUT_SCALE) {
-    return clampLayoutScale(numeric);
-  }
-  if (numeric >= legacyMin && numeric <= legacyMax) {
-    return legacyWidthToUiScale(numeric, legacyDefault, legacyMax);
-  }
-  return MIN_LAYOUT_SCALE;
-};
 
 const resolveToggleValue = (value: unknown, fallback = true): boolean => {
   if (value === undefined) return fallback;
@@ -379,6 +362,8 @@ export default function Popup() {
   const [mermaidEnabled, setMermaidEnabled] = useState(true);
   const [svgRenderEnabled, setSvgRenderEnabled] = useState(true);
   const [thoughtTranslationEnabled, setThoughtTranslationEnabled] = useState(false);
+  const [thoughtTranslationMode, setThoughtTranslationMode] =
+    useState<ThoughtTranslationMode>('compare');
 
   const [formulaCopyEnabled, setFormulaCopyEnabled] = useState(true);
   const [formulaCopyFormat, setFormulaCopyFormat] = useState<FormulaCopyFormat>('latex');
@@ -393,9 +378,9 @@ export default function Popup() {
   const [timelineAutoHide, setTimelineAutoHide] = useState(false);
 
   // Layout features
-  const [chatWidth, setChatWidth] = useState(100);
-  const [editInputWidth, setEditInputWidth] = useState(100);
-  const [sidebarWidth, setSidebarWidth] = useState(312);
+  const [chatWidth, setChatWidth] = useState(DEFAULT_LAYOUT_SCALE);
+  const [editInputWidth, setEditInputWidth] = useState(DEFAULT_LAYOUT_SCALE);
+  const [sidebarWidth, setSidebarWidth] = useState(SIDEBAR_EXPANDED_BASELINE_PX);
   const [sidebarAutoHide, setSidebarAutoHide] = useState(false);
 
   // Typography
@@ -426,6 +411,7 @@ export default function Popup() {
       StorageKeys.MERMAID_RENDER_ENABLED,
       StorageKeys.SVG_RENDER_ENABLED,
       StorageKeys.THOUGHT_TRANSLATION_ENABLED,
+      StorageKeys.THOUGHT_TRANSLATION_MODE,
       StorageKeys.FORMULA_COPY_ENABLED,
       StorageKeys.FORMULA_COPY_FORMAT,
       StorageKeys.WATERMARK_REMOVER_ENABLED,
@@ -462,7 +448,10 @@ export default function Popup() {
       setMarkdownEnabled(resolveToggleValue(result[StorageKeys.MARKDOWN_REPAIR_ENABLED]));
       setMermaidEnabled(resolveToggleValue(result[StorageKeys.MERMAID_RENDER_ENABLED]));
       setSvgRenderEnabled(resolveToggleValue(result[StorageKeys.SVG_RENDER_ENABLED]));
-      setThoughtTranslationEnabled(resolveToggleValue(result[StorageKeys.THOUGHT_TRANSLATION_ENABLED], false));
+      setThoughtTranslationEnabled(
+        resolveThoughtTranslationEnabled(result[StorageKeys.THOUGHT_TRANSLATION_ENABLED]),
+      );
+      setThoughtTranslationMode(resolveThoughtTranslationMode(result[StorageKeys.THOUGHT_TRANSLATION_MODE]));
 
       setFormulaCopyEnabled(result[StorageKeys.FORMULA_COPY_ENABLED] ?? true);
       const rawFormat = result[StorageKeys.FORMULA_COPY_FORMAT];
@@ -481,22 +470,22 @@ export default function Popup() {
       setTimelineAutoHide(resolveToggleValue(result[StorageKeys.TIMELINE_AUTO_HIDE], false));
 
       setChatWidth(
-        normalizeLayoutScale(
+        normalizeStoredLayoutScale(
           result[StorageKeys.GEMINI_CHAT_WIDTH],
-          CHAT_WIDTH_LEGACY_MIN,
           CHAT_WIDTH_LEGACY_DEFAULT,
           CHAT_WIDTH_LEGACY_MAX,
+          CHAT_WIDTH_LEGACY_MIN,
         ),
       );
       setEditInputWidth(
-        normalizeLayoutScale(
+        normalizeStoredLayoutScale(
           result[StorageKeys.GEMINI_EDIT_INPUT_WIDTH],
-          EDIT_WIDTH_LEGACY_MIN,
           EDIT_WIDTH_LEGACY_DEFAULT,
           EDIT_WIDTH_LEGACY_MAX,
+          EDIT_WIDTH_LEGACY_MIN,
         ),
       );
-      setSidebarWidth(Number(result[StorageKeys.GEMINI_SIDEBAR_WIDTH]) || 312);
+      setSidebarWidth(Number(result[StorageKeys.GEMINI_SIDEBAR_WIDTH]) || SIDEBAR_EXPANDED_BASELINE_PX);
       setSidebarAutoHide(resolveToggleValue(result[StorageKeys.GEMINI_SIDEBAR_AUTO_HIDE], false));
 
       setFontSizeScale(Number(result[StorageKeys.GEMINI_FONT_SIZE_SCALE]) || 100);
@@ -533,7 +522,14 @@ export default function Popup() {
         setSvgRenderEnabled(resolveToggleValue(changes[StorageKeys.SVG_RENDER_ENABLED].newValue));
       }
       if (changes[StorageKeys.THOUGHT_TRANSLATION_ENABLED]) {
-        setThoughtTranslationEnabled(resolveToggleValue(changes[StorageKeys.THOUGHT_TRANSLATION_ENABLED].newValue, false));
+        setThoughtTranslationEnabled(
+          resolveThoughtTranslationEnabled(changes[StorageKeys.THOUGHT_TRANSLATION_ENABLED].newValue),
+        );
+      }
+      if (changes[StorageKeys.THOUGHT_TRANSLATION_MODE]) {
+        setThoughtTranslationMode(
+          resolveThoughtTranslationMode(changes[StorageKeys.THOUGHT_TRANSLATION_MODE].newValue),
+        );
       }
       if (changes[StorageKeys.FORMULA_COPY_ENABLED]) {
         setFormulaCopyEnabled(changes[StorageKeys.FORMULA_COPY_ENABLED].newValue ?? true);
@@ -568,26 +564,26 @@ export default function Popup() {
       }
       if (changes[StorageKeys.GEMINI_CHAT_WIDTH]) {
         setChatWidth(
-          normalizeLayoutScale(
+          normalizeStoredLayoutScale(
             changes[StorageKeys.GEMINI_CHAT_WIDTH].newValue,
-            CHAT_WIDTH_LEGACY_MIN,
             CHAT_WIDTH_LEGACY_DEFAULT,
             CHAT_WIDTH_LEGACY_MAX,
+            CHAT_WIDTH_LEGACY_MIN,
           ),
         );
       }
       if (changes[StorageKeys.GEMINI_EDIT_INPUT_WIDTH]) {
         setEditInputWidth(
-          normalizeLayoutScale(
+          normalizeStoredLayoutScale(
             changes[StorageKeys.GEMINI_EDIT_INPUT_WIDTH].newValue,
-            EDIT_WIDTH_LEGACY_MIN,
             EDIT_WIDTH_LEGACY_DEFAULT,
             EDIT_WIDTH_LEGACY_MAX,
+            EDIT_WIDTH_LEGACY_MIN,
           ),
         );
       }
       if (changes[StorageKeys.GEMINI_SIDEBAR_WIDTH]) {
-        setSidebarWidth(Number(changes[StorageKeys.GEMINI_SIDEBAR_WIDTH].newValue) || 312);
+        setSidebarWidth(Number(changes[StorageKeys.GEMINI_SIDEBAR_WIDTH].newValue) || SIDEBAR_EXPANDED_BASELINE_PX);
       }
       if (changes[StorageKeys.GEMINI_SIDEBAR_AUTO_HIDE]) {
         setSidebarAutoHide(changes[StorageKeys.GEMINI_SIDEBAR_AUTO_HIDE].newValue ?? false);
@@ -721,6 +717,11 @@ export default function Popup() {
 
   const updateValueSetting = (key: string, value: unknown): void => {
     chrome.storage.local.set({ [key]: value });
+  };
+
+  const updateThoughtTranslationMode = (value: ThoughtTranslationMode): void => {
+    setThoughtTranslationMode(value);
+    updateValueSetting(StorageKeys.THOUGHT_TRANSLATION_MODE, value);
   };
 
   const updateFormulaCopyFormat = (value: FormulaCopyFormat): void => {
@@ -1202,6 +1203,56 @@ export default function Popup() {
                 )
               }
             />
+            <div className={`p-3 rounded-xl bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/5 transition-all ${!thoughtTranslationEnabled ? 'opacity-60' : ''}`}>
+              <div className="flex items-center gap-3 mb-3">
+                <div className={`p-2 rounded-lg ${thoughtTranslationEnabled ? 'bg-blue-500/20 text-blue-400' : 'bg-slate-100 dark:bg-white/10 text-slate-500 dark:text-white/70'}`}>
+                  <PenTool size={16} />
+                </div>
+                <div>
+                  <p className="text-sm font-medium text-slate-800 dark:text-white/90">思维链翻译模式</p>
+                  <p className="text-xs text-slate-500 dark:text-white/50">恢复对照 / 替换两种显示方式</p>
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                {([
+                  {
+                    value: 'compare' as const,
+                    title: '对照模式',
+                    desc: '原文与翻译并排显示',
+                  },
+                  {
+                    value: 'replace' as const,
+                    title: '替换模式',
+                    desc: '仅显示翻译后的内容',
+                  },
+                ] as {
+                  value: ThoughtTranslationMode;
+                  title: string;
+                  desc: string;
+                }[]).map((option) => {
+                  const active = thoughtTranslationMode === option.value;
+                  return (
+                    <button
+                      key={option.value}
+                      type="button"
+                      disabled={!thoughtTranslationEnabled}
+                      onClick={() => {
+                        if (!thoughtTranslationEnabled) return;
+                        updateThoughtTranslationMode(option.value);
+                      }}
+                      className={`rounded-lg border p-2.5 text-left transition-all ${
+                        active
+                          ? 'border-blue-400/60 bg-blue-500/15 text-blue-400'
+                          : 'border-slate-200 dark:border-white/10 bg-white dark:bg-white/5 text-slate-600 dark:text-white/70 hover:bg-slate-100 dark:hover:bg-white/10'
+                      } ${!thoughtTranslationEnabled ? 'cursor-not-allowed' : ''}`}
+                    >
+                      <span className="block text-sm font-medium">{option.title}</span>
+                      <span className="mt-1 block text-[11px] opacity-70">{option.desc}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
           </div>
 
           <SectionHeader icon={Layout} title="页面布局" />
@@ -1217,7 +1268,7 @@ export default function Popup() {
               unit="%"
               defaultValue={100}
               onReset={() => {
-                setChatWidth(100);
+                setChatWidth(DEFAULT_LAYOUT_SCALE);
                 chrome.storage.local.remove(StorageKeys.GEMINI_CHAT_WIDTH);
               }}
               onChange={(v) => {
@@ -1237,7 +1288,7 @@ export default function Popup() {
               unit="%"
               defaultValue={100}
               onReset={() => {
-                setEditInputWidth(100);
+                setEditInputWidth(DEFAULT_LAYOUT_SCALE);
                 chrome.storage.local.remove(StorageKeys.GEMINI_EDIT_INPUT_WIDTH);
               }}
               onChange={(v) => {
@@ -1255,9 +1306,9 @@ export default function Popup() {
               max={540}
               step={2}
               unit="px"
-              defaultValue={312}
+              defaultValue={SIDEBAR_EXPANDED_BASELINE_PX}
               onReset={() => {
-                setSidebarWidth(312);
+                setSidebarWidth(SIDEBAR_EXPANDED_BASELINE_PX);
                 chrome.storage.local.remove(StorageKeys.GEMINI_SIDEBAR_WIDTH);
               }}
               onChange={(v) => {

@@ -3,9 +3,13 @@
  */
 
 import { StorageKeys } from '@/core/types/common';
+import {
+    SIDEBAR_COLLAPSED_BASELINE_PX,
+    SIDEBAR_EXPANDED_BASELINE_PX,
+} from './layoutScale';
 
 const STYLE_ID = 'geminimate-sidebar-width-style';
-const DEFAULT_PX = 312;
+const DEFAULT_PX = SIDEBAR_EXPANDED_BASELINE_PX;
 const MIN_PX = 180;
 const MAX_PX = 540;
 
@@ -14,12 +18,13 @@ const clampNumber = (value: number, min: number, max: number) =>
 
 function buildStyle(widthPx: number): string {
     const clampedWidth = `${clampNumber(widthPx, MIN_PX, MAX_PX)}px`;
-    const closedWidth = 'var(--bard-sidenav-closed-width, 72px)';
+    const closedWidth = `${SIDEBAR_COLLAPSED_BASELINE_PX}px`;
     const openClosedDiff = `max(0px, calc(${clampedWidth} - ${closedWidth}))`;
 
     return `
     :root {
       --bard-sidenav-open-width: ${clampedWidth} !important;
+      --bard-sidenav-closed-width: ${closedWidth} !important;
       --bard-sidenav-open-closed-width-diff: ${openClosedDiff} !important;
       --gv-sidenav-shift: ${openClosedDiff} !important;
     }
@@ -45,11 +50,6 @@ function applyWidth(widthPx: number): void {
     style.textContent = buildStyle(widthPx);
 }
 
-function clearWidthOverride(): void {
-    const style = document.getElementById(STYLE_ID);
-    if (style) style.remove();
-}
-
 export function startSidebarWidthAdjuster(): void {
     let currentWidthValue = DEFAULT_PX;
 
@@ -57,10 +57,10 @@ export function startSidebarWidthAdjuster(): void {
         const raw = res[StorageKeys.GEMINI_SIDEBAR_WIDTH];
         if (typeof raw === 'number' && Number.isFinite(raw)) {
             currentWidthValue = clampNumber(raw, MIN_PX, MAX_PX);
-            applyWidth(currentWidthValue);
         } else {
-            clearWidthOverride();
+            currentWidthValue = DEFAULT_PX;
         }
+        applyWidth(currentWidthValue);
     });
 
     chrome.storage.onChanged.addListener((changes, area) => {
@@ -70,7 +70,8 @@ export function startSidebarWidthAdjuster(): void {
                 currentWidthValue = clampNumber(w, MIN_PX, MAX_PX);
                 applyWidth(currentWidthValue);
             } else {
-                clearWidthOverride();
+                currentWidthValue = DEFAULT_PX;
+                applyWidth(currentWidthValue);
             }
         }
     });

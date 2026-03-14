@@ -7,6 +7,7 @@ import { startQuoteReply } from '../../features/quoteReply';
 import { setMermaidRenderEnabled, startMermaid, stopMermaid } from '../../features/mermaid';
 import { setSvgRenderEnabled, startSvgRenderer, stopSvgRenderer } from '../../features/svgRenderer';
 import { startThoughtTranslation, stopThoughtTranslation } from '../../features/thoughtTranslation';
+import { resolveThoughtTranslationEnabled } from '../../features/thoughtTranslation/settings';
 import { startTimeline } from '../../features/timeline';
 import { startBottomCleanup, stopBottomCleanup } from '../../features/uiCleanup';
 import {
@@ -51,12 +52,6 @@ let debugCacheCaptureTimer: ReturnType<typeof setInterval> | null = null;
 const DEBUG_CACHE_CAPTURE_INTERVAL_MS = 30000;
 
 const resolveEnabledValue = (value: unknown): boolean => value !== false;
-const resolveThoughtTranslationValue = (value: unknown): boolean => {
-  if (value === false || value === 'false' || value === 0 || value === '0' || value === null) {
-    return false;
-  }
-  return true;
-};
 
 const traceThoughtTranslation = (event: string, detail?: Record<string, unknown>): void => {
   debugService.log('thought-translation', event, detail);
@@ -386,7 +381,7 @@ const handleStorageChanged = (
 
   const thoughtTranslationChange = changes[StorageKeys.THOUGHT_TRANSLATION_ENABLED];
   if (thoughtTranslationChange) {
-    const enabled = resolveThoughtTranslationValue(thoughtTranslationChange.newValue);
+    const enabled = resolveThoughtTranslationEnabled(thoughtTranslationChange.newValue);
     debugService.log('storage', 'thought-translation-enabled-changed', { enabled });
     syncThoughtTranslationState(enabled);
   }
@@ -436,9 +431,11 @@ const initExtension = async () => {
     syncSvgRenderState(resolveEnabledValue(settings[StorageKeys.SVG_RENDER_ENABLED]));
     traceThoughtTranslation('initial-setting', {
       rawValue: settings[StorageKeys.THOUGHT_TRANSLATION_ENABLED],
-      resolved: resolveThoughtTranslationValue(settings[StorageKeys.THOUGHT_TRANSLATION_ENABLED]),
+      resolved: resolveThoughtTranslationEnabled(settings[StorageKeys.THOUGHT_TRANSLATION_ENABLED]),
     });
-    syncThoughtTranslationState(resolveThoughtTranslationValue(settings[StorageKeys.THOUGHT_TRANSLATION_ENABLED]));
+    syncThoughtTranslationState(
+      resolveThoughtTranslationEnabled(settings[StorageKeys.THOUGHT_TRANSLATION_ENABLED]),
+    );
     syncDebugModeState(settings[StorageKeys.DEBUG_MODE] === true);
     traceCustomFontStorage('initial', settings[StorageKeys.GEMINI_CUSTOM_FONTS]);
 

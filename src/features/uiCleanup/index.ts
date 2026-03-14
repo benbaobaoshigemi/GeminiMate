@@ -1,4 +1,5 @@
 import { debugService } from '@/core/services/DebugService';
+import { isExactUltraUpsellLabel } from './ultraUpsell';
 
 const STYLE_ID = 'gm-bottom-cleanup-style';
 
@@ -28,14 +29,14 @@ const INPUT_MASK_DIAGNOSTIC_SELECTORS = [
   'fieldset.input-area-container',
 ] as const;
 
-const ULTRA_UPSELL_TEXT = '升级到 Google AI Ultra';
 const ULTRA_UPSELL_BLOCK_ATTR = 'data-gm-ultra-upsell-blocked';
+const ULTRA_UPSELL_LABEL_ATTR = 'data-gm-ultra-upsell-label';
 const ULTRA_UPSELL_SELECTORS = [
+  '.buttons-container.adv-upsell',
+  '.buttons-container[class*="adv-upsell"]',
   'span.dynamic-upsell-label',
   '.dynamic-upsell-label',
-  'button:has(.dynamic-upsell-label)',
-  '[role="button"]:has(.dynamic-upsell-label)',
-  'a:has(.dynamic-upsell-label)',
+  '[data-test-id*="upsell-label"]',
 ] as const;
 
 let cleanupObserver: MutationObserver | null = null;
@@ -61,7 +62,6 @@ const buildStyleText = (): string => {
     filter: none !important;
   }`;
 
-  // Remove the gradient mask that appears above the input bar in panorama mode.
   const gradientCss = `
 chat-window > div > input-container::before,
 chat-window > div > input-container::after,
@@ -90,7 +90,9 @@ chat-window-content > .autosuggest-scrim {
   background-image: none !important;
 }
 
-${ULTRA_UPSELL_SELECTORS.join(',\n')},
+[${ULTRA_UPSELL_LABEL_ATTR}="1"],
+.top-bar-actions [class~="adv-upsell"],
+.top-bar-actions .buttons-container[class*="adv-upsell"],
 [${ULTRA_UPSELL_BLOCK_ATTR}="1"] {
   display: none !important;
   visibility: hidden !important;
@@ -115,7 +117,9 @@ const ensureStyle = (): void => {
 
 const collectInputDiagnostics = (): Record<string, unknown> => {
   const inputHost = document.querySelector<HTMLElement>('chat-window input-container');
-  const inputFieldset = document.querySelector<HTMLElement>('chat-window input-container fieldset.input-area-container');
+  const inputFieldset = document.querySelector<HTMLElement>(
+    'chat-window input-container fieldset.input-area-container',
+  );
   const rootContainer = document.querySelector<HTMLElement>('chat-window > div');
   const autosuggestScrim = document.querySelector<HTMLElement>('.autosuggest-scrim');
 
@@ -141,29 +145,49 @@ const markUltraUpsellRoot = (element: Element | null): void => {
   element.setAttribute(ULTRA_UPSELL_BLOCK_ATTR, '1');
 };
 
+const markUltraUpsellLabel = (element: Element | null): void => {
+  if (!(element instanceof HTMLElement)) return;
+  element.setAttribute(ULTRA_UPSELL_LABEL_ATTR, '1');
+};
+
+const clearUltraUpsellMarks = (): void => {
+  document
+    .querySelectorAll<HTMLElement>(
+      `[${ULTRA_UPSELL_BLOCK_ATTR}="1"], [${ULTRA_UPSELL_LABEL_ATTR}="1"]`,
+    )
+    .forEach((node) => {
+      node.removeAttribute(ULTRA_UPSELL_BLOCK_ATTR);
+      node.removeAttribute(ULTRA_UPSELL_LABEL_ATTR);
+    });
+};
+
 const resolveUltraUpsellRoot = (node: HTMLElement): HTMLElement => {
+  const topBarUpsell = node.closest<HTMLElement>(
+    '.buttons-container.adv-upsell, .buttons-container[class*="adv-upsell"]',
+  );
+  if (topBarUpsell) {
+    return topBarUpsell;
+  }
   const directRoot = node.closest<HTMLElement>(
-    'button, a, [role="button"], mat-card, message-content, link-block, div, span',
+    'button, a, [role="button"], mat-card, [data-test-id*="upsell"], [class*="upsell"], [class*="Upsell"]',
   );
   return directRoot ?? node;
 };
 
 const applyUltraUpsellCleanup = (): void => {
+  clearUltraUpsellMarks();
   ULTRA_UPSELL_SELECTORS.forEach((selector) => {
     document.querySelectorAll(selector).forEach((node) => {
       if (!(node instanceof HTMLElement)) return;
-      if (node.textContent?.includes(ULTRA_UPSELL_TEXT)) {
-        markUltraUpsellRoot(resolveUltraUpsellRoot(node));
+      if (
+        !node.matches('.buttons-container.adv-upsell, .buttons-container[class*="adv-upsell"]') &&
+        !isExactUltraUpsellLabel(node.textContent ?? '')
+      ) {
+        return;
       }
+      markUltraUpsellLabel(node);
+      markUltraUpsellRoot(resolveUltraUpsellRoot(node));
     });
-  });
-
-  const candidates = document.querySelectorAll<HTMLElement>('button, a, div, span, li');
-  candidates.forEach((node) => {
-    const text = node.textContent?.replace(/\s+/g, ' ').trim();
-    if (!text || !text.includes(ULTRA_UPSELL_TEXT)) return;
-    if (text.length > 80) return;
-    markUltraUpsellRoot(resolveUltraUpsellRoot(node));
   });
 };
 
@@ -200,6 +224,15 @@ export function startBottomCleanup(): void {
 }
 
 export function stopBottomCleanup(): void {
+  document
+    .querySelectorAll<HTMLElement>(
+      `[${ULTRA_UPSELL_BLOCK_ATTR}="1"], [${ULTRA_UPSELL_LABEL_ATTR}="1"]`,
+    )
+    .forEach((node) => {
+      node.removeAttribute(ULTRA_UPSELL_BLOCK_ATTR);
+      node.removeAttribute(ULTRA_UPSELL_LABEL_ATTR);
+    });
+
   const style = document.getElementById(STYLE_ID);
   if (style) {
     style.remove();

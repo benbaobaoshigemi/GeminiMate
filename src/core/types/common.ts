@@ -35,6 +35,7 @@ export const StorageKeys = {
     TIMELINE_ENABLED: 'geminimate_timeline_enabled',
     TIMELINE_WIDTH: 'geminimate_timeline_width',
     TIMELINE_AUTO_HIDE: 'geminimate_timeline_auto_hide',
+    TIMELINE_SEARCH_INCLUDE_REPLIES: 'geminimate_timeline_search_include_replies',
     TIMELINE_STARRED_MESSAGES: 'geminiTimelineStarred',
     TIMELINE_SCROLL_MODE: 'geminiTimelineScrollMode',
     GEMINI_CHAT_WIDTH: 'geminimate_chat_width',

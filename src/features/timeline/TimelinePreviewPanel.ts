@@ -5,6 +5,11 @@ import { GV_RTL_CLASS, detectRTL } from '@/core/utils/rtl';
 
 import { getTranslationSync } from '@/utils/i18n';
 import type { PreviewMarkerData } from './types';
+import { computePreviewPanelLeft, resolvePreviewPanelGap } from './previewLayout';
+import {
+  matchesPreviewMarkerQuery,
+  type PreviewSearchState,
+} from './previewSearch';
 
 const SEARCH_DEBOUNCE_MS = 200;
 
@@ -14,15 +19,17 @@ export class TimelinePreviewPanel {
   private panelEl: HTMLElement | null = null;
   private listEl: HTMLElement | null = null;
   private searchInput: HTMLInputElement | null = null;
+  private includeRepliesButton: HTMLButtonElement | null = null;
   private toggleBtn: HTMLElement | null = null;
   private _isOpen = false;
   private markers: ReadonlyArray<PreviewMarkerData> = [];
   private filteredMarkers: ReadonlyArray<PreviewMarkerData> = [];
   private activeTurnId: string | null = null;
   private searchQuery = '';
+  private includeReplies = false;
   private searchDebounceTimer: number | null = null;
   private onNavigate: ((turnId: string, index: number) => void) | null = null;
-  private onSearchChange: ((query: string) => void) | null = null;
+  private onSearchChange: ((state: PreviewSearchState) => void) | null = null;
   private onDocumentPointerDown: ((e: PointerEvent) => void) | null = null;
   private onKeyDown: ((e: KeyboardEvent) => void) | null = null;
   private onWindowResize: (() => void) | null = null;
@@ -39,7 +46,7 @@ export class TimelinePreviewPanel {
 
   init(
     onNavigate: (turnId: string, index: number) => void,
-    onSearchChange?: (query: string) => void,
+    onSearchChange?: (state: PreviewSearchState) => void,
   ): void {
     this.onNavigate = onNavigate;
     this.onSearchChange = onSearchChange ?? null;
@@ -47,6 +54,7 @@ export class TimelinePreviewPanel {
     this.applyDirection();
     this.positionToggle();
     this.setupEventListeners();
+    void this.loadPersistedState();
   }
 
   updateMarkers(markers: ReadonlyArray<PreviewMarkerData>): void {
@@ -104,7 +112,7 @@ export class TimelinePreviewPanel {
       this.searchQuery = '';
       this.filteredMarkers = this.markers;
     }
-    this.onSearchChange?.('');
+    this.emitSearchState();
   }
 
   destroy(): void {
@@ -134,7 +142,8 @@ export class TimelinePreviewPanel {
     this.panelEl = null;
     this.listEl = null;
     this.searchInput = null;
-    this.onSearchChange?.('');
+    this.includeRepliesButton = null;
+    this.emitSearchState();
     this.onNavigate = null;
     this.onSearchChange = null;
     this.markers = [];
@@ -178,6 +187,8 @@ export class TimelinePreviewPanel {
     // Search section
     const searchWrapper = document.createElement('div');
     searchWrapper.className = 'timeline-preview-search';
+    const searchRow = document.createElement('div');
+    searchRow.className = 'timeline-preview-search-row';
     this.searchInput = document.createElement('input');
     this.searchInput.type = 'text';
     this.searchInput.setAttribute('dir', 'auto');
@@ -185,7 +196,17 @@ export class TimelinePreviewPanel {
     this.searchInput.addEventListener('input', () => {
       this.handleSearchInput();
     });
-    searchWrapper.appendChild(this.searchInput);
+    searchRow.appendChild(this.searchInput);
+    this.includeRepliesButton = document.createElement('button');
+    this.includeRepliesButton.type = 'button';
+    this.includeRepliesButton.className = 'timeline-preview-filter-button';
+    this.includeRepliesButton.textContent = '包含回复';
+    this.includeRepliesButton.setAttribute('aria-pressed', 'false');
+    this.includeRepliesButton.addEventListener('click', () => {
+      this.setIncludeReplies(!this.includeReplies, true);
+    });
+    searchRow.appendChild(this.includeRepliesButton);
+    searchWrapper.appendChild(searchRow);
     this.panelEl.appendChild(searchWrapper);
 
     // List
@@ -226,11 +247,31 @@ export class TimelinePreviewPanel {
 
     // Re-render translated text on language change
     this.onStorageChanged = (changes, areaName) => {
-      if ((areaName === 'sync' || areaName === 'local') && changes[StorageKeys.LANGUAGE]) {
+      if (areaName !== 'sync' && areaName !== 'local') {
+        return;
+      }
+      if (changes[StorageKeys.LANGUAGE]) {
         this.updateTranslatedText();
+      }
+      if (areaName === 'local' && changes[StorageKeys.TIMELINE_SEARCH_INCLUDE_REPLIES]) {
+        this.setIncludeReplies(
+          changes[StorageKeys.TIMELINE_SEARCH_INCLUDE_REPLIES].newValue === true,
+          false,
+        );
       }
     };
     browser.storage.onChanged.addListener(this.onStorageChanged);
+  }
+
+  private async loadPersistedState(): Promise<void> {
+    try {
+      const result = await browser.storage.local.get({
+        [StorageKeys.TIMELINE_SEARCH_INCLUDE_REPLIES]: false,
+      });
+      this.setIncludeReplies(result[StorageKeys.TIMELINE_SEARCH_INCLUDE_REPLIES] === true, false);
+    } catch {
+      this.setIncludeReplies(false, false);
+    }
   }
 
   private updateTranslatedText(): void {
@@ -283,23 +324,54 @@ export class TimelinePreviewPanel {
     // Opacity is also inherited naturally from the parent bar, so we don't set it explicitly.
   }
 
+  private getVisibleRect(element: HTMLElement | null): DOMRect | null {
+    if (!element) return null;
+    const style = window.getComputedStyle(element);
+    if (style.display === 'none' || style.visibility === 'hidden') {
+      return null;
+    }
+    const rect = element.getBoundingClientRect();
+    if (rect.width <= 0 && rect.height <= 0) {
+      return null;
+    }
+    return rect;
+  }
+
+  private getCollapsedToggleGap(): number {
+    if (!this.toggleBtn) {
+      return 52;
+    }
+    const toggleStyle = window.getComputedStyle(this.toggleBtn);
+    const insetRaw = this.isRTLContext() ? toggleStyle.right : toggleStyle.left;
+    const inset = Number.parseFloat(insetRaw);
+    return resolvePreviewPanelGap({
+      toggleInset: Number.isFinite(inset) ? inset : null,
+      fallbackGap: 52,
+    });
+  }
+
   private positionPanel(): void {
     if (!this.panelEl) return;
-    const barRect = this.anchorElement.getBoundingClientRect();
-    const gap = 12;
-    const minPanelWidth = 220;
-    const maxPanelWidth = 320;
+    const anchorRect = this.getVisibleRect(this.anchorElement) ?? this.anchorElement.getBoundingClientRect();
+    const gap = this.getCollapsedToggleGap();
+    const minPanelWidth = 224;
+    const maxPanelWidth = 288;
     const isRTL = this.isRTLContext();
     const availableWidth = isRTL
-      ? Math.max(120, window.innerWidth - barRect.right - gap - 8)
-      : Math.max(120, barRect.left - gap - 8);
+      ? Math.max(120, window.innerWidth - anchorRect.right - gap - 8)
+      : Math.max(120, anchorRect.left - gap - 8);
     const panelWidth = Math.max(minPanelWidth, Math.min(maxPanelWidth, availableWidth));
     const maxHeight = Math.min(500, window.innerHeight * 0.7);
-    const barCenterY = barRect.top + barRect.height / 2;
+    const barCenterY = anchorRect.top + (anchorRect.bottom - anchorRect.top) / 2;
 
-    const left = isRTL
-      ? Math.min(window.innerWidth - panelWidth - 8, Math.round(barRect.right + gap))
-      : Math.max(8, Math.round(barRect.left - gap - panelWidth));
+    const left = computePreviewPanelLeft({
+      viewportWidth: window.innerWidth,
+      occupiedLeft: anchorRect.left,
+      occupiedRight: anchorRect.right,
+      panelWidth,
+      gap,
+      isRTL,
+    });
 
     this.panelEl.style.maxHeight = `${Math.round(maxHeight)}px`;
     this.panelEl.style.width = `${Math.round(panelWidth)}px`;
@@ -316,13 +388,14 @@ export class TimelinePreviewPanel {
     if (!this.searchQuery) {
       this.filteredMarkers = this.markers;
     } else {
-      const q = this.searchQuery.toLowerCase();
-      this.filteredMarkers = this.markers.filter((m) => m.summary.toLowerCase().includes(q));
+      this.filteredMarkers = this.markers.filter((marker) =>
+        matchesPreviewMarkerQuery(marker, this.searchQuery, this.includeReplies),
+      );
     }
     if (this._isOpen) {
       this.renderList();
     }
-    this.onSearchChange?.(this.searchQuery);
+    this.emitSearchState();
   }
 
   private handleSearchInput(): void {
@@ -334,6 +407,34 @@ export class TimelinePreviewPanel {
       this.searchQuery = this.searchInput?.value.trim() ?? '';
       this.applyFilter();
     }, SEARCH_DEBOUNCE_MS);
+  }
+
+  private setIncludeReplies(nextValue: boolean, persist: boolean): void {
+    if (this.includeReplies === nextValue && !persist) {
+      this.syncIncludeRepliesButton();
+      return;
+    }
+    this.includeReplies = nextValue;
+    this.syncIncludeRepliesButton();
+    if (persist) {
+      void browser.storage.local.set({
+        [StorageKeys.TIMELINE_SEARCH_INCLUDE_REPLIES]: nextValue,
+      });
+    }
+    this.applyFilter();
+  }
+
+  private syncIncludeRepliesButton(): void {
+    if (!this.includeRepliesButton) return;
+    this.includeRepliesButton.classList.toggle('active', this.includeReplies);
+    this.includeRepliesButton.setAttribute('aria-pressed', this.includeReplies ? 'true' : 'false');
+  }
+
+  private emitSearchState(): void {
+    this.onSearchChange?.({
+      query: this.searchQuery,
+      includeReplies: this.includeReplies,
+    });
   }
 
   private renderList(): void {
@@ -441,7 +542,14 @@ export class TimelinePreviewPanel {
     for (let i = 0; i < newMarkers.length; i++) {
       const a = this.markers[i];
       const b = newMarkers[i];
-      if (a.id !== b.id || a.summary !== b.summary || a.starred !== b.starred) return false;
+      if (
+        a.id !== b.id ||
+        a.summary !== b.summary ||
+        a.replyText !== b.replyText ||
+        a.starred !== b.starred
+      ) {
+        return false;
+      }
     }
     return true;
   }
