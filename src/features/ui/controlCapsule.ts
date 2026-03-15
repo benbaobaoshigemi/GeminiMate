@@ -2,6 +2,7 @@ import React from 'react';
 import ReactDOM from 'react-dom/client';
 import Popup from '@/pages/popup/Popup';
 import panelCss from '@/index.css?inline';
+import { resolvePageDarkTheme } from './themeSignals';
 
 const CAPSULE_CLASS = 'gm-control-capsule';
 const TARGET_SELECTORS = [
@@ -22,11 +23,40 @@ const SHADOW_INNER_STYLE = `
   }
   #gm-panel-root::-webkit-scrollbar { width: 4px; }
   #gm-panel-root::-webkit-scrollbar-thumb { background: rgba(148,163,184,0.4); border-radius: 2px; }
+  #gm-panel-root.gm-theme-dark {
+    color-scheme: dark;
+  }
+  #gm-panel-root.gm-theme-dark [class~="dark:bg-[#0f111a]"] { background-color: #0f111a; }
+  #gm-panel-root.gm-theme-dark [class~="dark:bg-[#151b28]"] { background-color: #151b28; }
+  #gm-panel-root.gm-theme-dark [class~="dark:bg-[#1b2332]"] { background-color: #1b2332; }
+  #gm-panel-root.gm-theme-dark [class~="dark:bg-slate-700/70"] { background-color: rgba(51, 65, 85, 0.7); }
+  #gm-panel-root.gm-theme-dark [class~="dark:bg-white/5"] { background-color: rgba(255, 255, 255, 0.05); }
+  #gm-panel-root.gm-theme-dark [class~="dark:bg-white/10"] { background-color: rgba(255, 255, 255, 0.1); }
+  #gm-panel-root.gm-theme-dark [class~="dark:bg-white/20"] { background-color: rgba(255, 255, 255, 0.2); }
+  #gm-panel-root.gm-theme-dark [class~="dark:border-slate-700"] { border-color: #334155; }
+  #gm-panel-root.gm-theme-dark [class~="dark:border-white/10"] { border-color: rgba(255, 255, 255, 0.1); }
+  #gm-panel-root.gm-theme-dark [class~="dark:text-white"] { color: #ffffff; }
+  #gm-panel-root.gm-theme-dark [class~="dark:text-white/20"] { color: rgba(255, 255, 255, 0.2); }
+  #gm-panel-root.gm-theme-dark [class~="dark:text-white/30"] { color: rgba(255, 255, 255, 0.3); }
+  #gm-panel-root.gm-theme-dark [class~="dark:text-white/40"] { color: rgba(255, 255, 255, 0.4); }
+  #gm-panel-root.gm-theme-dark [class~="dark:text-white/50"] { color: rgba(255, 255, 255, 0.5); }
+  #gm-panel-root.gm-theme-dark [class~="dark:text-white/70"] { color: rgba(255, 255, 255, 0.7); }
+  #gm-panel-root.gm-theme-dark [class~="dark:text-white/80"] { color: rgba(255, 255, 255, 0.8); }
+  #gm-panel-root.gm-theme-dark [class~="dark:text-white/90"] { color: rgba(255, 255, 255, 0.9); }
+  #gm-panel-root.gm-theme-dark [class~="dark:text-blue-300"] { color: #93c5fd; }
+  #gm-panel-root.gm-theme-dark [class~="dark:shadow-[0_6px_16px_rgba(2,6,23,0.16)]"] { box-shadow: 0 6px 16px rgba(2, 6, 23, 0.16); }
+  #gm-panel-root.gm-theme-dark [class~="dark:shadow-[0_10px_24px_rgba(2,6,23,0.18)]"] { box-shadow: 0 10px 24px rgba(2, 6, 23, 0.18); }
+  #gm-panel-root.gm-theme-dark [class~="dark:placeholder:text-white/30"]::placeholder { color: rgba(255, 255, 255, 0.3); }
+  #gm-panel-root.gm-theme-dark [class~="dark:hover:bg-[#222c3d]"]:hover { background-color: #222c3d; }
+  #gm-panel-root.gm-theme-dark [class~="dark:hover:bg-white/10"]:hover { background-color: rgba(255, 255, 255, 0.1); }
+  #gm-panel-root.gm-theme-dark [class~="dark:hover:text-white"]:hover { color: #ffffff; }
+  #gm-panel-root.gm-theme-dark [class~="dark:hover:text-blue-400"]:hover { color: #60a5fa; }
 `;
 
 class ControlCapsule {
   private capsule: HTMLButtonElement | null = null;
   private panelHost: HTMLDivElement | null = null;
+  private panelRoot: HTMLDivElement | null = null;
   private reactRoot: ReturnType<typeof ReactDOM.createRoot> | null = null;
   private panelOpen = false;
   private observer: MutationObserver | null = null;
@@ -70,6 +100,7 @@ class ControlCapsule {
     this.reactRoot = null;
     this.capsule?.remove();
     this.capsule = null;
+    this.panelRoot = null;
     this.panelHost?.remove();
     this.panelHost = null;
     this.started = false;
@@ -101,6 +132,8 @@ class ControlCapsule {
     const container = document.createElement('div');
     container.id = 'gm-panel-root';
     shadow.appendChild(container);
+    this.panelRoot = container;
+    this.syncPanelTheme();
 
     this.reactRoot = ReactDOM.createRoot(container);
     this.reactRoot.render(React.createElement(Popup));
@@ -180,14 +213,25 @@ class ControlCapsule {
 
   private setupObserver(): void {
     this.observer = new MutationObserver(() => {
+      this.syncPanelTheme();
       this.schedulePosition();
     });
     this.observer.observe(document.documentElement, {
       childList: true,
       subtree: true,
       attributes: true,
-      attributeFilter: ['class', 'style'],
+      attributeFilter: ['class', 'style', 'data-theme', 'data-color-scheme'],
     });
+  }
+
+  private syncPanelTheme(): void {
+    if (!this.panelRoot) {
+      return;
+    }
+
+    const isDark = resolvePageDarkTheme(document);
+    this.panelRoot.classList.toggle('gm-theme-dark', isDark);
+    this.panelRoot.dataset.theme = isDark ? 'dark' : 'light';
   }
 
   private findAnchorElement(): HTMLElement | null {
