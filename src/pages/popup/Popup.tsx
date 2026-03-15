@@ -11,10 +11,22 @@ import {
   SIDEBAR_EXPANDED_BASELINE_PX,
 } from '@/features/layout/layoutScale';
 import {
+  DEFAULT_NETWORK_QUALITY_THRESHOLDS,
+  normalizeNetworkQualityThresholds,
+} from '@/features/networkQuality/model';
+import { NETWORK_QUALITY_LIGHT_TONE_COLORS } from '@/features/networkQuality/toneColors';
+import type { NetworkQualityThresholds } from '@/features/networkQuality/types';
+import {
   resolveThoughtTranslationEnabled,
   resolveThoughtTranslationMode,
   type ThoughtTranslationMode,
 } from '@/features/thoughtTranslation/settings';
+import {
+  constrainBadThresholdValue,
+  constrainGoodThresholdValue,
+  normalizeDualThresholdRange,
+  resolveDualThresholdPercents,
+} from './thresholdRange';
 
 type FormulaCopyFormat = 'latex' | 'unicodemath' | 'no-dollar';
 type WordResponseExportMode = 'default' | 'academic';
@@ -338,6 +350,175 @@ const Slider = ({
   )
 };
 
+interface RangeThresholdSliderProps {
+  title: string;
+  description: string;
+  min: number;
+  max: number;
+  step: number;
+  unit: string;
+  goodValue: number;
+  badValue: number;
+  onChange: (next: { goodValue: number; badValue: number }) => void;
+  icon: React.ElementType;
+  defaultGoodValue: number;
+  defaultBadValue: number;
+  onReset: () => void;
+}
+
+const RangeThresholdSlider = ({
+  title,
+  description,
+  min,
+  max,
+  step,
+  unit,
+  goodValue,
+  badValue,
+  onChange,
+  icon: Icon,
+  defaultGoodValue,
+  defaultBadValue,
+  onReset,
+}: RangeThresholdSliderProps) => {
+  const normalizedRange = normalizeDualThresholdRange({
+    min,
+    max,
+    goodValue,
+    badValue,
+  });
+  const { goodPercent, badPercent } = resolveDualThresholdPercents({
+    min,
+    max,
+    goodValue: normalizedRange.goodValue,
+    badValue: normalizedRange.badValue,
+  });
+  const safeGoodValue = normalizedRange.goodValue;
+  const safeBadValue = normalizedRange.badValue;
+  const isAtDefault =
+    safeGoodValue === defaultGoodValue && safeBadValue === defaultBadValue;
+  const thumbSize = 10;
+  const rangeInputClass = `absolute inset-0 w-full h-[14px] m-0 p-0 appearance-none bg-transparent cursor-pointer outline-none focus:outline-none pointer-events-none
+    [&::-webkit-slider-runnable-track]:h-[14px] [&::-webkit-slider-runnable-track]:appearance-none
+    [&::-webkit-slider-runnable-track]:bg-transparent [&::-webkit-slider-runnable-track]:border-none
+    [&::-webkit-slider-runnable-track]:shadow-none
+    [&::-moz-range-track]:h-[14px] [&::-moz-range-track]:bg-transparent
+    [&::-moz-range-track]:border-none [&::-moz-range-track]:shadow-none
+    [&::-webkit-slider-thumb]:pointer-events-auto [&::-webkit-slider-thumb]:appearance-none
+    [&::-webkit-slider-thumb]:w-[10px] [&::-webkit-slider-thumb]:h-[10px]
+    [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-white
+    [&::-webkit-slider-thumb]:mt-[2px]
+    [&::-webkit-slider-thumb]:transition-transform [&::-webkit-slider-thumb]:duration-150
+    [&::-webkit-slider-thumb]:hover:scale-125
+    [&::-moz-range-thumb]:pointer-events-auto [&::-moz-range-thumb]:w-[10px]
+    [&::-moz-range-thumb]:h-[10px] [&::-moz-range-thumb]:border-none
+    [&::-moz-range-thumb]:rounded-full [&::-moz-range-thumb]:bg-white`;
+
+  return (
+    <div className="p-3 rounded-xl bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/5 transition-all">
+      <div className="flex items-center gap-3 mb-3">
+        <div className="p-2 rounded-lg bg-blue-500/20 text-blue-400 shrink-0">
+          <Icon size={16} />
+        </div>
+        <div className="flex-1 min-w-0">
+          <p className="text-sm font-medium text-slate-800 dark:text-white/90">{title}</p>
+          <p className="text-xs text-slate-500 dark:text-white/50">{description}</p>
+        </div>
+        <div className="flex items-center gap-1.5 shrink-0">
+          <button
+            type="button"
+            onClick={onReset}
+            disabled={isAtDefault}
+            title="恢复默认值"
+            className={`w-6 h-6 flex items-center justify-center rounded-md text-base leading-none transition-all ${
+              isAtDefault
+                ? 'text-slate-300 dark:text-white/20 cursor-not-allowed'
+                : 'text-slate-500 dark:text-white/50 hover:text-blue-500 dark:hover:text-blue-400 hover:bg-blue-500/10 cursor-pointer'
+            }`}
+          >
+            ↺
+          </button>
+        </div>
+      </div>
+
+      <div className="flex items-center justify-between text-[11px] text-slate-500 dark:text-white/50 mb-2">
+        <span>绿 {safeGoodValue}{unit}</span>
+        <span>蓝区</span>
+        <span>红 {safeBadValue}{unit}</span>
+      </div>
+
+      <div className="relative h-[14px] flex items-center mt-1">
+        <div
+          className="absolute inset-0 rounded-full overflow-hidden pointer-events-none"
+          style={{ background: 'rgba(148,163,184,0.15)', boxShadow: 'inset 0 1px 3px rgba(0,0,0,0.18)' }}
+        >
+          <div
+            className="absolute inset-y-0 left-0 rounded-full"
+            style={{
+              width: `calc(${thumbSize}px + (100% - ${thumbSize}px) * ${goodPercent / 100})`,
+              background: NETWORK_QUALITY_LIGHT_TONE_COLORS.good,
+            }}
+          />
+          <div
+            className="absolute inset-y-0 bg-blue-500/80"
+            style={{
+              left: `calc(${thumbSize / 2}px + (100% - ${thumbSize}px) * ${goodPercent / 100})`,
+              width: `calc((100% - ${thumbSize}px) * ${Math.max(badPercent - goodPercent, 0) / 100})`,
+              background: NETWORK_QUALITY_LIGHT_TONE_COLORS.neutral,
+            }}
+          />
+          <div
+            className="absolute inset-y-0 right-0 rounded-full"
+            style={{
+              width: `calc(${thumbSize}px + (100% - ${thumbSize}px) * ${Math.max(100 - badPercent, 0) / 100})`,
+              background: NETWORK_QUALITY_LIGHT_TONE_COLORS.bad,
+            }}
+          />
+        </div>
+
+        <input
+          type="range"
+          min={min}
+          max={max}
+          step={step}
+          value={safeGoodValue}
+          onChange={(e) => {
+            const nextGoodValue = constrainGoodThresholdValue({
+              min,
+              max,
+              nextValue: Number(e.target.value),
+              badValue: safeBadValue,
+            });
+            onChange({ goodValue: nextGoodValue, badValue: safeBadValue });
+          }}
+          className={`${rangeInputClass} z-10
+            [&::-webkit-slider-thumb]:shadow-[0_0_0_2.5px_rgba(59,130,246,0.9),0_1px_3px_rgba(0,0,0,0.4)]
+            [&::-moz-range-thumb]:shadow-[0_0_0_2.5px_rgba(59,130,246,0.9)]`}
+        />
+        <input
+          type="range"
+          min={min}
+          max={max}
+          step={step}
+          value={safeBadValue}
+          onChange={(e) => {
+            const nextBadValue = constrainBadThresholdValue({
+              min,
+              max,
+              goodValue: safeGoodValue,
+              nextValue: Number(e.target.value),
+            });
+            onChange({ goodValue: safeGoodValue, badValue: nextBadValue });
+          }}
+          className={`${rangeInputClass} z-20
+            [&::-webkit-slider-thumb]:shadow-[0_0_0_2.5px_rgba(59,130,246,0.9),0_1px_3px_rgba(0,0,0,0.4)]
+            [&::-moz-range-thumb]:shadow-[0_0_0_2.5px_rgba(59,130,246,0.9)]`}
+        />
+      </div>
+    </div>
+  );
+};
+
 const SectionHeader = ({ icon: Icon, title }: { icon: React.ElementType; title: string }) => (
   <div className="flex items-center gap-2 mb-3 mt-6 first:mt-2 px-1">
     <Icon size={14} className="text-blue-400" />
@@ -367,6 +548,10 @@ export default function Popup() {
 
   const [formulaCopyEnabled, setFormulaCopyEnabled] = useState(true);
   const [formulaCopyFormat, setFormulaCopyFormat] = useState<FormulaCopyFormat>('latex');
+  const [networkQualityEnabled, setNetworkQualityEnabled] = useState(true);
+  const [networkQualityThresholds, setNetworkQualityThresholds] = useState<NetworkQualityThresholds>(
+    DEFAULT_NETWORK_QUALITY_THRESHOLDS,
+  );
   const [watermarkRemoverEnabled, setWatermarkRemoverEnabled] = useState(true);
   const [quoteReplyEnabled, setQuoteReplyEnabled] = useState(true);
   const [bottomCleanupEnabled, setBottomCleanupEnabled] = useState(false);
@@ -414,6 +599,8 @@ export default function Popup() {
       StorageKeys.THOUGHT_TRANSLATION_MODE,
       StorageKeys.FORMULA_COPY_ENABLED,
       StorageKeys.FORMULA_COPY_FORMAT,
+      StorageKeys.NETWORK_QUALITY_ENABLED,
+      StorageKeys.NETWORK_QUALITY_THRESHOLDS,
       StorageKeys.WATERMARK_REMOVER_ENABLED,
       StorageKeys.QUOTE_REPLY_ENABLED,
       StorageKeys.BOTTOM_CLEANUP_ENABLED,
@@ -457,6 +644,10 @@ export default function Popup() {
       const rawFormat = result[StorageKeys.FORMULA_COPY_FORMAT];
       setFormulaCopyFormat(
         rawFormat === 'unicodemath' || rawFormat === 'no-dollar' ? rawFormat as FormulaCopyFormat : 'latex',
+      );
+      setNetworkQualityEnabled(resolveToggleValue(result[StorageKeys.NETWORK_QUALITY_ENABLED], true));
+      setNetworkQualityThresholds(
+        normalizeNetworkQualityThresholds(result[StorageKeys.NETWORK_QUALITY_THRESHOLDS]),
       );
 
       setWatermarkRemoverEnabled(resolveToggleValue(result[StorageKeys.WATERMARK_REMOVER_ENABLED]));
@@ -537,6 +728,18 @@ export default function Popup() {
       if (changes[StorageKeys.FORMULA_COPY_FORMAT]) {
         const next = changes[StorageKeys.FORMULA_COPY_FORMAT].newValue;
         setFormulaCopyFormat(next === 'unicodemath' || next === 'no-dollar' ? next : 'latex');
+      }
+      if (changes[StorageKeys.NETWORK_QUALITY_ENABLED]) {
+        setNetworkQualityEnabled(
+          resolveToggleValue(changes[StorageKeys.NETWORK_QUALITY_ENABLED].newValue, true),
+        );
+      }
+      if (changes[StorageKeys.NETWORK_QUALITY_THRESHOLDS]) {
+        setNetworkQualityThresholds(
+          normalizeNetworkQualityThresholds(
+            changes[StorageKeys.NETWORK_QUALITY_THRESHOLDS].newValue,
+          ),
+        );
       }
       if (changes[StorageKeys.WATERMARK_REMOVER_ENABLED]) {
         setWatermarkRemoverEnabled(resolveToggleValue(changes[StorageKeys.WATERMARK_REMOVER_ENABLED].newValue));
@@ -727,6 +930,19 @@ export default function Popup() {
   const updateFormulaCopyFormat = (value: FormulaCopyFormat): void => {
     setFormulaCopyFormat(value);
     updateValueSetting(StorageKeys.FORMULA_COPY_FORMAT, value);
+  };
+
+  const updateNetworkThresholdPair = (
+    next: Partial<NetworkQualityThresholds>,
+  ): void => {
+    setNetworkQualityThresholds((current) => {
+      const normalized = normalizeNetworkQualityThresholds({
+        ...current,
+        ...next,
+      });
+      updateValueSetting(StorageKeys.NETWORK_QUALITY_THRESHOLDS, normalized);
+      return normalized;
+    });
   };
 
   const openUpdateUrl = (url: string): void => {
@@ -965,6 +1181,87 @@ export default function Popup() {
           </div>
 
           <div className="bg-white dark:bg-white/[0.02] backdrop-blur-xl border border-slate-200 dark:border-white/10 rounded-2xl p-4 mt-4">
+            <SectionHeader icon={Clock} title="网络阈值" />
+            <div className="space-y-4">
+              <RangeThresholdSlider
+                icon={Clock}
+                title="延迟阈值"
+                description="左点结束绿色，右点开始红色，中间自动作为蓝色过渡"
+                min={50}
+                max={1000}
+                step={10}
+                unit="ms"
+                goodValue={networkQualityThresholds.latencyGoodMaxMs}
+                badValue={networkQualityThresholds.latencyBadMinMs}
+                defaultGoodValue={DEFAULT_NETWORK_QUALITY_THRESHOLDS.latencyGoodMaxMs}
+                defaultBadValue={DEFAULT_NETWORK_QUALITY_THRESHOLDS.latencyBadMinMs}
+                onReset={() =>
+                  updateNetworkThresholdPair({
+                    latencyGoodMaxMs: DEFAULT_NETWORK_QUALITY_THRESHOLDS.latencyGoodMaxMs,
+                    latencyBadMinMs: DEFAULT_NETWORK_QUALITY_THRESHOLDS.latencyBadMinMs,
+                  })
+                }
+                onChange={({ goodValue, badValue }) =>
+                  updateNetworkThresholdPair({
+                    latencyGoodMaxMs: goodValue,
+                    latencyBadMinMs: badValue,
+                  })
+                }
+              />
+              <RangeThresholdSlider
+                icon={Clock}
+                title="抖动阈值"
+                description="左点结束绿色，右点开始红色，中间自动作为蓝色过渡"
+                min={5}
+                max={200}
+                step={1}
+                unit="ms"
+                goodValue={networkQualityThresholds.jitterGoodMaxMs}
+                badValue={networkQualityThresholds.jitterBadMinMs}
+                defaultGoodValue={DEFAULT_NETWORK_QUALITY_THRESHOLDS.jitterGoodMaxMs}
+                defaultBadValue={DEFAULT_NETWORK_QUALITY_THRESHOLDS.jitterBadMinMs}
+                onReset={() =>
+                  updateNetworkThresholdPair({
+                    jitterGoodMaxMs: DEFAULT_NETWORK_QUALITY_THRESHOLDS.jitterGoodMaxMs,
+                    jitterBadMinMs: DEFAULT_NETWORK_QUALITY_THRESHOLDS.jitterBadMinMs,
+                  })
+                }
+                onChange={({ goodValue, badValue }) =>
+                  updateNetworkThresholdPair({
+                    jitterGoodMaxMs: goodValue,
+                    jitterBadMinMs: badValue,
+                  })
+                }
+              />
+              <RangeThresholdSlider
+                icon={Clock}
+                title="丢包阈值"
+                description="左点结束绿色，右点开始红色，中间自动作为蓝色过渡"
+                min={0}
+                max={100}
+                step={1}
+                unit="%"
+                goodValue={networkQualityThresholds.lossGoodMaxPercent}
+                badValue={networkQualityThresholds.lossBadMinPercent}
+                defaultGoodValue={DEFAULT_NETWORK_QUALITY_THRESHOLDS.lossGoodMaxPercent}
+                defaultBadValue={DEFAULT_NETWORK_QUALITY_THRESHOLDS.lossBadMinPercent}
+                onReset={() =>
+                  updateNetworkThresholdPair({
+                    lossGoodMaxPercent: DEFAULT_NETWORK_QUALITY_THRESHOLDS.lossGoodMaxPercent,
+                    lossBadMinPercent: DEFAULT_NETWORK_QUALITY_THRESHOLDS.lossBadMinPercent,
+                  })
+                }
+                onChange={({ goodValue, badValue }) =>
+                  updateNetworkThresholdPair({
+                    lossGoodMaxPercent: goodValue,
+                    lossBadMinPercent: badValue,
+                  })
+                }
+              />
+            </div>
+          </div>
+
+          <div className="bg-white dark:bg-white/[0.02] backdrop-blur-xl border border-slate-200 dark:border-white/10 rounded-2xl p-4 mt-4">
             <SectionHeader icon={Zap} title="导出功能" />
             <div className="space-y-2">
               <SettingRow
@@ -1174,6 +1471,15 @@ export default function Popup() {
 
           <SectionHeader icon={PenTool} title="内容渲染与修复" />
           <div className="space-y-2">
+            <SettingRow
+              icon={Clock}
+              title="网络状态"
+              description="显示左侧悬浮延迟、抖动与丢包率"
+              checked={networkQualityEnabled}
+              onChange={(v) =>
+                updateSetting(StorageKeys.NETWORK_QUALITY_ENABLED, v, setNetworkQualityEnabled)
+              }
+            />
             <SettingRow
               icon={PenTool}
               title="LaTeX 公式修复"

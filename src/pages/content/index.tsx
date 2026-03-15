@@ -15,6 +15,10 @@ import {
   stopYoutubeRecommendationBlocker,
 } from '../../features/uiCleanup/youtubeRecommendationBlocker';
 import { startWatermarkRemover, stopWatermarkRemover } from '../../features/watermarkRemover';
+import {
+  startNetworkQualityPagePanel,
+  stopNetworkQualityPagePanel,
+} from '../../features/networkQuality/pagePanel';
 import { startControlCapsule, stopControlCapsule } from '../../features/ui/controlCapsule';
 import { startExportButton } from './export';
 import { startFolderManager } from './folder';
@@ -453,6 +457,7 @@ const initExtension = async () => {
     startCustomFontInjector();
     startParagraphIndentAdjuster();
     startControlCapsule();
+    startNetworkQualityPagePanel();
 
     chrome.storage.onChanged.addListener(handleStorageChanged);
     window.addEventListener('beforeunload', () => {
@@ -472,6 +477,7 @@ const initExtension = async () => {
       stopSvgRenderer();
       stopThoughtTranslation();
       stopControlCapsule();
+      stopNetworkQualityPagePanel();
       if (debugCacheCaptureTimer !== null) {
         clearInterval(debugCacheCaptureTimer);
         debugCacheCaptureTimer = null;

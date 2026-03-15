@@ -2,6 +2,7 @@
 import { logger } from '../../core/services/LoggerService';
 import { checkLatestRelease } from '../../core/services/UpdateService';
 import { StorageKeys } from '../../core/types/common';
+import { networkQualityMonitor } from '../../features/networkQuality/monitor';
 import type { StarredMessage, StarredMessagesData } from '../../features/timeline/starredTypes';
 
 const FETCH_INTERCEPTOR_SCRIPT_ID = 'gm-fetch-interceptor';
@@ -51,6 +52,10 @@ type UpdateCheckRequest = {
 type UpdateOpenRequest = {
   type: 'gm.update.open';
   url?: unknown;
+};
+
+type NetworkQualityProbeNowRequest = {
+  type: 'gm.networkQuality.probeNow';
 };
 
 type DebugIngestRequest = {
@@ -118,6 +123,8 @@ const isUpdateCheckRequest = (message: unknown): message is UpdateCheckRequest =
   isRecord(message) && message.type === 'gm.update.check';
 const isUpdateOpenRequest = (message: unknown): message is UpdateOpenRequest =>
   isRecord(message) && message.type === 'gm.update.open';
+const isNetworkQualityProbeNowRequest = (message: unknown): message is NetworkQualityProbeNowRequest =>
+  isRecord(message) && message.type === 'gm.networkQuality.probeNow';
 
 const isDebugMessageRequest = (message: unknown): message is DebugMessageRequest =>
   isRecord(message) && typeof message.type === 'string' && message.type.startsWith('gm.debug.');
@@ -394,6 +401,7 @@ void (async () => {
     scheduleDebugFileFlush();
 
     await registerFetchInterceptor();
+    await networkQualityMonitor.init();
   } catch (error) {
     logger.error('Failed to initialize background worker', {
       error: getErrorMessage(error),
@@ -405,10 +413,21 @@ chrome.runtime.onInstalled.addListener(() => {
   logger.info('GeminiMate Extension Installed');
   debugService.log('background', 'extension-installed');
   void registerFetchInterceptor();
+  void networkQualityMonitor.init();
+});
+
+chrome.runtime.onStartup.addListener(() => {
+  networkQualityMonitor.handleStartup();
+});
+
+chrome.alarms?.onAlarm.addListener((alarm) => {
+  networkQualityMonitor.handleAlarm(alarm);
 });
 
 chrome.storage.onChanged.addListener((changes, areaName) => {
   if (areaName !== 'local') return;
+
+  networkQualityMonitor.handleStorageChanged(changes, areaName);
 
   if (changes[StorageKeys.WATERMARK_REMOVER_ENABLED]) {
     void registerFetchInterceptor();
@@ -725,6 +744,10 @@ chrome.runtime.onMessage.addListener((message: unknown, _sender, sendResponse) =
       });
 
     return true;
+  }
+
+  if (isNetworkQualityProbeNowRequest(message)) {
+    return networkQualityMonitor.requestProbeNow(sendResponse);
   }
 
   if (isThoughtTranslationRequest(message)) {
