@@ -1,6 +1,10 @@
 import { debugService } from '@/core/services/DebugService';
 import { StorageKeys } from '@/core/types/common';
 import {
+  isModelResponseComplete,
+  isNodeInModelResponse as isNodeInModelResponseLifecycle,
+} from '@/core/utils/responseLifecycle';
+import {
   isManagedThoughtContainerState,
   selectThoughtContainersForCleanup,
 } from './containerOwnership';
@@ -308,6 +312,7 @@ const isThoughtTranslationDisplayReady = (
   return shouldDisplayThoughtTranslation({
     hasReadyTranslation,
     hasResponseBodyContent: hasMeaningfulResponseBodyContent(findResponseBodyBlock(container)),
+    hasResponseCompleted: isModelResponseComplete(container),
   });
 };
 
@@ -1476,25 +1481,34 @@ const hasRelevantThoughtMutations = (mutations: MutationRecord[]): boolean =>
   mutations.some((mutation) => {
     if (mutation.type === 'attributes') {
       if (isNodeInTranslationBlock(mutation.target)) return false;
-      return isNodeInThoughtTree(mutation.target);
+      return (
+        isNodeInThoughtTree(mutation.target) ||
+        isNodeInModelResponseLifecycle(mutation.target)
+      );
     }
 
     if (mutation.type === 'characterData') {
       if (isNodeInTranslationBlock(mutation.target)) return false;
-      return isNodeInExpandedThoughtTree(mutation.target);
+      return (
+        isNodeInExpandedThoughtTree(mutation.target) ||
+        isNodeInModelResponseLifecycle(mutation.target)
+      );
     }
 
     if (isNodeInTranslationBlock(mutation.target)) return false;
     if (isNodeInExpandedThoughtTree(mutation.target)) return true;
+    if (isNodeInModelResponseLifecycle(mutation.target)) return true;
 
     for (const node of Array.from(mutation.addedNodes)) {
       if (isNodeInTranslationBlock(node)) continue;
       if (isNodeInExpandedThoughtTree(node)) return true;
+      if (isNodeInModelResponseLifecycle(node)) return true;
     }
 
     for (const node of Array.from(mutation.removedNodes)) {
       if (isNodeInTranslationBlock(node)) continue;
       if (isNodeInExpandedThoughtTree(node)) return true;
+      if (isNodeInModelResponseLifecycle(node)) return true;
     }
 
     return false;

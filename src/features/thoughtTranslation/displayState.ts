@@ -1,6 +1,7 @@
 export type ThoughtTranslationDisplayState = {
   hasReadyTranslation: boolean;
   hasResponseBodyContent: boolean;
+  hasResponseCompleted: boolean;
 };
 
 export type ThoughtTranslationRefreshDisplayState = {
@@ -30,6 +31,7 @@ export const shouldDisplayThoughtTranslation = (
 ): boolean => {
   if (!state.hasReadyTranslation) return false;
   if (!state.hasResponseBodyContent) return false;
+  if (!state.hasResponseCompleted) return false;
   return true;
 };
 

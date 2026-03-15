@@ -1622,7 +1622,7 @@ export default function Popup() {
 
         <div className="mt-4 text-center">
           <p className="text-[10px] text-slate-400 dark:text-white/30 font-medium tracking-wider font-mono">
-            GEMINIMATE_V2.2.1_STABLE
+            GEMINIMATE_V2.3.1_STABLE
           </p>
         </div>
       </div>

@@ -31,12 +31,16 @@ const INPUT_MASK_DIAGNOSTIC_SELECTORS = [
 
 const ULTRA_UPSELL_BLOCK_ATTR = 'data-gm-ultra-upsell-blocked';
 const ULTRA_UPSELL_LABEL_ATTR = 'data-gm-ultra-upsell-label';
+const ULTRA_UPSELL_REMOVED_ATTR = 'data-gm-ultra-upsell-removed';
 const ULTRA_UPSELL_SELECTORS = [
   '.buttons-container.adv-upsell',
   '.buttons-container[class*="adv-upsell"]',
   'span.dynamic-upsell-label',
   '.dynamic-upsell-label',
   '[data-test-id*="upsell-label"]',
+  'g1-dynamic-upsell-button[data-test-id="g1-dynamic-upsell-button"]',
+  'button[data-test-id="bard-g1-dynamic-upsell-menu-button"]',
+  '.upgrade-container.g1-upsell-container.under-input',
 ] as const;
 
 let cleanupObserver: MutationObserver | null = null;
@@ -153,15 +157,42 @@ const markUltraUpsellLabel = (element: Element | null): void => {
 const clearUltraUpsellMarks = (): void => {
   document
     .querySelectorAll<HTMLElement>(
-      `[${ULTRA_UPSELL_BLOCK_ATTR}="1"], [${ULTRA_UPSELL_LABEL_ATTR}="1"]`,
+      `[${ULTRA_UPSELL_BLOCK_ATTR}="1"], [${ULTRA_UPSELL_LABEL_ATTR}="1"], [${ULTRA_UPSELL_REMOVED_ATTR}="1"]`,
     )
     .forEach((node) => {
       node.removeAttribute(ULTRA_UPSELL_BLOCK_ATTR);
       node.removeAttribute(ULTRA_UPSELL_LABEL_ATTR);
+      node.removeAttribute(ULTRA_UPSELL_REMOVED_ATTR);
     });
 };
 
+const removeUltraUpsellRoot = (element: Element | null): void => {
+  if (!(element instanceof HTMLElement)) return;
+  if (!element.isConnected) return;
+  element.setAttribute(ULTRA_UPSELL_REMOVED_ATTR, '1');
+  element.remove();
+};
+
 const resolveUltraUpsellRoot = (node: HTMLElement): HTMLElement => {
+  const dynamicUpsellHost = node.closest<HTMLElement>(
+    'g1-dynamic-upsell-button[data-test-id="g1-dynamic-upsell-button"]',
+  );
+  if (dynamicUpsellHost) {
+    return dynamicUpsellHost;
+  }
+
+  const underInputUpsell = node.closest<HTMLElement>('.upgrade-container.g1-upsell-container.under-input');
+  if (underInputUpsell) {
+    return underInputUpsell;
+  }
+
+  const dynamicUpsellButton = node.closest<HTMLElement>(
+    'button[data-test-id="bard-g1-dynamic-upsell-menu-button"]',
+  );
+  if (dynamicUpsellButton) {
+    return dynamicUpsellButton;
+  }
+
   const topBarUpsell = node.closest<HTMLElement>(
     '.buttons-container.adv-upsell, .buttons-container[class*="adv-upsell"]',
   );
@@ -179,6 +210,18 @@ const applyUltraUpsellCleanup = (): void => {
   ULTRA_UPSELL_SELECTORS.forEach((selector) => {
     document.querySelectorAll(selector).forEach((node) => {
       if (!(node instanceof HTMLElement)) return;
+      if (node.matches('g1-dynamic-upsell-button[data-test-id="g1-dynamic-upsell-button"]')) {
+        removeUltraUpsellRoot(node);
+        return;
+      }
+      if (node.matches('button[data-test-id="bard-g1-dynamic-upsell-menu-button"]')) {
+        removeUltraUpsellRoot(node);
+        return;
+      }
+      if (node.matches('.upgrade-container.g1-upsell-container.under-input')) {
+        removeUltraUpsellRoot(node);
+        return;
+      }
       if (
         !node.matches('.buttons-container.adv-upsell, .buttons-container[class*="adv-upsell"]') &&
         !isExactUltraUpsellLabel(node.textContent ?? '')

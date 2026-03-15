@@ -7,6 +7,14 @@ const MODEL_RESPONSE_ROOT_SELECTOR = [
   '.response-container',
 ].join(', ');
 
+const MODEL_RESPONSE_COMPLETION_ROOT_SELECTOR = [
+  'model-response',
+  '.model-response',
+  '[data-message-author-role="model"]',
+  '[aria-label="Gemini response"]',
+  '.response-container',
+].join(', ');
+
 const STOP_GENERATING_ZH = '\u505c\u6b62\u751f\u6210';
 
 const THOUGHT_TREE_SELECTOR = [
@@ -42,6 +50,18 @@ const resolveElement = (node: Node | Element | null): Element | null => {
   return node.parentElement;
 };
 
+const findModelResponseRoot = (node: Node | Element | null): Element | null => {
+  const element = resolveElement(node);
+  if (!element) return null;
+  return element.closest(MODEL_RESPONSE_ROOT_SELECTOR);
+};
+
+const findModelResponseCompletionRoot = (node: Node | Element | null): Element | null => {
+  const element = resolveElement(node);
+  if (!element) return null;
+  return element.closest(MODEL_RESPONSE_COMPLETION_ROOT_SELECTOR) ?? findModelResponseRoot(element);
+};
+
 export const isNodeInThoughtTree = (node: Node | Element | null): boolean => {
   const element = resolveElement(node);
   if (!element) return false;
@@ -49,9 +69,14 @@ export const isNodeInThoughtTree = (node: Node | Element | null): boolean => {
 };
 
 export const isNodeInModelResponse = (node: Node | Element | null): boolean => {
-  const element = resolveElement(node);
-  if (!element) return false;
-  return element.closest(MODEL_RESPONSE_ROOT_SELECTOR) !== null;
+  return findModelResponseRoot(node) !== null;
+};
+
+export const isModelResponseComplete = (node: Node | Element | null): boolean => {
+  const responseRoot = findModelResponseCompletionRoot(node);
+  if (!responseRoot) return false;
+  if (responseRoot.querySelector(STREAMING_HINT_SELECTOR) !== null) return false;
+  return responseRoot.querySelector('message-actions') !== null;
 };
 
 export const isAnyModelResponseStreaming = (
@@ -62,6 +87,7 @@ export const isAnyModelResponseStreaming = (
 ): boolean => root.querySelector(STREAMING_HINT_SELECTOR) !== null;
 
 export {
+  MODEL_RESPONSE_COMPLETION_ROOT_SELECTOR,
   MODEL_RESPONSE_ROOT_SELECTOR,
   THOUGHT_TREE_SELECTOR,
 };
