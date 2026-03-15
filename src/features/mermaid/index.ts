@@ -397,30 +397,108 @@ const ensureStyles = (): void => {
       background: rgba(15, 23, 42, 0.66);
     }
 
+    @media (prefers-color-scheme: dark) {
+      .gm-mermaid-render-error {
+        color: #94a3b8;
+      }
+
+      .gm-mermaid-render-error strong {
+        color: #e2e8f0;
+      }
+
+      .gm-mermaid-modal-content {
+        background: rgba(15, 23, 42, 0.94);
+        border-color: rgba(148, 163, 184, 0.18);
+        box-shadow: 0 24px 60px rgba(2, 6, 23, 0.48);
+      }
+
+      .gm-mermaid-modal-close {
+        background: rgba(30, 41, 59, 0.88);
+      }
+    }
+
     .dark-theme .${TOGGLE_CLASS},
     html.dark .${TOGGLE_CLASS},
-    body.dark .${TOGGLE_CLASS} {
+    body.dark .${TOGGLE_CLASS},
+    html[data-theme='dark'] .${TOGGLE_CLASS},
+    body[data-theme='dark'] .${TOGGLE_CLASS},
+    html[data-color-scheme='dark'] .${TOGGLE_CLASS},
+    body[data-color-scheme='dark'] .${TOGGLE_CLASS} {
       background: rgba(15, 23, 42, 0.72);
       border-color: rgba(148, 163, 184, 0.18);
     }
 
     .dark-theme .${TOGGLE_BUTTON_CLASS},
     html.dark .${TOGGLE_BUTTON_CLASS},
-    body.dark .${TOGGLE_BUTTON_CLASS} {
+    body.dark .${TOGGLE_BUTTON_CLASS},
+    html[data-theme='dark'] .${TOGGLE_BUTTON_CLASS},
+    body[data-theme='dark'] .${TOGGLE_BUTTON_CLASS},
+    html[data-color-scheme='dark'] .${TOGGLE_BUTTON_CLASS},
+    body[data-color-scheme='dark'] .${TOGGLE_BUTTON_CLASS} {
       color: rgba(226, 232, 240, 0.88);
     }
 
     .dark-theme .${TOGGLE_BUTTON_CLASS}.active,
     html.dark .${TOGGLE_BUTTON_CLASS}.active,
-    body.dark .${TOGGLE_BUTTON_CLASS}.active {
+    body.dark .${TOGGLE_BUTTON_CLASS}.active,
+    html[data-theme='dark'] .${TOGGLE_BUTTON_CLASS}.active,
+    body[data-theme='dark'] .${TOGGLE_BUTTON_CLASS}.active,
+    html[data-color-scheme='dark'] .${TOGGLE_BUTTON_CLASS}.active,
+    body[data-color-scheme='dark'] .${TOGGLE_BUTTON_CLASS}.active {
       color: #93c5fd;
       background: rgba(59, 130, 246, 0.2);
     }
 
     .dark-theme .${ICON_BUTTON_CLASS},
     html.dark .${ICON_BUTTON_CLASS},
-    body.dark .${ICON_BUTTON_CLASS} {
+    body.dark .${ICON_BUTTON_CLASS},
+    html[data-theme='dark'] .${ICON_BUTTON_CLASS},
+    body[data-theme='dark'] .${ICON_BUTTON_CLASS},
+    html[data-color-scheme='dark'] .${ICON_BUTTON_CLASS},
+    body[data-color-scheme='dark'] .${ICON_BUTTON_CLASS} {
       color: rgba(226, 232, 240, 0.88);
+    }
+
+    .theme-host.dark-theme .gm-mermaid-render-error,
+    html.dark .gm-mermaid-render-error,
+    body.dark .gm-mermaid-render-error,
+    html[data-theme='dark'] .gm-mermaid-render-error,
+    body[data-theme='dark'] .gm-mermaid-render-error,
+    html[data-color-scheme='dark'] .gm-mermaid-render-error,
+    body[data-color-scheme='dark'] .gm-mermaid-render-error {
+      color: #94a3b8;
+    }
+
+    .theme-host.dark-theme .gm-mermaid-render-error strong,
+    html.dark .gm-mermaid-render-error strong,
+    body.dark .gm-mermaid-render-error strong,
+    html[data-theme='dark'] .gm-mermaid-render-error strong,
+    body[data-theme='dark'] .gm-mermaid-render-error strong,
+    html[data-color-scheme='dark'] .gm-mermaid-render-error strong,
+    body[data-color-scheme='dark'] .gm-mermaid-render-error strong {
+      color: #e2e8f0;
+    }
+
+    .theme-host.dark-theme .gm-mermaid-modal-content,
+    html.dark .gm-mermaid-modal-content,
+    body.dark .gm-mermaid-modal-content,
+    html[data-theme='dark'] .gm-mermaid-modal-content,
+    body[data-theme='dark'] .gm-mermaid-modal-content,
+    html[data-color-scheme='dark'] .gm-mermaid-modal-content,
+    body[data-color-scheme='dark'] .gm-mermaid-modal-content {
+      background: rgba(15, 23, 42, 0.94);
+      border-color: rgba(148, 163, 184, 0.18);
+      box-shadow: 0 24px 60px rgba(2, 6, 23, 0.48);
+    }
+
+    .theme-host.dark-theme .gm-mermaid-modal-close,
+    html.dark .gm-mermaid-modal-close,
+    body.dark .gm-mermaid-modal-close,
+    html[data-theme='dark'] .gm-mermaid-modal-close,
+    body[data-theme='dark'] .gm-mermaid-modal-close,
+    html[data-color-scheme='dark'] .gm-mermaid-modal-close,
+    body[data-color-scheme='dark'] .gm-mermaid-modal-close {
+      background: rgba(30, 41, 59, 0.88);
     }
   `;
 

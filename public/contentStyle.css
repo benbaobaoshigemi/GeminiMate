@@ -28,6 +28,18 @@
 
 /* Gemini-like timeline styling with CSS variables and theme awareness */
 :root {
+  --gm-capsule-bg: rgba(239, 246, 255, 0.96);
+  --gm-capsule-bg-hover: rgba(219, 234, 254, 0.98);
+  --gm-capsule-bg-strong: #dbeafe;
+  --gm-capsule-text: #1d4ed8;
+  --gm-capsule-border: rgba(59, 130, 246, 0.45);
+  --gm-capsule-shadow: 0 8px 24px rgba(15, 23, 42, 0.12);
+  --gm-surface: #ffffff;
+  --gm-surface-soft: #f8fbff;
+  --gm-border: #dbe7f5;
+  --gm-border-strong: rgba(59, 130, 246, 0.24);
+  --gm-text: #1f2937;
+  --gm-text-soft: #64748b;
   --timeline-dot-color: #94a3b8;
   --timeline-dot-active-color: #3b82f6;
   --timeline-star-color: #f59e0b;
@@ -65,6 +77,18 @@
 
 @media (prefers-color-scheme: dark) {
   :root {
+    --gm-capsule-bg: rgba(10, 25, 47, 0.92);
+    --gm-capsule-bg-hover: rgba(15, 36, 68, 0.98);
+    --gm-capsule-bg-strong: rgba(30, 64, 175, 0.24);
+    --gm-capsule-text: #93c5fd;
+    --gm-capsule-border: rgba(59, 130, 246, 0.45);
+    --gm-capsule-shadow: 0 8px 24px rgba(2, 6, 23, 0.28);
+    --gm-surface: #1f2937;
+    --gm-surface-soft: #111827;
+    --gm-border: #374151;
+    --gm-border-strong: rgba(96, 165, 250, 0.28);
+    --gm-text: #e5e7eb;
+    --gm-text-soft: #9ca3af;
     --timeline-dot-color: #475569;
     --timeline-dot-active-color: #60a5fa;
     --timeline-star-color: #f59e0b;
@@ -84,6 +108,18 @@
 
 /* Gemini theme support - Overrides system preferences on Gemini site */
 .theme-host.dark-theme {
+  --gm-capsule-bg: rgba(10, 25, 47, 0.92);
+  --gm-capsule-bg-hover: rgba(15, 36, 68, 0.98);
+  --gm-capsule-bg-strong: rgba(30, 64, 175, 0.24);
+  --gm-capsule-text: #93c5fd;
+  --gm-capsule-border: rgba(59, 130, 246, 0.45);
+  --gm-capsule-shadow: 0 8px 24px rgba(2, 6, 23, 0.28);
+  --gm-surface: #1f2937;
+  --gm-surface-soft: #111827;
+  --gm-border: #374151;
+  --gm-border-strong: rgba(96, 165, 250, 0.28);
+  --gm-text: #e5e7eb;
+  --gm-text-soft: #9ca3af;
   --timeline-dot-color: #475569;
   --timeline-dot-active-color: #60a5fa;
   --timeline-star-color: #f59e0b;
@@ -101,6 +137,18 @@
 }
 
 .theme-host.light-theme {
+  --gm-capsule-bg: rgba(239, 246, 255, 0.96);
+  --gm-capsule-bg-hover: rgba(219, 234, 254, 0.98);
+  --gm-capsule-bg-strong: #dbeafe;
+  --gm-capsule-text: #1d4ed8;
+  --gm-capsule-border: rgba(59, 130, 246, 0.45);
+  --gm-capsule-shadow: 0 8px 24px rgba(15, 23, 42, 0.12);
+  --gm-surface: #ffffff;
+  --gm-surface-soft: #f8fbff;
+  --gm-border: #dbe7f5;
+  --gm-border-strong: rgba(59, 130, 246, 0.24);
+  --gm-text: #1f2937;
+  --gm-text-soft: #64748b;
   --timeline-dot-color: #94a3b8;
   --timeline-dot-active-color: #3b82f6;
   --timeline-star-color: #f59e0b;
@@ -2439,14 +2487,14 @@ body.dark-theme .gv-pm-notice.err {
 
 /* CSS Variables for folder theming */
 :root {
-  --folder-bg: #ffffff;
-  --folder-text: #1f2937;
-  --folder-border: #e5e7eb;
-  --folder-hover-bg: #f3f4f6;
-  --folder-active-bg: #e0e7ff;
-  --folder-icon-color: #6b7280;
-  --folder-menu-bg: #ffffff;
-  --folder-menu-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  --folder-bg: var(--gm-surface);
+  --folder-text: var(--gm-text);
+  --folder-border: var(--gm-border);
+  --folder-hover-bg: var(--gm-capsule-bg);
+  --folder-active-bg: var(--gm-capsule-bg-strong);
+  --folder-icon-color: var(--gm-text-soft);
+  --folder-menu-bg: var(--gm-surface);
+  --folder-menu-shadow: var(--gm-capsule-shadow);
   --folder-dragover-bg: #dbeafe;
   --folder-dragover-border: #3b82f6;
   /* Selection colors adapted to shadcn/ui primary (emerald/green) theme */
@@ -2484,14 +2532,14 @@ body.dark-theme .gv-pm-notice.err {
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --folder-bg: #1f2937;
-    --folder-text: #e5e7eb;
-    --folder-border: #374151;
-    --folder-hover-bg: #374151;
-    --folder-active-bg: #1e40af;
-    --folder-icon-color: #9ca3af;
-    --folder-menu-bg: #1f2937;
-    --folder-menu-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+    --folder-bg: var(--gm-surface);
+    --folder-text: var(--gm-text);
+    --folder-border: var(--gm-border);
+    --folder-hover-bg: var(--gm-capsule-bg);
+    --folder-active-bg: var(--gm-capsule-bg-strong);
+    --folder-icon-color: var(--gm-text-soft);
+    --folder-menu-bg: var(--gm-surface);
+    --folder-menu-shadow: var(--gm-capsule-shadow);
     --folder-dragover-bg: #1e3a8a;
     --folder-dragover-border: #60a5fa;
     /* Subtle selection colors for dark mode (shadcn/ui emerald theme) */
@@ -2509,14 +2557,14 @@ body.dark-theme .gv-pm-notice.err {
 /* Theme support - Overrides system preferences on Gemini/AI Studio */
 .theme-host.dark-theme,
 body.dark-theme {
-  --folder-bg: #1f2937;
-  --folder-text: #e5e7eb;
-  --folder-border: #374151;
-  --folder-hover-bg: #374151;
-  --folder-active-bg: #1e40af;
-  --folder-icon-color: #9ca3af;
-  --folder-menu-bg: #1f2937;
-  --folder-menu-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+  --folder-bg: var(--gm-surface);
+  --folder-text: var(--gm-text);
+  --folder-border: var(--gm-border);
+  --folder-hover-bg: var(--gm-capsule-bg);
+  --folder-active-bg: var(--gm-capsule-bg-strong);
+  --folder-icon-color: var(--gm-text-soft);
+  --folder-menu-bg: var(--gm-surface);
+  --folder-menu-shadow: var(--gm-capsule-shadow);
   --folder-dragover-bg: #1e3a8a;
   --folder-dragover-border: #60a5fa;
   /* Subtle selection colors for dark theme (shadcn/ui emerald theme) */
@@ -2532,14 +2580,14 @@ body.dark-theme {
 
 .theme-host.light-theme,
 body.light-theme {
-  --folder-bg: #ffffff;
-  --folder-text: #1f2937;
-  --folder-border: #e5e7eb;
-  --folder-hover-bg: #f3f4f6;
-  --folder-active-bg: #e0e7ff;
-  --folder-icon-color: #6b7280;
-  --folder-menu-bg: #ffffff;
-  --folder-menu-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  --folder-bg: var(--gm-surface);
+  --folder-text: var(--gm-text);
+  --folder-border: var(--gm-border);
+  --folder-hover-bg: var(--gm-capsule-bg);
+  --folder-active-bg: var(--gm-capsule-bg-strong);
+  --folder-icon-color: var(--gm-text-soft);
+  --folder-menu-bg: var(--gm-surface);
+  --folder-menu-shadow: var(--gm-capsule-shadow);
   --folder-dragover-bg: #dbeafe;
   --folder-dragover-border: #3b82f6;
   /* Subtle selection colors for light theme (shadcn/ui emerald theme) */
@@ -3171,7 +3219,7 @@ body.light-theme {
 .gv-folder-menu {
   background-color: var(--folder-menu-bg);
   border: 1px solid var(--folder-border);
-  border-radius: 8px;
+  border-radius: 12px;
   box-shadow: var(--folder-menu-shadow);
   padding: 4px;
   z-index: 2147483647;
@@ -3187,7 +3235,7 @@ body.light-theme {
   color: var(--folder-text);
   text-align: left;
   cursor: pointer;
-  border-radius: 4px;
+  border-radius: 8px;
   font-size: 14px;
   transition: background-color 0.2s;
 }
@@ -3201,7 +3249,7 @@ body.light-theme {
   position: fixed;
   background: var(--folder-menu-bg);
   border: 1px solid var(--folder-border);
-  border-radius: 12px;
+  border-radius: 14px;
   padding: 12px;
   box-shadow: var(--folder-menu-shadow);
   z-index: 10001;
@@ -3348,7 +3396,7 @@ body.light-theme {
 .gv-folder-confirm-dialog {
   background-color: var(--folder-menu-bg);
   border: 1px solid var(--folder-border);
-  border-radius: 8px;
+  border-radius: 14px;
   box-shadow: var(--folder-menu-shadow);
   padding: 12px;
   z-index: 2147483647;
@@ -3415,7 +3463,7 @@ body.light-theme {
 .gv-folder-dialog {
   background-color: var(--folder-menu-bg);
   border: 1px solid var(--folder-border);
-  border-radius: 12px;
+  border-radius: 16px;
   box-shadow: var(--folder-menu-shadow);
   padding: 0;
   min-width: 320px;
@@ -3501,10 +3549,11 @@ body.light-theme {
 /* Custom Tooltip Styles */
 .gv-tooltip {
   position: fixed;
-  background-color: rgba(0, 0, 0, 0.9);
-  color: #fff;
+  background-color: var(--gm-surface);
+  color: var(--gm-text);
   padding: 8px 12px;
-  border-radius: 6px;
+  border-radius: 999px;
+  border: 1px solid var(--gm-border);
   font-size: 13px;
   font-weight: 500;
   max-width: 300px;
@@ -3513,7 +3562,7 @@ body.light-theme {
   pointer-events: none;
   opacity: 0;
   transition: opacity 0.15s ease-in-out;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+  box-shadow: 0 2px 6px rgba(15, 23, 42, 0.06), 0 12px 24px rgba(15, 23, 42, 0.08);
   font-family: 'Google Sans', Roboto, Arial, sans-serif;
 }
 
@@ -3523,8 +3572,8 @@ body.light-theme {
 
 /* Light theme tooltip */
 html[data-color-scheme='light'] .gv-tooltip {
-  background-color: rgba(0, 0, 0, 0.85);
-  color: #fff;
+  background-color: var(--gm-surface);
+  color: var(--gm-text);
 }
 
 /* ==================== Formula Copy Feature ==================== */
@@ -3557,9 +3606,10 @@ html[data-color-scheme='light'] [data-math]:hover {
 /* Copy toast notification */
 .gv-copy-toast {
   position: fixed;
-  color: white;
+  color: var(--gm-text);
   padding: 10px 16px;
-  border-radius: 8px;
+  border-radius: 999px;
+  border: 1px solid var(--gm-border);
   font-size: 14px;
   font-weight: 500;
   z-index: 100000;
@@ -3569,22 +3619,24 @@ html[data-color-scheme='light'] [data-math]:hover {
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   white-space: nowrap;
   font-family: 'Google Sans', Roboto, Arial, sans-serif;
+  background: var(--gm-surface);
+  box-shadow: 0 2px 6px rgba(15, 23, 42, 0.06), 0 12px 24px rgba(15, 23, 42, 0.08);
 }
 
 /* Success state */
 .gv-copy-toast-success {
-  background: linear-gradient(135deg, #34a853 0%, #1e8e3e 100%);
-  box-shadow:
-    0 4px 16px rgba(0, 0, 0, 0.2),
-    0 2px 8px rgba(52, 168, 83, 0.3);
+  background: #f0fdf4;
+  color: #15803d;
+  border-color: rgba(34, 197, 94, 0.35);
+  box-shadow: 0 8px 24px rgba(21, 128, 61, 0.12);
 }
 
 /* Error state */
 .gv-copy-toast-error {
-  background: linear-gradient(135deg, #ea4335 0%, #c5221f 100%);
-  box-shadow:
-    0 4px 16px rgba(0, 0, 0, 0.2),
-    0 2px 8px rgba(234, 67, 53, 0.3);
+  background: #fef2f2;
+  color: #b91c1c;
+  border-color: rgba(239, 68, 68, 0.35);
+  box-shadow: 0 8px 24px rgba(185, 28, 28, 0.12);
 }
 
 .gv-copy-toast-show {
@@ -3610,15 +3662,11 @@ html[data-color-scheme='light'] [data-math]:hover {
 
 /* Light theme toast */
 html[data-color-scheme='light'] .gv-copy-toast-success {
-  box-shadow:
-    0 4px 16px rgba(0, 0, 0, 0.15),
-    0 2px 8px rgba(52, 168, 83, 0.2);
+  box-shadow: 0 8px 24px rgba(21, 128, 61, 0.12);
 }
 
 html[data-color-scheme='light'] .gv-copy-toast-error {
-  box-shadow:
-    0 4px 16px rgba(0, 0, 0, 0.15),
-    0 2px 8px rgba(234, 67, 53, 0.2);
+  box-shadow: 0 8px 24px rgba(185, 28, 28, 0.12);
 }
 
 /* AI Studio formula hover effect - make ms-katex elements clickable */
@@ -4126,12 +4174,13 @@ body.dark-theme .gv-folder-action-btn.gv-filter-active mat-icon,
 
 /* Import dialog */
 .gv-folder-import-dialog {
-  background: white;
+  background: var(--folder-menu-bg);
+  border: 1px solid var(--folder-border);
   border-radius: 16px;
   padding: 24px;
   min-width: 400px;
   max-width: 500px;
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.12);
+  box-shadow: var(--folder-menu-shadow);
   font-family: 'Google Sans', Roboto, Arial, sans-serif;
 }
 
@@ -4183,15 +4232,15 @@ html.dark .gv-folder-import-strategy-label,
   display: flex;
   align-items: center;
   padding: 12px;
-  border: 1px solid #dadce0;
+  border: 1px solid var(--folder-border);
   border-radius: 8px;
   cursor: pointer;
   transition: all 0.2s ease;
 }
 
 .gv-folder-import-radio-option:hover {
-  background-color: #f8f9fa;
-  border-color: #1a73e8;
+  background-color: var(--folder-hover-bg);
+  border-color: var(--gm-capsule-border);
 }
 
 html.dark .gv-folder-import-radio-option,
@@ -4229,9 +4278,9 @@ html.dark .gv-folder-import-radio-option span,
 }
 
 .gv-folder-import-file-button {
-  background: #1a73e8;
-  color: white;
-  border: none;
+  background: var(--gm-capsule-bg);
+  color: var(--gm-capsule-text);
+  border: 1px solid var(--gm-capsule-border);
   padding: 10px 20px;
   border-radius: 8px;
   cursor: pointer;
@@ -4242,7 +4291,7 @@ html.dark .gv-folder-import-radio-option span,
 }
 
 .gv-folder-import-file-button:hover {
-  background: #1765cc;
+  background: var(--gm-capsule-bg-hover);
 }
 
 .gv-folder-import-file-name {
@@ -4284,22 +4333,23 @@ html.dark .gv-folder-import-file-name,
 }
 
 .gv-folder-dialog-btn-primary {
-  background: #1a73e8;
-  color: white;
+  background: var(--gm-capsule-bg);
+  color: var(--gm-capsule-text);
+  border: 1px solid var(--gm-capsule-border);
 }
 
 .gv-folder-dialog-btn-primary:hover {
-  background: #1765cc;
+  background: var(--gm-capsule-bg-hover);
 }
 
 .gv-folder-dialog-btn-secondary {
-  background: transparent;
-  color: #1a73e8;
-  border: 1px solid #dadce0;
+  background: var(--folder-bg);
+  color: var(--gm-capsule-text);
+  border: 1px solid var(--folder-border);
 }
 
 .gv-folder-dialog-btn-secondary:hover {
-  background: #f8f9fa;
+  background: var(--folder-hover-bg);
 }
 
 html.dark .gv-folder-dialog-btn-secondary,
@@ -4321,17 +4371,19 @@ html.dark .gv-folder-dialog-btn-secondary:hover,
   bottom: 24px;
   right: 24px;
   padding: 12px 20px;
-  border-radius: 8px;
+  border-radius: 999px;
   font-size: 14px;
   font-weight: 500;
-  color: white;
+  color: var(--gm-text);
   z-index: 2147483647;
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
+  border: 1px solid var(--gm-border);
+  box-shadow: 0 2px 6px rgba(15, 23, 42, 0.06), 0 12px 24px rgba(15, 23, 42, 0.08);
   opacity: 0;
   transform: translateY(20px);
   transition: all 0.3s ease;
   max-width: 400px;
   font-family: 'Google Sans', Roboto, Arial, sans-serif;
+  background: var(--gm-surface);
 }
 
 .gv-notification.show {
@@ -4340,15 +4392,36 @@ html.dark .gv-folder-dialog-btn-secondary:hover,
 }
 
 .gv-notification-success {
-  background: linear-gradient(135deg, #34a853 0%, #0d652d 100%);
+  background: #f0fdf4;
+  color: #15803d;
+  border-color: rgba(34, 197, 94, 0.35);
 }
 
 .gv-notification-error {
-  background: linear-gradient(135deg, #ea4335 0%, #c5221f 100%);
+  background: #fef2f2;
+  color: #b91c1c;
+  border-color: rgba(239, 68, 68, 0.35);
 }
 
 .gv-notification-info {
-  background: linear-gradient(135deg, #1a73e8 0%, #1765cc 100%);
+  background: var(--gm-surface);
+  color: var(--gm-text);
+  border-color: var(--gm-border);
+}
+
+html.dark .gv-tooltip,
+html.dark .gv-copy-toast,
+html.dark .gv-notification,
+[data-theme='dark'] .gv-tooltip,
+[data-theme='dark'] .gv-copy-toast,
+[data-theme='dark'] .gv-notification,
+[data-color-scheme='dark'] .gv-tooltip,
+[data-color-scheme='dark'] .gv-copy-toast,
+[data-color-scheme='dark'] .gv-notification {
+  background: var(--gm-surface);
+  color: var(--gm-text);
+  border-color: var(--gm-border);
+  box-shadow: 0 2px 6px rgba(2, 6, 23, 0.22), 0 12px 24px rgba(2, 6, 23, 0.28);
 }
 
 /* ==========================================================================
@@ -4357,12 +4430,12 @@ html.dark .gv-folder-dialog-btn-secondary:hover,
 
 
 .gv-export-dialog-overlay {
-  --gv-export-surface: #ffffff;
-  --gv-export-surface-strong: #f8fafc;
-  --gv-export-border: #e2e8f0;
-  --gv-export-border-strong: #cbd5e1;
-  --gv-export-text: #0f172a;
-  --gv-export-text-soft: #64748b;
+  --gv-export-surface: var(--gm-surface);
+  --gv-export-surface-strong: var(--gm-capsule-bg);
+  --gv-export-border: var(--gm-border);
+  --gv-export-border-strong: var(--gm-capsule-border);
+  --gv-export-text: var(--gm-text);
+  --gv-export-text-soft: var(--gm-text-soft);
   --gv-export-accent: #3b82f6;
   --gv-export-accent-soft: #eff6ff;
   --gv-export-warning-surface: #fefce8;
@@ -4376,8 +4449,7 @@ html.dark .gv-folder-dialog-btn-secondary:hover,
   align-items: center;
   justify-content: center;
   padding: clamp(18px, 3vw, 32px);
-  background: rgba(15, 23, 42, 0.4);
-  backdrop-filter: blur(4px);
+  background: rgba(15, 23, 42, 0.18);
   animation: gv-fade-in 0.15s ease-out;
 }
 
@@ -4391,10 +4463,10 @@ html.dark .gv-folder-dialog-btn-secondary:hover,
   max-height: min(85vh, 800px);
   overflow: auto;
   padding: 24px;
-  border-radius: 12px;
+  border-radius: 16px;
   border: 1px solid var(--gv-export-border);
   background: var(--gv-export-surface);
-  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+  box-shadow: var(--gm-capsule-shadow);
   color: var(--gv-export-text);
   font-family: system-ui, -apple-system, sans-serif;
   animation: gv-export-dialog-rise 0.2s ease-out;
@@ -4418,12 +4490,12 @@ html.dark-theme .gv-export-dialog-overlay,
 body.dark-theme .gv-export-dialog-overlay,
 body[data-theme="dark"] .gv-export-dialog-overlay,
 body[data-color-scheme="dark"] .gv-export-dialog-overlay {
-  --gv-export-surface: #1e293b;
-  --gv-export-surface-strong: #0f172a;
-  --gv-export-border: #334155;
-  --gv-export-border-strong: #475569;
-  --gv-export-text: #f8fafc;
-  --gv-export-text-soft: #94a3b8;
+  --gv-export-surface: var(--gm-surface);
+  --gv-export-surface-strong: var(--gm-capsule-bg);
+  --gv-export-border: var(--gm-border);
+  --gv-export-border-strong: var(--gm-capsule-border);
+  --gv-export-text: var(--gm-text);
+  --gv-export-text-soft: var(--gm-text-soft);
   --gv-export-accent: #3b82f6;
   --gv-export-accent-soft: rgba(59, 130, 246, 0.15);
   --gv-export-warning-surface: rgba(245, 158, 11, 0.1);

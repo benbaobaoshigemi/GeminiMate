@@ -73,11 +73,11 @@ export function createStatusToastManager(
   font-size: 13px;
   line-height: 1.4;
   padding: 10px 12px;
-  border-radius: 10px;
-  border: 1px solid rgba(255, 255, 255, 0.16);
-  background: rgba(10, 14, 28, 0.92);
-  color: #e5efff;
-  box-shadow: 0 10px 20px rgba(0, 0, 0, 0.35);
+  border-radius: 999px;
+  border: 1px solid rgba(59, 130, 246, 0.45);
+  background: rgba(239, 246, 255, 0.96);
+  color: #1d4ed8;
+  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.12);
   opacity: 0;
   transform: translateY(6px);
   transition: opacity 150ms ease, transform 150ms ease;
@@ -86,10 +86,76 @@ export function createStatusToastManager(
   opacity: 1;
   transform: translateY(0);
 }
-.gm-status-toast--info { border-left: 4px solid #4e91ff; }
-.gm-status-toast--warning { border-left: 4px solid #f59e0b; }
-.gm-status-toast--success { border-left: 4px solid #22c55e; }
-.gm-status-toast--error { border-left: 4px solid #ef4444; }
+.gm-status-toast--info { border-color: rgba(59, 130, 246, 0.45); color: #1d4ed8; }
+.gm-status-toast--warning { background: #fffbeb; border-color: rgba(245, 158, 11, 0.35); color: #b45309; }
+.gm-status-toast--success { background: #f0fdf4; border-color: rgba(34, 197, 94, 0.35); color: #15803d; }
+.gm-status-toast--error { background: #fef2f2; border-color: rgba(239, 68, 68, 0.35); color: #b91c1c; }
+@media (prefers-color-scheme: dark) {
+  .gm-status-toast {
+    border-color: rgba(59, 130, 246, 0.45);
+    background: rgba(10, 25, 47, 0.92);
+    color: #93c5fd;
+    box-shadow: 0 8px 24px rgba(2, 6, 23, 0.28);
+  }
+  .gm-status-toast--info { color: #93c5fd; }
+  .gm-status-toast--warning { background: rgba(120, 53, 15, 0.92); color: #fcd34d; border-color: rgba(245, 158, 11, 0.35); }
+  .gm-status-toast--success { background: rgba(20, 83, 45, 0.92); color: #86efac; border-color: rgba(34, 197, 94, 0.35); }
+  .gm-status-toast--error { background: rgba(127, 29, 29, 0.92); color: #fca5a5; border-color: rgba(239, 68, 68, 0.35); }
+}
+.theme-host.dark-theme .gm-status-toast,
+html.dark .gm-status-toast,
+body.dark .gm-status-toast,
+html[data-theme='dark'] .gm-status-toast,
+body[data-theme='dark'] .gm-status-toast,
+html[data-color-scheme='dark'] .gm-status-toast,
+body[data-color-scheme='dark'] .gm-status-toast {
+  border-color: rgba(59, 130, 246, 0.45);
+  background: rgba(10, 25, 47, 0.92);
+  color: #93c5fd;
+  box-shadow: 0 8px 24px rgba(2, 6, 23, 0.28);
+}
+.theme-host.dark-theme .gm-status-toast--info,
+html.dark .gm-status-toast--info,
+body.dark .gm-status-toast--info,
+html[data-theme='dark'] .gm-status-toast--info,
+body[data-theme='dark'] .gm-status-toast--info,
+html[data-color-scheme='dark'] .gm-status-toast--info,
+body[data-color-scheme='dark'] .gm-status-toast--info {
+  color: #93c5fd;
+}
+.theme-host.dark-theme .gm-status-toast--warning,
+html.dark .gm-status-toast--warning,
+body.dark .gm-status-toast--warning,
+html[data-theme='dark'] .gm-status-toast--warning,
+body[data-theme='dark'] .gm-status-toast--warning,
+html[data-color-scheme='dark'] .gm-status-toast--warning,
+body[data-color-scheme='dark'] .gm-status-toast--warning {
+  background: rgba(120, 53, 15, 0.92);
+  color: #fcd34d;
+  border-color: rgba(245, 158, 11, 0.35);
+}
+.theme-host.dark-theme .gm-status-toast--success,
+html.dark .gm-status-toast--success,
+body.dark .gm-status-toast--success,
+html[data-theme='dark'] .gm-status-toast--success,
+body[data-theme='dark'] .gm-status-toast--success,
+html[data-color-scheme='dark'] .gm-status-toast--success,
+body[data-color-scheme='dark'] .gm-status-toast--success {
+  background: rgba(20, 83, 45, 0.92);
+  color: #86efac;
+  border-color: rgba(34, 197, 94, 0.35);
+}
+.theme-host.dark-theme .gm-status-toast--error,
+html.dark .gm-status-toast--error,
+body.dark .gm-status-toast--error,
+html[data-theme='dark'] .gm-status-toast--error,
+body[data-theme='dark'] .gm-status-toast--error,
+html[data-color-scheme='dark'] .gm-status-toast--error,
+body[data-color-scheme='dark'] .gm-status-toast--error {
+  background: rgba(127, 29, 29, 0.92);
+  color: #fca5a5;
+  border-color: rgba(239, 68, 68, 0.35);
+}
 `;
     document.head.appendChild(style);
   };

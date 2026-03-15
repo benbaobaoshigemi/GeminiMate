@@ -23,9 +23,20 @@ type ProbeNowResponse =
   | { ok: false; error: string };
 
 const PROBE_SETTLE_DELAY_MS = 50;
+const PROBE_REQUEST_METHOD = 'HEAD';
 
 const getErrorMessage = (error: unknown): string =>
   error instanceof Error ? error.message : 'unknown_error';
+
+export const createNetworkQualityProbeRequestInit = (
+  signal: AbortSignal,
+): RequestInit => ({
+  method: PROBE_REQUEST_METHOD,
+  cache: 'no-store',
+  credentials: 'omit',
+  redirect: 'follow',
+  signal,
+});
 
 export class NetworkQualityMonitor {
   private snapshot: NetworkQualitySnapshot = createNetworkQualitySnapshot();
@@ -245,13 +256,10 @@ export class NetworkQualityMonitor {
       const timeoutId = setTimeout(() => controller.abort(), this.snapshot.timeoutMs);
 
       try {
-        const response = await fetch(this.snapshot.probeUrl, {
-          method: 'GET',
-          cache: 'no-store',
-          credentials: 'omit',
-          redirect: 'follow',
-          signal: controller.signal,
-        });
+        const response = await fetch(
+          this.snapshot.probeUrl,
+          createNetworkQualityProbeRequestInit(controller.signal),
+        );
         const latencyMs = Math.round(performance.now() - startedPerf);
         sample = {
           timestamp: startedAt,
@@ -274,7 +282,7 @@ export class NetworkQualityMonitor {
           source: 'NetworkQualityMonitor.runProbe',
           trigger,
           url: this.snapshot.probeUrl,
-          method: 'GET',
+          method: PROBE_REQUEST_METHOD,
           credentials: 'omit',
           redirect: 'follow',
           errorName: error instanceof Error ? error.name : typeof error,

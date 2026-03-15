@@ -451,7 +451,7 @@ const ensureStyle = (): void => {
 
     @media (prefers-color-scheme: dark) {
       .${TRANSLATION_CLASS} {
-        background: #000000 !important;
+        background: #0f172a !important;
         border-left-color: rgba(255, 255, 255, 0.14) !important;
       }
 
@@ -474,6 +474,39 @@ const ensureStyle = (): void => {
 
     @media (max-width: 1100px) and (prefers-color-scheme: dark) {
       .${TRANSLATION_CLASS} {
+        border-top-color: rgba(255, 255, 255, 0.14) !important;
+      }
+    }
+
+    .theme-host.dark-theme .${TRANSLATION_CLASS},
+    html.dark .${TRANSLATION_CLASS},
+    body.dark .${TRANSLATION_CLASS},
+    html[data-theme='dark'] .${TRANSLATION_CLASS},
+    body[data-theme='dark'] .${TRANSLATION_CLASS},
+    html[data-color-scheme='dark'] .${TRANSLATION_CLASS},
+    body[data-color-scheme='dark'] .${TRANSLATION_CLASS} {
+      background: #0f172a !important;
+      border-left-color: rgba(255, 255, 255, 0.14) !important;
+    }
+
+    .theme-host.dark-theme .${TRANSLATION_CLASS} .gm-thought-translation-code,
+    html.dark .${TRANSLATION_CLASS} .gm-thought-translation-code,
+    body.dark .${TRANSLATION_CLASS} .gm-thought-translation-code,
+    html[data-theme='dark'] .${TRANSLATION_CLASS} .gm-thought-translation-code,
+    body[data-theme='dark'] .${TRANSLATION_CLASS} .gm-thought-translation-code,
+    html[data-color-scheme='dark'] .${TRANSLATION_CLASS} .gm-thought-translation-code,
+    body[data-color-scheme='dark'] .${TRANSLATION_CLASS} .gm-thought-translation-code {
+      background: rgba(148, 163, 184, 0.18) !important;
+    }
+
+    @media (max-width: 1100px) {
+      .theme-host.dark-theme .${TRANSLATION_CLASS},
+      html.dark .${TRANSLATION_CLASS},
+      body.dark .${TRANSLATION_CLASS},
+      html[data-theme='dark'] .${TRANSLATION_CLASS},
+      body[data-theme='dark'] .${TRANSLATION_CLASS},
+      html[data-color-scheme='dark'] .${TRANSLATION_CLASS},
+      body[data-color-scheme='dark'] .${TRANSLATION_CLASS} {
         border-top-color: rgba(255, 255, 255, 0.14) !important;
       }
     }

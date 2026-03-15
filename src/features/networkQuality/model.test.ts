@@ -133,7 +133,7 @@ describe('network quality model', () => {
     expect(normalized.summary.lastFailureAt).toBe(5_000);
   });
 
-  it('drops legacy persisted streak metadata and rebuilds from the visible window', () => {
+  it('resets incompatible legacy snapshots instead of trusting stale probe history', () => {
     const legacySnapshot = {
       ...createNetworkQualitySnapshot({ windowSize: 3 }),
       schemaVersion: 1,
@@ -156,10 +156,13 @@ describe('network quality model', () => {
 
     const normalized = normalizeNetworkQualitySnapshot(legacySnapshot, { windowSize: 3 });
 
-    expect(normalized.summary.consecutiveFailures).toBe(3);
-    expect(normalized.summary.currentFailureStreakStartedAt).toBe(3_000);
+    expect(normalized.recentSamples).toEqual([]);
+    expect(normalized.lastSample).toBeNull();
+    expect(normalized.lastUpdatedAt).toBeNull();
+    expect(normalized.summary.consecutiveFailures).toBe(0);
+    expect(normalized.summary.currentFailureStreakStartedAt).toBeNull();
     expect(normalized.summary.lastSuccessAt).toBeNull();
-    expect(normalized.summary.lastFailureAt).toBe(5_000);
+    expect(normalized.summary.lastFailureAt).toBeNull();
   });
 
   it('normalizes threshold settings and preserves ascending ranges', () => {

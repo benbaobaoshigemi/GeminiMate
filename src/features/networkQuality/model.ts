@@ -11,7 +11,7 @@ export const DEFAULT_NETWORK_QUALITY_ENABLED = true;
 export const DEFAULT_NETWORK_QUALITY_INTERVAL_MS = 1000;
 export const DEFAULT_NETWORK_QUALITY_TIMEOUT_MS = 3000;
 export const DEFAULT_NETWORK_QUALITY_WINDOW_SIZE = 120;
-export const NETWORK_QUALITY_SNAPSHOT_SCHEMA_VERSION = 2;
+export const NETWORK_QUALITY_SNAPSHOT_SCHEMA_VERSION = 3;
 export const NETWORK_QUALITY_ALARM_NAME = 'gm.network-quality.tick';
 export const NETWORK_QUALITY_ALARM_PERIOD_MINUTES = 0.5;
 export const DEFAULT_NETWORK_QUALITY_THRESHOLDS: NetworkQualityThresholds = {
@@ -402,6 +402,10 @@ export const normalizeNetworkQualitySnapshot = (
     return base;
   }
 
+  if (value.schemaVersion !== NETWORK_QUALITY_SNAPSHOT_SCHEMA_VERSION) {
+    return base;
+  }
+
   const recentSamples = Array.isArray(value.recentSamples)
     ? value.recentSamples
         .map((sample) => normalizeProbeSample(sample))
@@ -420,10 +424,7 @@ export const normalizeNetworkQualitySnapshot = (
       lastUpdatedAt ?? lastSample?.timestamp ?? recentSamples[recentSamples.length - 1]?.timestamp ?? null,
   };
   const windowSummary = summarizeNetworkQualitySamples(next.recentSamples);
-  const persistentState =
-    value.schemaVersion === NETWORK_QUALITY_SNAPSHOT_SCHEMA_VERSION
-      ? normalizePersistentSummaryState(value.summary, windowSummary)
-      : pickPersistentSummaryState(windowSummary);
+  const persistentState = normalizePersistentSummaryState(value.summary, windowSummary);
 
   return {
     ...next,

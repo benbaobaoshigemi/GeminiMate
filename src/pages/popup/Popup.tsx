@@ -222,7 +222,7 @@ const SettingRow = ({
   badge?: string | null;
 }) => (
   <div
-    className={`flex items-center justify-between p-3 rounded-xl bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/5 transition-all hover:bg-slate-100 dark:hover:bg-white/10 ${disabled ? 'opacity-60' : ''}`}
+    className={`flex items-center justify-between p-3 rounded-xl bg-slate-50 dark:bg-[#1b2332] border border-slate-200 dark:border-slate-700 shadow-[0_4px_12px_rgba(15,23,42,0.04)] dark:shadow-[0_6px_16px_rgba(2,6,23,0.16)] transition-all hover:bg-slate-100 dark:hover:bg-[#222c3d] ${disabled ? 'opacity-60' : ''}`}
   >
     <div className="flex items-center gap-3">
       <div className={`p-2 rounded-lg ${checked ? 'bg-blue-500/20 text-blue-400' : 'bg-slate-100 dark:bg-white/10 text-slate-500 dark:text-white/70'}`}>
@@ -277,7 +277,7 @@ const Slider = ({
   const isAtDefault = defaultValue !== undefined && value === defaultValue;
   const thumbSize = 10;
   return (
-    <div className={`p-3 rounded-xl bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/5 transition-all ${disabled ? 'opacity-60' : ''}`}>
+    <div className={`p-3 rounded-xl bg-slate-50 dark:bg-[#1b2332] border border-slate-200 dark:border-slate-700 shadow-[0_4px_12px_rgba(15,23,42,0.04)] dark:shadow-[0_6px_16px_rgba(2,6,23,0.16)] transition-all ${disabled ? 'opacity-60' : ''}`}>
       <div className="flex items-center gap-3 mb-3">
         <div className={`p-2 rounded-lg shrink-0 ${!disabled ? 'bg-blue-500/20 text-blue-400' : 'bg-slate-100 dark:bg-white/10 text-slate-500 dark:text-white/70'}`}>
           <Icon size={16} />
@@ -415,7 +415,7 @@ const RangeThresholdSlider = ({
     [&::-moz-range-thumb]:rounded-full [&::-moz-range-thumb]:bg-white`;
 
   return (
-    <div className="p-3 rounded-xl bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/5 transition-all">
+    <div className="p-3 rounded-xl bg-slate-50 dark:bg-[#1b2332] border border-slate-200 dark:border-slate-700 shadow-[0_4px_12px_rgba(15,23,42,0.04)] dark:shadow-[0_6px_16px_rgba(2,6,23,0.16)] transition-all">
       <div className="flex items-center gap-3 mb-3">
         <div className="p-2 rounded-lg bg-blue-500/20 text-blue-400 shrink-0">
           <Icon size={16} />
@@ -523,7 +523,7 @@ const SectionHeader = ({ icon: Icon, title }: { icon: React.ElementType; title: 
   <div className="flex items-center gap-2 mb-3 mt-6 first:mt-2 px-1">
     <Icon size={14} className="text-blue-400" />
     <h2 className="text-xs font-bold text-blue-400 uppercase tracking-wider">{title}</h2>
-    <div className="h-px bg-gradient-to-r from-blue-400/30 dark:from-blue-500/20 to-transparent flex-1 ml-2" />
+    <div className="h-px bg-slate-200 dark:bg-slate-700/70 flex-1 ml-2" />
   </div>
 );
 
@@ -1039,7 +1039,7 @@ export default function Popup() {
             <h1 className="text-base font-bold text-slate-800 dark:text-white/90">设置</h1>
           </div>
 
-          <div className="bg-white dark:bg-white/[0.02] backdrop-blur-xl border border-slate-200 dark:border-white/10 rounded-2xl p-4 mb-4">
+          <div className="bg-white dark:bg-[#151b28] border border-slate-200 dark:border-slate-700 rounded-2xl p-4 mb-4 shadow-[0_10px_24px_rgba(15,23,42,0.06)] dark:shadow-[0_10px_24px_rgba(2,6,23,0.18)]">
             <SectionHeader icon={Type} title="预置字体方案" />
             <div className="space-y-4">
               <div>
@@ -1086,7 +1086,7 @@ export default function Popup() {
             </div>
           </div>
 
-          <div className="bg-white dark:bg-white/[0.02] backdrop-blur-xl border border-slate-200 dark:border-white/10 rounded-2xl p-4">
+          <div className="bg-white dark:bg-[#151b28] border border-slate-200 dark:border-slate-700 rounded-2xl p-4 shadow-[0_10px_24px_rgba(15,23,42,0.06)] dark:shadow-[0_10px_24px_rgba(2,6,23,0.18)]">
             <SectionHeader icon={Type} title="本地字体导入" />
             <p className="text-xs text-slate-500 dark:text-white/50 mb-4 px-1">
               支持导入 .ttf / .woff / .woff2 / .otf，导入后可在主面板的“字重与字体”中直接选择。
@@ -1160,7 +1160,7 @@ export default function Popup() {
             </div>
           </div>
 
-          <div className="bg-white dark:bg-white/[0.02] backdrop-blur-xl border border-slate-200 dark:border-white/10 rounded-2xl p-4 mt-4">
+          <div className="bg-white dark:bg-[#151b28] border border-slate-200 dark:border-slate-700 rounded-2xl p-4 mt-4 shadow-[0_10px_24px_rgba(15,23,42,0.06)] dark:shadow-[0_10px_24px_rgba(2,6,23,0.18)]">
             <SectionHeader icon={PenTool} title="图表与图形显示" />
             <div className="space-y-2">
               <SettingRow
@@ -1180,7 +1180,7 @@ export default function Popup() {
             </div>
           </div>
 
-          <div className="bg-white dark:bg-white/[0.02] backdrop-blur-xl border border-slate-200 dark:border-white/10 rounded-2xl p-4 mt-4">
+          <div className="bg-white dark:bg-[#151b28] border border-slate-200 dark:border-slate-700 rounded-2xl p-4 mt-4 shadow-[0_10px_24px_rgba(15,23,42,0.06)] dark:shadow-[0_10px_24px_rgba(2,6,23,0.18)]">
             <SectionHeader icon={Clock} title="网络阈值" />
             <div className="space-y-4">
               <RangeThresholdSlider
@@ -1261,7 +1261,7 @@ export default function Popup() {
             </div>
           </div>
 
-          <div className="bg-white dark:bg-white/[0.02] backdrop-blur-xl border border-slate-200 dark:border-white/10 rounded-2xl p-4 mt-4">
+          <div className="bg-white dark:bg-[#151b28] border border-slate-200 dark:border-slate-700 rounded-2xl p-4 mt-4 shadow-[0_10px_24px_rgba(15,23,42,0.06)] dark:shadow-[0_10px_24px_rgba(2,6,23,0.18)]">
             <SectionHeader icon={Zap} title="导出功能" />
             <div className="space-y-2">
               <SettingRow
@@ -1278,7 +1278,7 @@ export default function Popup() {
                 }
               />
               <div
-                className={`p-3 rounded-xl bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/5 ${
+                className={`p-3 rounded-xl bg-slate-50 dark:bg-[#1b2332] border border-slate-200 dark:border-slate-700 shadow-[0_4px_12px_rgba(15,23,42,0.04)] dark:shadow-[0_6px_16px_rgba(2,6,23,0.16)] ${
                   !wordResponseExportEnabled ? 'opacity-60' : ''
                 }`}
               >
@@ -1327,7 +1327,7 @@ export default function Popup() {
             </div>
           </div>
 
-          <div className="bg-white dark:bg-white/[0.02] backdrop-blur-xl border border-slate-200 dark:border-white/10 rounded-2xl p-4 mt-4">
+          <div className="bg-white dark:bg-[#151b28] border border-slate-200 dark:border-slate-700 rounded-2xl p-4 mt-4 shadow-[0_10px_24px_rgba(15,23,42,0.06)] dark:shadow-[0_10px_24px_rgba(2,6,23,0.18)]">
             <SectionHeader icon={Settings} title="调试与诊断" />
             <div className="space-y-2">
               <SettingRow
@@ -1366,7 +1366,7 @@ export default function Popup() {
                 }
                 disabled={!debugModeEnabled}
               />
-              <div className="p-3 rounded-xl bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/5">
+              <div className="p-3 rounded-xl bg-slate-50 dark:bg-[#1b2332] border border-slate-200 dark:border-slate-700 shadow-[0_4px_12px_rgba(15,23,42,0.04)] dark:shadow-[0_6px_16px_rgba(2,6,23,0.16)]">
                 <p className="text-sm font-medium text-slate-800 dark:text-white/90 mb-2">诊断操作</p>
                 <div className="grid grid-cols-2 gap-2">
                   <button
@@ -1412,8 +1412,6 @@ export default function Popup() {
   return (
     <div className="w-[360px] max-h-[600px] overflow-y-auto bg-slate-50 dark:bg-[#0f111a] p-4 text-slate-900 dark:text-white font-sans antialiased selection:bg-blue-500/30">
       <div className="w-full relative">
-        <div className="absolute -top-20 -left-20 w-40 h-40 bg-blue-500/15 rounded-full blur-[60px] pointer-events-none" />
-
         <div className="flex items-center justify-between mb-6 relative z-10 px-1">
           <div className="flex items-center gap-3">
             <div className="w-8 h-8 rounded-xl bg-blue-500 flex items-center justify-center shadow-md shadow-blue-500/25">
@@ -1435,7 +1433,7 @@ export default function Popup() {
           </button>
         </div>
 
-        <div className="relative z-10 bg-white dark:bg-white/[0.02] backdrop-blur-xl border border-slate-200 dark:border-white/10 rounded-2xl p-4 shadow-sm dark:shadow-none">
+        <div className="relative z-10 bg-white dark:bg-[#151b28] border border-slate-200 dark:border-slate-700 rounded-2xl p-4 shadow-[0_10px_24px_rgba(15,23,42,0.06)] dark:shadow-[0_10px_24px_rgba(2,6,23,0.18)]">
           <div className="mb-3 px-1 flex items-center gap-2 min-w-0">
             <Zap size={14} className="text-blue-400 shrink-0" />
             <p className="text-xs font-semibold text-slate-800 dark:text-white/90 shrink-0">
@@ -1509,7 +1507,7 @@ export default function Popup() {
                 )
               }
             />
-            <div className={`p-3 rounded-xl bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/5 transition-all ${!thoughtTranslationEnabled ? 'opacity-60' : ''}`}>
+            <div className={`p-3 rounded-xl bg-slate-50 dark:bg-[#1b2332] border border-slate-200 dark:border-slate-700 shadow-[0_4px_12px_rgba(15,23,42,0.04)] dark:shadow-[0_6px_16px_rgba(2,6,23,0.16)] transition-all ${!thoughtTranslationEnabled ? 'opacity-60' : ''}`}>
               <div className="flex items-center gap-3 mb-3">
                 <div className={`p-2 rounded-lg ${thoughtTranslationEnabled ? 'bg-blue-500/20 text-blue-400' : 'bg-slate-100 dark:bg-white/10 text-slate-500 dark:text-white/70'}`}>
                   <PenTool size={16} />
@@ -1642,7 +1640,7 @@ export default function Popup() {
 
           <SectionHeader icon={Type} title="阅读排版" />
           <div className="space-y-4">
-            <div className="p-3 rounded-xl bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/5">
+            <div className="p-3 rounded-xl bg-slate-50 dark:bg-[#1b2332] border border-slate-200 dark:border-slate-700 shadow-[0_4px_12px_rgba(15,23,42,0.04)] dark:shadow-[0_6px_16px_rgba(2,6,23,0.16)]">
               <div className="flex items-center gap-3 mb-3">
                 <div className="p-2 rounded-lg bg-blue-500/20 text-blue-400 shrink-0">
                   <Type size={16} />
@@ -1757,7 +1755,7 @@ export default function Popup() {
                 )
               }
             />
-            <div className="p-3 rounded-xl bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/5">
+            <div className="p-3 rounded-xl bg-slate-50 dark:bg-[#1b2332] border border-slate-200 dark:border-slate-700 shadow-[0_4px_12px_rgba(15,23,42,0.04)] dark:shadow-[0_6px_16px_rgba(2,6,23,0.16)]">
               <div className="flex items-center gap-3 mb-3">
                 <div className="p-2 rounded-lg bg-blue-500/20 text-blue-400 shrink-0">
                   <PenTool size={16} />
@@ -1795,7 +1793,7 @@ export default function Popup() {
 
           <SectionHeader icon={Zap} title="文本交互" />
           <div className="space-y-2">
-            <div className="p-3 rounded-xl bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/5 transition-all">
+            <div className="p-3 rounded-xl bg-slate-50 dark:bg-[#1b2332] border border-slate-200 dark:border-slate-700 shadow-[0_4px_12px_rgba(15,23,42,0.04)] dark:shadow-[0_6px_16px_rgba(2,6,23,0.16)] transition-all">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3">
                   <div className={`p-2 rounded-lg ${formulaCopyEnabled ? 'bg-blue-500/20 text-blue-400' : 'bg-slate-100 dark:bg-white/10 text-slate-500 dark:text-white/70'}`}>

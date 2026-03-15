@@ -45,25 +45,25 @@ function injectStyles() {
       display: flex;
       align-items: center;
       gap: 6px;
-      padding: 6px 10px;
-      background-color: #1e1e1e;
-      color: #fff;
-      border-radius: 6px;
-      box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+      padding: 6px 12px;
+      background-color: rgba(239, 246, 255, 0.96);
+      color: #1d4ed8;
+      border-radius: 999px;
+      box-shadow: 0 8px 24px rgba(15, 23, 42, 0.12);
       cursor: pointer;
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
       font-size: 13px;
       font-weight: 500;
       transition: all 0.2s ease;
-      border: 1px solid rgba(255,255,255,0.1);
+      border: 1px solid rgba(59, 130, 246, 0.45);
       transform: translateY(0);
       opacity: 1;
       pointer-events: auto;
     }
     .gm-quote-btn:hover {
-      background-color: #2d2d2d;
+      background-color: rgba(219, 234, 254, 0.98);
       transform: translateY(-1px);
-      box-shadow: 0 6px 16px rgba(0,0,0,0.2);
+      box-shadow: 0 10px 28px rgba(15, 23, 42, 0.14);
     }
     .gm-quote-btn svg {
       width: 14px;
@@ -76,25 +76,37 @@ function injectStyles() {
       pointer-events: none;
       visibility: hidden;
     }
-    /* Light mode support */
-    @media (prefers-color-scheme: light) {
+    @media (prefers-color-scheme: dark) {
       .gm-quote-btn {
-        background-color: #fff;
-        color: #1f1f1f;
-        border: 1px solid rgba(0,0,0,0.08);
+        background-color: rgba(10, 25, 47, 0.92);
+        color: #93c5fd;
+        border: 1px solid rgba(59, 130, 246, 0.45);
+        box-shadow: 0 8px 24px rgba(2, 6, 23, 0.28);
       }
       .gm-quote-btn:hover {
-        background-color: #f5f5f5;
+        background-color: rgba(15, 36, 68, 0.98);
       }
     }
-    /* Check for specific theme attributes if Gemini uses them */
-    body[data-theme="light"] .gm-quote-btn {
-      background-color: #fff;
-      color: #1f1f1f;
-      border: 1px solid rgba(0,0,0,0.08);
+    .theme-host.dark-theme .gm-quote-btn,
+    html.dark .gm-quote-btn,
+    body.dark .gm-quote-btn,
+    html[data-theme="dark"] .gm-quote-btn,
+    body[data-theme="dark"] .gm-quote-btn,
+    html[data-color-scheme="dark"] .gm-quote-btn,
+    body[data-color-scheme="dark"] .gm-quote-btn {
+      background-color: rgba(10, 25, 47, 0.92);
+      color: #93c5fd;
+      border: 1px solid rgba(59, 130, 246, 0.45);
+      box-shadow: 0 8px 24px rgba(2, 6, 23, 0.28);
     }
-    body[data-theme="light"] .gm-quote-btn:hover {
-       background-color: #f5f5f5;
+    .theme-host.dark-theme .gm-quote-btn:hover,
+    html.dark .gm-quote-btn:hover,
+    body.dark .gm-quote-btn:hover,
+    html[data-theme="dark"] .gm-quote-btn:hover,
+    body[data-theme="dark"] .gm-quote-btn:hover,
+    html[data-color-scheme="dark"] .gm-quote-btn:hover,
+    body[data-color-scheme="dark"] .gm-quote-btn:hover {
+      background-color: rgba(15, 36, 68, 0.98);
     }
   `;
   document.head.appendChild(style);

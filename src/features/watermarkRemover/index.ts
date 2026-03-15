@@ -66,24 +66,56 @@ function injectStyles(): void {
   width: 32px;
   height: 32px;
   border-radius: 9999px;
-  border: 1px solid rgba(255, 255, 255, 0.35);
-  background: rgba(12, 18, 32, 0.84);
-  color: #ffe08a;
+  border: 1px solid rgba(59, 130, 246, 0.45);
+  background: rgba(239, 246, 255, 0.96);
+  color: #1d4ed8;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   cursor: pointer;
   z-index: 20;
   transition: transform 120ms ease, background-color 120ms ease, box-shadow 120ms ease;
-  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.35);
+  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.12);
 }
 .${BUTTON_CLASS}:hover {
   transform: translateY(-1px) scale(1.03);
-  background: rgba(20, 30, 48, 0.92);
-  box-shadow: 0 6px 14px rgba(0, 0, 0, 0.4);
+  background: rgba(219, 234, 254, 0.98);
+  box-shadow: 0 10px 28px rgba(15, 23, 42, 0.14);
 }
 .${BUTTON_CLASS}:active {
   transform: translateY(0) scale(0.98);
+}
+@media (prefers-color-scheme: dark) {
+  .${BUTTON_CLASS} {
+    border-color: rgba(59, 130, 246, 0.45);
+    background: rgba(10, 25, 47, 0.92);
+    color: #93c5fd;
+    box-shadow: 0 8px 24px rgba(2, 6, 23, 0.28);
+  }
+  .${BUTTON_CLASS}:hover {
+    background: rgba(15, 36, 68, 0.98);
+  }
+}
+.theme-host.dark-theme .${BUTTON_CLASS},
+html.dark .${BUTTON_CLASS},
+body.dark .${BUTTON_CLASS},
+html[data-theme='dark'] .${BUTTON_CLASS},
+body[data-theme='dark'] .${BUTTON_CLASS},
+html[data-color-scheme='dark'] .${BUTTON_CLASS},
+body[data-color-scheme='dark'] .${BUTTON_CLASS} {
+  border-color: rgba(59, 130, 246, 0.45);
+  background: rgba(10, 25, 47, 0.92);
+  color: #93c5fd;
+  box-shadow: 0 8px 24px rgba(2, 6, 23, 0.28);
+}
+.theme-host.dark-theme .${BUTTON_CLASS}:hover,
+html.dark .${BUTTON_CLASS}:hover,
+body.dark .${BUTTON_CLASS}:hover,
+html[data-theme='dark'] .${BUTTON_CLASS}:hover,
+body[data-theme='dark'] .${BUTTON_CLASS}:hover,
+html[data-color-scheme='dark'] .${BUTTON_CLASS}:hover,
+body[data-color-scheme='dark'] .${BUTTON_CLASS}:hover {
+  background: rgba(15, 36, 68, 0.98);
 }
 `;
   document.head.appendChild(style);
