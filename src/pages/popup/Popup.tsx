@@ -2,7 +2,7 @@
 import { Settings, PenTool, Layout, Zap, Clock, Type, ChevronLeft, Upload, Trash2, RefreshCw, ExternalLink, Download } from 'lucide-react';
 
 import { StorageKeys } from '@/core/types/common';
-import { EXTENSION_VERSION } from '@/core/utils/version';
+import { EXTENSION_DISPLAY_VERSION } from '@/core/utils/version';
 import type { CustomFont } from '@/features/layout/customFont';
 import {
   clampLayoutScale,
@@ -1437,7 +1437,7 @@ export default function Popup() {
           <div className="mb-3 px-1 flex items-center gap-2 min-w-0">
             <Zap size={14} className="text-blue-400 shrink-0" />
             <p className="text-xs font-semibold text-slate-800 dark:text-white/90 shrink-0">
-              v{EXTENSION_VERSION}
+              v{EXTENSION_DISPLAY_VERSION}
             </p>
             <p className="text-[11px] text-slate-500 dark:text-white/50 truncate flex-1">
               {updateMessage}

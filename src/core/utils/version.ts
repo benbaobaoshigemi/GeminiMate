@@ -10,6 +10,7 @@ import manifestChrome from '../../manifest.json';
  * This is the single source of truth for version information
  */
 export const EXTENSION_VERSION = manifestChrome.version;
+export const EXTENSION_DISPLAY_VERSION = manifestChrome.version_name ?? manifestChrome.version;
 
 /**
  * Supported format versions for import/export
