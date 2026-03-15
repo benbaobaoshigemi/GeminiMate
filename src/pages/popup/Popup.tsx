@@ -1193,7 +1193,7 @@ export default function Popup() {
             <SettingRow
               icon={PenTool}
               title="思维链翻译"
-              description="仅翻译 reasoning / thoughts 面板，不改正文"
+              description="思维链输出完成之后进行翻译"
               checked={thoughtTranslationEnabled}
               onChange={(v) =>
                 updateSetting(

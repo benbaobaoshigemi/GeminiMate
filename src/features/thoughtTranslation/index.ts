@@ -1,5 +1,25 @@
 import { debugService } from '@/core/services/DebugService';
 import { StorageKeys } from '@/core/types/common';
+import {
+  isManagedThoughtContainerState,
+  selectThoughtContainersForCleanup,
+} from './containerOwnership';
+import {
+  hasMeaningfulResponseBodyContentState,
+  shouldHideThoughtTranslationDuringRefresh,
+  shouldDisplayThoughtTranslation,
+} from './displayState';
+import { isThoughtContainerActive } from './domState';
+import {
+  resolveThoughtLayoutInsertionMode,
+  resolveThoughtTextEmphasis,
+  type ThoughtTextEmphasis,
+} from './presentationState';
+import { selectActiveThoughtSourceNodes } from './sourceSelection';
+import {
+  normalizeThoughtSourceTextBlock,
+  sanitizeThoughtTranslationArtifacts,
+} from './translationArtifacts';
 
 const STYLE_ID = 'gm-thought-translation-style';
 const LAYOUT_CLASS = 'gm-thought-translation-layout';
@@ -10,6 +30,14 @@ const PROCESSING_ATTR = 'data-gm-thought-processing';
 const SOURCE_ATTR = 'data-gm-thought-source';
 const ERROR_ATTR = 'data-gm-thought-error';
 const MODE_ATTR = 'data-gm-thought-mode';
+const MANAGED_THOUGHT_NODE_SELECTOR = [
+  `.${LAYOUT_CLASS}`,
+  `[${TRANSLATED_ATTR}]`,
+  `[${PROCESSING_ATTR}]`,
+  `[${SOURCE_ATTR}]`,
+  `[${ERROR_ATTR}]`,
+  `[${MODE_ATTR}]`,
+].join(', ');
 
 const THOUGHT_CONTAINER_SELECTORS = [
   '[data-test-id="thoughts-content"]',
@@ -32,6 +60,11 @@ const THOUGHT_TEXT_SELECTORS = [
 
 const THOUGHT_ROOT_SELECTOR =
   '[data-test-id="thoughts-content"], .thoughts-content, .thoughts-content-expanded, .thoughts-streaming, .thoughts-container, .thoughts-wrapper';
+const RESPONSE_CONTENT_SELECTOR = '.response-content';
+const RESPONSE_BODY_SELECTOR = [
+  'structured-content-container.model-response-text',
+  '.model-response-text',
+].join(', ');
 const CODE_BLOCK_ROOT_SELECTOR =
   'pre, code-block, .code-block, [data-test-id*="code-block"], [data-test-id*="code_block"]';
 const NON_TRANSLATABLE_DESCENDANT_SELECTOR = [
@@ -74,6 +107,8 @@ const BLOCK_TRANSLATION_CONCURRENCY = 3;
 const INCOMPLETE_RETRY_BASE_DELAY_MS = 260;
 const INCOMPLETE_RETRY_MAX_DELAY_MS = 2400;
 const TRACE_ENABLED = false;
+const THINKING_DEBUG_TRACE_PREFIX = '[THINKING_DEBUG_TRACE]';
+const THINKING_DEBUG_SAMPLE_MS = 400;
 
 type TranslateResponse =
   | { ok: true; translatedText: string }
@@ -84,6 +119,7 @@ type ThoughtBlock = {
   id: string;
   text: string;
   kind: ThoughtBlockKind;
+  emphasis: ThoughtTextEmphasis;
 };
 type TranslationPayload = {
   sourceNodes: HTMLElement[];
@@ -95,6 +131,11 @@ type RetryState = {
   signature: string;
   attempt: number;
 };
+type CompletedTranslationResult = {
+  signature: string;
+  sourceText: string;
+  html: string;
+};
 
 let started = false;
 let enabled = true;
@@ -105,11 +146,20 @@ const startupTimerIds = new Set<number>();
 const translationCache = new Map<string, string>();
 const translationPartCache = new Map<string, string>();
 const containerVersion = new WeakMap<HTMLElement, number>();
+const sourceTextByContainer = new WeakMap<HTMLElement, string>();
 const pendingPayloadByContainer = new WeakMap<HTMLElement, TranslationPayload>();
 const lastRequestAtByContainer = new WeakMap<HTMLElement, number>();
 const retryTimerByContainer = new WeakMap<HTMLElement, number>();
 const incompleteRetryStateByContainer = new WeakMap<HTMLElement, RetryState>();
+const completedTranslationByContainer = new WeakMap<HTMLElement, CompletedTranslationResult>();
+const processingContainerSet = new WeakSet<HTMLElement>();
+const debugIdByContainer = new WeakMap<HTMLElement, number>();
 let activeTranslationRequests = 0;
+let nextDebugContainerId = 1;
+let lastScheduledTraceAt = 0;
+let suppressedScheduleTraceCount = 0;
+let lastMutationTraceAt = 0;
+let suppressedMutationTraceCount = 0;
 
 const logTrace = (event: string, detail?: Record<string, unknown>): void => {
   if (!TRACE_ENABLED) return;
@@ -117,11 +167,156 @@ const logTrace = (event: string, detail?: Record<string, unknown>): void => {
   console.info('[GM-TRACE][ThoughtTranslation]', event, detail ?? {});
 };
 
+const emitThinkingDebugTrace = (event: string, detail: Record<string, unknown> = {}): void => {
+  console.info(THINKING_DEBUG_TRACE_PREFIX, event, detail);
+};
+
+const getContainerDebugId = (container: HTMLElement): string => {
+  const existing = debugIdByContainer.get(container);
+  if (existing !== undefined) {
+    return `thought-${existing}`;
+  }
+
+  const next = nextDebugContainerId;
+  nextDebugContainerId += 1;
+  debugIdByContainer.set(container, next);
+  return `thought-${next}`;
+};
+
+const getContainerDebugSnapshot = (container: HTMLElement): Record<string, unknown> => {
+  const layout = container.querySelector<HTMLDivElement>(`:scope > .${LAYOUT_CLASS}`);
+  const originalNode = layout?.querySelector<HTMLDivElement>(`:scope > .${ORIGINAL_CLASS}`) ?? null;
+  const translationNode = layout?.querySelector<HTMLDivElement>(`:scope > .${TRANSLATION_CLASS}`) ?? null;
+  const directChildren = Array.from(container.children);
+  const externalChildCount = directChildren.filter(
+    (child) => !(child instanceof HTMLDivElement && child.classList.contains(LAYOUT_CLASS)),
+  ).length;
+  const translationTextLength = normalizeText(translationNode?.textContent || '').length;
+
+  return {
+    containerId: getContainerDebugId(container),
+    className: container.className,
+    translated: completedTranslationByContainer.has(container),
+    processing: processingContainerSet.has(container),
+    mode: container.getAttribute(MODE_ATTR) ?? '',
+    sourceLength: (sourceTextByContainer.get(container) ?? '').length,
+    hasLayout: layout instanceof HTMLDivElement,
+    directChildCount: directChildren.length,
+    externalChildCount,
+    originalChildCount: originalNode?.children.length ?? 0,
+    translationTextLength,
+  };
+};
+
+const traceContainer = (
+  container: HTMLElement,
+  event: string,
+  detail: Record<string, unknown> = {},
+): void => {
+  emitThinkingDebugTrace(event, {
+    ...getContainerDebugSnapshot(container),
+    ...detail,
+  });
+};
+
+const traceScheduledProcess = (reason: string, detail: Record<string, unknown> = {}): void => {
+  const now = Date.now();
+  if (now - lastScheduledTraceAt < THINKING_DEBUG_SAMPLE_MS) {
+    suppressedScheduleTraceCount += 1;
+    return;
+  }
+
+  emitThinkingDebugTrace('process-scheduled', {
+    reason,
+    suppressedCount: suppressedScheduleTraceCount,
+    ...detail,
+  });
+  suppressedScheduleTraceCount = 0;
+  lastScheduledTraceAt = now;
+};
+
 const resolveTranslationMode = (value: unknown): ThoughtTranslationMode =>
   value === 'replace' ? 'replace' : 'compare';
 
 const applyTranslationMode = (container: HTMLElement): void => {
   container.setAttribute(MODE_ATTR, translationMode);
+};
+
+const isManagedThoughtContainer = (container: HTMLElement): boolean =>
+  isManagedThoughtContainerState({
+    hasManagedLayout: container.querySelector(`:scope > .${LAYOUT_CLASS}`) instanceof HTMLDivElement,
+    hasTranslatedAttr: container.hasAttribute(TRANSLATED_ATTR),
+    hasProcessingAttr: container.hasAttribute(PROCESSING_ATTR),
+    hasSourceAttr: container.hasAttribute(SOURCE_ATTR),
+    hasErrorAttr: container.hasAttribute(ERROR_ATTR),
+    hasModeAttr: container.hasAttribute(MODE_ATTR),
+  });
+
+const getManagedThoughtContainers = (): HTMLElement[] => {
+  const containers = new Set<HTMLElement>();
+
+  document.querySelectorAll<HTMLElement>(MANAGED_THOUGHT_NODE_SELECTOR).forEach((node) => {
+    const container = node.matches(THOUGHT_ROOT_SELECTOR)
+      ? node
+      : node.closest<HTMLElement>(THOUGHT_ROOT_SELECTOR);
+    if (!container) return;
+    if (!isManagedThoughtContainer(container)) return;
+    containers.add(container);
+  });
+
+  return Array.from(containers);
+};
+
+const getKnownThoughtContainers = (): HTMLElement[] => {
+  const containers = new Set<HTMLElement>();
+  getThoughtContainers().forEach((container) => containers.add(container));
+  getManagedThoughtContainers().forEach((container) => containers.add(container));
+  return Array.from(containers);
+};
+
+const hasMeaningfulResponseBodyContent = (node: HTMLElement | null): boolean => {
+  if (!node) return false;
+  return hasMeaningfulResponseBodyContentState({
+    textLength: normalizeText(node.textContent || '').length,
+    hasImageLikeContent: node.querySelector('img, video, audio, canvas') !== null,
+    hasTableLikeContent: node.querySelector('table, figure') !== null,
+    hasCodeLikeContent: node.querySelector('pre, code-block, .code-block') !== null,
+  });
+};
+
+const findResponseBodyBlock = (container: HTMLElement): HTMLElement | null => {
+  const responseContent = container.closest<HTMLElement>(RESPONSE_CONTENT_SELECTOR);
+  if (responseContent) {
+    const directBody = Array.from(responseContent.children).find(
+      (child): child is HTMLElement =>
+        child instanceof HTMLElement && child.matches(RESPONSE_BODY_SELECTOR),
+    );
+    if (directBody) return directBody;
+  }
+
+  const responseContainer = container.closest<HTMLElement>(
+    '.response-container-content, .presented-response-container',
+  );
+  if (!responseContainer) return null;
+  return responseContainer.querySelector<HTMLElement>(RESPONSE_BODY_SELECTOR);
+};
+
+const isThoughtTranslationDisplayReady = (
+  container: HTMLElement,
+  hasReadyTranslation: boolean,
+): boolean => {
+  return shouldDisplayThoughtTranslation({
+    hasReadyTranslation,
+    hasResponseBodyContent: hasMeaningfulResponseBodyContent(findResponseBodyBlock(container)),
+  });
+};
+
+const hasDisplayedThoughtTranslation = (container: HTMLElement): boolean => {
+  const translationNode = container.querySelector<HTMLDivElement>(
+    `:scope > .${LAYOUT_CLASS} > .${TRANSLATION_CLASS}`,
+  );
+  if (!(translationNode instanceof HTMLDivElement)) return false;
+  return normalizeText(translationNode.textContent || '').length > 0;
 };
 
 const ensureStyle = (): void => {
@@ -296,16 +491,6 @@ const normalizeCodeText = (value: string): string =>
     .replace(/\u200b/g, '')
     .trim();
 
-const sanitizeTranslationArtifacts = (value: string): string =>
-  value
-    .replace(
-      /([\u4e00-\u9fff\u3002\uff0c\uff1b\uff1a\uff01\uff1f\uff09\u3011])(?:\s*(?:en){2,})(?=\s|$)/gi,
-      '$1',
-    )
-    .replace(/(^|\s)(?:en){2,}(?=\s|$)/gi, '$1')
-    .replace(/[ \t]{2,}/g, ' ')
-    .trim();
-
 const escapeHtml = (value: string): string =>
   value
     .replace(/&/g, '&amp;')
@@ -377,21 +562,23 @@ const resolveThoughtToggleExpanded = (container: HTMLElement): boolean | null =>
 };
 
 const isExpandedThoughtContainer = (container: HTMLElement): boolean => {
-  const explicitExpanded =
-    container.matches('.thoughts-content-expanded') || container.matches('.thoughts-streaming');
-  if (!explicitExpanded) return false;
   const toggleExpanded = resolveThoughtToggleExpanded(container);
   if (toggleExpanded === false) return false;
-  if (container.getAttribute('aria-hidden') === 'true') return false;
-  if (container.hasAttribute('hidden')) return false;
-  if (container.closest('[aria-hidden="true"], [hidden]')) return false;
 
+  const hasManagedLayout = container.querySelector(`:scope > .${LAYOUT_CLASS}`) instanceof HTMLDivElement;
   const computed = window.getComputedStyle(container);
-  if (computed.display === 'none' || computed.visibility === 'hidden') return false;
-
   const rect = container.getBoundingClientRect();
-  const hasGeometry = rect.width > 1 && rect.height > 1;
-  return hasGeometry;
+  return isThoughtContainerActive({
+    hasManagedLayout,
+    hasExpandedClass: container.matches('.thoughts-content-expanded'),
+    toggleExpanded,
+    isAriaHidden: container.getAttribute('aria-hidden') === 'true',
+    isHiddenAttr: container.hasAttribute('hidden'),
+    ancestorHidden: container.closest('[aria-hidden="true"], [hidden]') !== null,
+    isDisplayNone: computed.display === 'none',
+    isVisibilityHidden: computed.visibility === 'hidden',
+    hasGeometry: rect.width > 1 && rect.height > 1,
+  });
 };
 
 const getThoughtSourceNodes = (container: HTMLElement): HTMLElement[] => {
@@ -409,22 +596,77 @@ const getThoughtSourceNodes = (container: HTMLElement): HTMLElement[] => {
     if (candidate.closest(`.${TRANSLATION_CLASS}`)) return false;
     return getElementText(candidate).length > 0;
   });
+  const originalSlotCandidateCount = withText.filter(
+    (candidate) => candidate.closest(`.${ORIGINAL_CLASS}`) !== null,
+  ).length;
 
-  const depthPruned = withText
+  const activeCandidates = selectActiveThoughtSourceNodes(
+    withText.map((candidate) => ({
+      node: candidate,
+      isInOriginalSlot: candidate.closest(`.${ORIGINAL_CLASS}`) !== null,
+    })),
+  );
+
+  const depthPruned = activeCandidates
     .sort((left, right) => getNodeDepth(left) - getNodeDepth(right))
     .filter((candidate, _, all) => !all.some((other) => other !== candidate && other.contains(candidate)));
 
   const ordered = depthPruned.sort(sortByDomOrder);
-  if (ordered.length > 0) return ordered;
+  if (ordered.length > 0) {
+    traceContainer(container, 'source-nodes-selected', {
+      candidateCount: candidates.size,
+      withTextCount: withText.length,
+      originalSlotCandidateCount,
+      selectedCount: ordered.length,
+      selectedTextLength: ordered.reduce((sum, node) => sum + getElementText(node).length, 0),
+    });
+    return ordered;
+  }
 
-  return getElementText(container) ? [container] : [];
+  const fallback = getElementText(container) ? [container] : [];
+  traceContainer(container, 'source-nodes-fallback', {
+    candidateCount: candidates.size,
+    withTextCount: withText.length,
+    originalSlotCandidateCount,
+    selectedCount: fallback.length,
+    selectedTextLength: fallback.reduce((sum, node) => sum + getElementText(node).length, 0),
+  });
+  return fallback;
+};
+
+const cloneWithoutSkippedDescendants = (element: HTMLElement): HTMLElement | null => {
+  const clone = element.cloneNode(true);
+  if (!(clone instanceof HTMLElement)) return null;
+  clone.querySelectorAll(NON_TRANSLATABLE_DESCENDANT_SELECTOR).forEach((node) => node.remove());
+  return clone;
 };
 
 const getTextWithoutSkippedDescendants = (element: HTMLElement): string => {
-  const clone = element.cloneNode(true);
+  const clone = cloneWithoutSkippedDescendants(element);
   if (!(clone instanceof HTMLElement)) return '';
-  clone.querySelectorAll(NON_TRANSLATABLE_DESCENDANT_SELECTOR).forEach((node) => node.remove());
   return normalizeText(clone.textContent || '');
+};
+
+const getTextBlockEmphasis = (element: HTMLElement): ThoughtTextEmphasis => {
+  const clone = cloneWithoutSkippedDescendants(element);
+  if (!(clone instanceof HTMLElement)) return 'normal';
+
+  const fullText = normalizeText(clone.textContent || '');
+  const strongText = normalizeText(
+    Array.from(clone.querySelectorAll('strong, b'))
+      .map((node) => node.textContent || '')
+      .join(' '),
+  );
+  const outsideClone = clone.cloneNode(true);
+  if (!(outsideClone instanceof HTMLElement)) return 'normal';
+  outsideClone.querySelectorAll('strong, b').forEach((node) => node.remove());
+  const textOutsideStrong = normalizeText(outsideClone.textContent || '');
+
+  return resolveThoughtTextEmphasis({
+    fullTextLength: fullText.length,
+    strongTextLength: strongText.length,
+    textOutsideStrongLength: textOutsideStrong.length,
+  });
 };
 
 const resolveCodeBlockNode = (element: HTMLElement): HTMLElement | null => {
@@ -455,13 +697,16 @@ const appendBlock = (
   blockIndex: number,
   rawText: string,
   kind: ThoughtBlockKind = 'text',
+  emphasis: ThoughtTextEmphasis = 'normal',
 ): number => {
-  const text = kind === 'code' ? normalizeCodeText(rawText) : normalizeText(rawText);
+  const text =
+    kind === 'code' ? normalizeCodeText(rawText) : normalizeThoughtSourceTextBlock(rawText);
   if (!text) return blockIndex;
   blocks.push({
     id: `node-${nodeIndex}-block-${blockIndex}`,
     text,
     kind,
+    emphasis: kind === 'code' ? 'normal' : emphasis,
   });
   return blockIndex + 1;
 };
@@ -500,7 +745,14 @@ const appendElementBlocks = (
     }
   }
 
-  return appendBlock(blocks, nodeIndex, blockIndex, getTextWithoutSkippedDescendants(element), 'text');
+  return appendBlock(
+    blocks,
+    nodeIndex,
+    blockIndex,
+    getTextWithoutSkippedDescendants(element),
+    'text',
+    getTextBlockEmphasis(element),
+  );
 };
 
 const buildBlocksForSourceNode = (sourceNode: HTMLElement, nodeIndex: number): ThoughtBlock[] => {
@@ -524,7 +776,14 @@ const buildBlocksForSourceNode = (sourceNode: HTMLElement, nodeIndex: number): T
 
   const fallback = getTextWithoutSkippedDescendants(sourceNode);
   if (!fallback) return [];
-  return [{ id: `node-${nodeIndex}-block-fallback`, text: fallback, kind: 'text' }];
+  return [
+    {
+      id: `node-${nodeIndex}-block-fallback`,
+      text: fallback,
+      kind: 'text',
+      emphasis: getTextBlockEmphasis(sourceNode),
+    },
+  ];
 };
 
 const getSourcePayload = (container: HTMLElement): TranslationPayload | null => {
@@ -563,12 +822,31 @@ const buildCompareHtmlFromBlocks = (
 
       const paragraph = normalizeText(raw);
       if (!paragraph) return '';
-      return `<p>${escapeHtml(paragraph).replace(/\n/g, '<br>')}</p>`;
+      const paragraphHtml = escapeHtml(paragraph).replace(/\n/g, '<br>');
+      if (sourceBlock.emphasis === 'strong') {
+        return `<p><strong>${paragraphHtml}</strong></p>`;
+      }
+      return `<p>${paragraphHtml}</p>`;
     })
     .join('');
 
   return `<div class="gm-thought-translation-content markdown markdown-main-panel">${html}</div>`;
 };
+
+const resolveTopLevelSourceAnchor = (
+  container: HTMLElement,
+  sourceNodes: HTMLElement[],
+): HTMLElement | null =>
+  sourceNodes.reduce<HTMLElement | null>((resolved, sourceNode) => {
+    if (resolved) return resolved;
+    if (sourceNode === container) return null;
+
+    let current: HTMLElement | null = sourceNode;
+    while (current && current.parentElement !== container) {
+      current = current.parentElement;
+    }
+    return current?.parentElement === container ? current : null;
+  }, null);
 
 const ensureTranslationLayout = (
   container: HTMLElement,
@@ -578,11 +856,56 @@ const ensureTranslationLayout = (
   let layout = container.querySelector<HTMLDivElement>(`:scope > .${LAYOUT_CLASS}`);
   let originalNode = layout?.querySelector<HTMLDivElement>(`:scope > .${ORIGINAL_CLASS}`) ?? null;
   let translationNode = layout?.querySelector<HTMLDivElement>(`:scope > .${TRANSLATION_CLASS}`) ?? null;
+  const hadLayout = layout instanceof HTMLDivElement;
+  const hadOriginalNode = originalNode instanceof HTMLDivElement;
+  const hadTranslationNode = translationNode instanceof HTMLDivElement;
+
+  const incomingSourceNodes = sourceNodes.filter((node) => {
+    if (!(node instanceof HTMLElement)) return false;
+    if (node === container) return false;
+    if (!container.contains(node)) return false;
+    if (node.closest(`.${TRANSLATION_CLASS}`)) return false;
+    return node.closest(`.${ORIGINAL_CLASS}`) === null;
+  });
+  const insertionMode = resolveThoughtLayoutInsertionMode({
+    hasExistingLayout: hadLayout,
+    hasIncomingSourceNodes: incomingSourceNodes.length > 0,
+  });
 
   if (!(layout instanceof HTMLDivElement)) {
     layout = document.createElement('div');
     layout.className = LAYOUT_CLASS;
-    container.appendChild(layout);
+
+    originalNode = document.createElement('div');
+    originalNode.className = ORIGINAL_CLASS;
+    layout.appendChild(originalNode);
+
+    translationNode = document.createElement('div');
+    translationNode.className = TRANSLATION_CLASS;
+    layout.appendChild(translationNode);
+
+    if (incomingSourceNodes.length > 0) {
+      originalNode.replaceChildren(...incomingSourceNodes);
+    } else {
+      sourceNodes.forEach((node) => {
+        if (!(node instanceof HTMLElement)) return;
+        if (node === container) return;
+        if (!container.contains(node)) return;
+        if (node.closest(`.${TRANSLATION_CLASS}`)) return;
+        if (node.parentElement === originalNode) return;
+        originalNode.appendChild(node);
+      });
+    }
+
+    const anchorNode =
+      insertionMode === 'before-first-source'
+        ? resolveTopLevelSourceAnchor(container, incomingSourceNodes)
+        : null;
+    if (anchorNode) {
+      container.insertBefore(layout, anchorNode);
+    } else {
+      container.appendChild(layout);
+    }
   }
 
   if (!(originalNode instanceof HTMLDivElement)) {
@@ -591,13 +914,18 @@ const ensureTranslationLayout = (
     layout.appendChild(originalNode);
   }
 
-  sourceNodes.forEach((node) => {
-    if (!(node instanceof HTMLElement)) return;
-    if (!container.contains(node)) return;
-    if (node.closest(`.${TRANSLATION_CLASS}`)) return;
-    if (node.parentElement === originalNode) return;
-    originalNode.appendChild(node);
-  });
+  if (incomingSourceNodes.length > 0) {
+    originalNode.replaceChildren(...incomingSourceNodes);
+  } else {
+    sourceNodes.forEach((node) => {
+      if (!(node instanceof HTMLElement)) return;
+      if (node === container) return;
+      if (!container.contains(node)) return;
+      if (node.closest(`.${TRANSLATION_CLASS}`)) return;
+      if (node.parentElement === originalNode) return;
+      originalNode.appendChild(node);
+    });
+  }
 
   if (!(translationNode instanceof HTMLDivElement)) {
     translationNode = document.createElement('div');
@@ -605,7 +933,42 @@ const ensureTranslationLayout = (
     layout.appendChild(translationNode);
   }
 
+  traceContainer(container, 'layout-synced', {
+    sourceNodeCount: sourceNodes.length,
+    incomingSourceNodeCount: incomingSourceNodes.length,
+    insertionMode,
+    hadLayout,
+    hadOriginalNode,
+    hadTranslationNode,
+    originalChildCountAfterSync: originalNode.children.length,
+    translationChildCountAfterSync: translationNode.children.length,
+  });
+
   return { originalNode, translationNode };
+};
+
+const hideThoughtTranslationUntilReady = (container: HTMLElement): void => {
+  if (!(container.querySelector(`:scope > .${LAYOUT_CLASS}`) instanceof HTMLDivElement)) return;
+  traceContainer(container, 'translation-hidden-until-ready', {
+    hasReadyTranslation: completedTranslationByContainer.has(container),
+  });
+  restoreOriginalThoughtLayout(container);
+};
+
+const showCompletedThoughtTranslation = (
+  container: HTMLElement,
+  payload: TranslationPayload,
+  completed: CompletedTranslationResult,
+): void => {
+  const { translationNode } = ensureTranslationLayout(container, payload.sourceNodes);
+  translationNode.innerHTML = completed.html;
+  translationNode.removeAttribute(ERROR_ATTR);
+  container.removeAttribute(ERROR_ATTR);
+  container.setAttribute(TRANSLATED_ATTR, '1');
+  traceContainer(container, 'translation-displayed', {
+    blockCount: payload.blocks.length,
+    sourceLength: payload.sourceText.length,
+  });
 };
 
 const restoreOriginalThoughtLayout = (container: HTMLElement): void => {
@@ -619,6 +982,7 @@ const restoreOriginalThoughtLayout = (container: HTMLElement): void => {
     }
   }
   layout.remove();
+  traceContainer(container, 'layout-restored');
 };
 
 const getThoughtContainers = (): HTMLElement[] => {
@@ -657,10 +1021,12 @@ const clearContainerRetryTimer = (container: HTMLElement): void => {
 
 const scheduleContainerRetry = (container: HTMLElement, delayMs: number): void => {
   clearContainerRetryTimer(container);
+  const effectiveDelayMs = Math.max(30, delayMs);
+  traceContainer(container, 'retry-scheduled', { delayMs: effectiveDelayMs });
   const timerId = window.setTimeout(() => {
     retryTimerByContainer.delete(container);
-    scheduleProcess();
-  }, Math.max(30, delayMs));
+    scheduleProcess('retry-timer', { containerId: getContainerDebugId(container), delayMs: effectiveDelayMs });
+  }, effectiveDelayMs);
   retryTimerByContainer.set(container, timerId);
 };
 
@@ -688,11 +1054,15 @@ const resetContainerState = (container: HTMLElement): void => {
   bumpContainerVersion(container);
   clearContainerRetryTimer(container);
   clearIncompleteRetryState(container);
+  processingContainerSet.delete(container);
+  sourceTextByContainer.delete(container);
   pendingPayloadByContainer.delete(container);
+  completedTranslationByContainer.delete(container);
   container.removeAttribute(TRANSLATED_ATTR);
   container.removeAttribute(PROCESSING_ATTR);
   container.removeAttribute(SOURCE_ATTR);
   container.removeAttribute(ERROR_ATTR);
+  traceContainer(container, 'container-state-reset');
 };
 
 const translateText = async (sourceText: string): Promise<string> => {
@@ -723,7 +1093,7 @@ const translateText = async (sourceText: string): Promise<string> => {
       throw new Error(errorMessage || 'translation_failed');
     }
 
-    const translatedPart = normalizeText(sanitizeTranslationArtifacts(response.translatedText));
+    const translatedPart = normalizeText(sanitizeThoughtTranslationArtifacts(response.translatedText));
     if (!translatedPart) {
       throw new Error('translation_empty_chunk');
     }
@@ -741,32 +1111,26 @@ const translateText = async (sourceText: string): Promise<string> => {
   return translated;
 };
 
-const renderTranslationNode = (
-  translationNode: HTMLElement,
+const buildTranslationHtml = (
   sourceBlocks: ThoughtBlock[],
   translatedBlocks: Array<string | null>,
-): void => {
-  translationNode.innerHTML = buildCompareHtmlFromBlocks(sourceBlocks, translatedBlocks);
-  translationNode.removeAttribute(ERROR_ATTR);
-};
+): string => buildCompareHtmlFromBlocks(sourceBlocks, translatedBlocks);
 
 const translatePayloadByBlocks = async (
   container: HTMLElement,
   payload: TranslationPayload,
   version: number,
-  translationNode: HTMLElement,
-): Promise<{ incompleteCount: number }> => {
+): Promise<{ incompleteCount: number; html: string }> => {
   const sourceBlocks = payload.blocks;
   const translatedBlocks: Array<string | null> = sourceBlocks.map((block) =>
     block.kind === 'code' ? block.text : null,
   );
-  renderTranslationNode(translationNode, sourceBlocks, translatedBlocks);
 
   const textBlockIndexes = sourceBlocks
     .map((block, index) => (block.kind === 'text' ? index : -1))
     .filter((index) => index >= 0);
   if (textBlockIndexes.length === 0) {
-    return { incompleteCount: 0 };
+    return { incompleteCount: 0, html: buildTranslationHtml(sourceBlocks, translatedBlocks) };
   }
 
   let incompleteCount = 0;
@@ -789,7 +1153,6 @@ const translatePayloadByBlocks = async (
       if (!blockText) {
         translatedBlocks[index] = '';
         if (getContainerVersion(container) !== version) return;
-        renderTranslationNode(translationNode, sourceBlocks, translatedBlocks);
         continue;
       }
 
@@ -811,114 +1174,193 @@ const translatePayloadByBlocks = async (
       if (getContainerVersion(container) !== version) {
         return;
       }
-      renderTranslationNode(translationNode, sourceBlocks, translatedBlocks);
     }
   };
 
   await Promise.all(Array.from({ length: workerCount }, () => worker()));
 
   if (getContainerVersion(container) !== version) {
-    return { incompleteCount: textBlockIndexes.length };
+    return {
+      incompleteCount: textBlockIndexes.length,
+      html: buildTranslationHtml(sourceBlocks, translatedBlocks),
+    };
   }
 
-  return { incompleteCount };
+  return {
+    incompleteCount,
+    html: buildTranslationHtml(sourceBlocks, translatedBlocks),
+  };
 };
 
 const runTranslationForContainer = (container: HTMLElement, payload: TranslationPayload): void => {
   const now = Date.now();
   const version = bumpContainerVersion(container);
+  const preserveDisplayedTranslation = !shouldHideThoughtTranslationDuringRefresh({
+    hasDisplayedTranslation: hasDisplayedThoughtTranslation(container),
+    isDisplayReady: isThoughtTranslationDisplayReady(container, true),
+  });
   pendingPayloadByContainer.delete(container);
+  completedTranslationByContainer.delete(container);
+  sourceTextByContainer.set(container, payload.sourceText);
+  processingContainerSet.add(container);
   lastRequestAtByContainer.set(container, now);
   activeTranslationRequests += 1;
 
-  container.setAttribute(PROCESSING_ATTR, '1');
-  container.setAttribute(SOURCE_ATTR, payload.sourceText);
-  container.removeAttribute(ERROR_ATTR);
-  applyTranslationMode(container);
-
-  const { translationNode } = ensureTranslationLayout(container, payload.sourceNodes);
-  if (!translationNode.textContent) {
-    translationNode.textContent = '\u7ffb\u8bd1\u4e2d...';
+  if (preserveDisplayedTranslation) {
+    traceContainer(container, 'translation-refresh-preserved-display', {
+      version,
+      sourceNodeCount: payload.sourceNodes.length,
+      blockCount: payload.blocks.length,
+      sourceLength: payload.sourceText.length,
+    });
+  } else {
+    hideThoughtTranslationUntilReady(container);
   }
+  traceContainer(container, 'translation-started', {
+    version,
+    sourceNodeCount: payload.sourceNodes.length,
+    blockCount: payload.blocks.length,
+    sourceLength: payload.sourceText.length,
+    activeTranslationRequests,
+    preserveDisplayedTranslation,
+  });
 
-  void translatePayloadByBlocks(container, payload, version, translationNode)
+  void translatePayloadByBlocks(container, payload, version)
     .then((result) => {
       if (getContainerVersion(container) !== version) return;
 
       if (result.incompleteCount > 0) {
-        container.removeAttribute(TRANSLATED_ATTR);
         pendingPayloadByContainer.set(container, payload);
         scheduleIncompleteRetry(container, payload);
         logTrace('thought-translation-incomplete', {
           incompleteCount: result.incompleteCount,
           blockCount: payload.blocks.length,
         });
+        traceContainer(container, 'translation-incomplete', {
+          version,
+          incompleteCount: result.incompleteCount,
+          blockCount: payload.blocks.length,
+        });
         return;
       }
 
-      container.setAttribute(TRANSLATED_ATTR, '1');
-      container.removeAttribute(ERROR_ATTR);
+      const completed = {
+        signature: payload.signature,
+        sourceText: payload.sourceText,
+        html: result.html,
+      };
+      completedTranslationByContainer.set(container, completed);
       clearIncompleteRetryState(container);
+      if (isThoughtTranslationDisplayReady(container, true)) {
+        showCompletedThoughtTranslation(container, payload, completed);
+      } else {
+        traceContainer(container, 'translation-ready-waiting-for-complete', {
+          version,
+          blockCount: payload.blocks.length,
+          sourceLength: payload.sourceText.length,
+        });
+      }
       logTrace('thought-translation-completed', {
+        blockCount: payload.blocks.length,
+        sourceLength: payload.sourceText.length,
+      });
+      traceContainer(container, 'translation-completed', {
+        version,
         blockCount: payload.blocks.length,
         sourceLength: payload.sourceText.length,
       });
     })
     .catch((error: unknown) => {
       if (getContainerVersion(container) !== version) return;
-      const message = `\u7ffb\u8bd1\u91cd\u8bd5\u4e2d: ${String(error)}`;
-      translationNode.textContent = message;
-      translationNode.setAttribute(ERROR_ATTR, '1');
-      container.setAttribute(ERROR_ATTR, '1');
-      container.removeAttribute(TRANSLATED_ATTR);
       pendingPayloadByContainer.set(container, payload);
       scheduleIncompleteRetry(container, payload);
       logTrace('thought-translation-failed', { error: String(error) });
+      traceContainer(container, 'translation-failed', {
+        version,
+        error: String(error),
+      });
     })
     .finally(() => {
       activeTranslationRequests = Math.max(0, activeTranslationRequests - 1);
-      if (getContainerVersion(container) === version) {
-        container.removeAttribute(PROCESSING_ATTR);
-      }
-      scheduleProcess();
+      processingContainerSet.delete(container);
+      scheduleProcess('translation-finished', {
+        containerId: getContainerDebugId(container),
+        version,
+        activeTranslationRequests,
+      });
     });
 };
 
 const removeAllTranslations = (): void => {
-  THOUGHT_CONTAINER_SELECTORS.forEach((selector) => {
-    document.querySelectorAll<HTMLElement>(selector).forEach((container) => {
-      restoreOriginalThoughtLayout(container);
-      resetContainerState(container);
-      container.removeAttribute(MODE_ATTR);
-    });
+  getKnownThoughtContainers().forEach((container) => {
+    if (!isManagedThoughtContainer(container)) return;
+    restoreOriginalThoughtLayout(container);
+    resetContainerState(container);
+    container.removeAttribute(MODE_ATTR);
   });
 };
 
 const processContainer = (container: HTMLElement): void => {
   const payload = getSourcePayload(container);
-  if (!payload) return;
+  if (!payload) {
+    traceContainer(container, 'process-no-payload');
+    return;
+  }
 
   const previousRetryState = incompleteRetryStateByContainer.get(container);
   if (previousRetryState && previousRetryState.signature !== payload.signature) {
     clearIncompleteRetryState(container);
   }
 
-  const prevSource = container.getAttribute(SOURCE_ATTR) ?? '';
-  const isProcessing = container.getAttribute(PROCESSING_ATTR) === '1';
+  const prevSource = sourceTextByContainer.get(container) ?? '';
+  const isProcessing = processingContainerSet.has(container);
   const now = Date.now();
 
   const sameAsCurrentSource = prevSource === payload.sourceText;
   const hasPendingPayload = pendingPayloadByContainer.has(container);
   const hasIncompleteRetry =
     incompleteRetryStateByContainer.get(container)?.signature === payload.signature;
+  let completed = completedTranslationByContainer.get(container);
+
+  if (completed && completed.signature !== payload.signature) {
+    completedTranslationByContainer.delete(container);
+    completed = undefined;
+  }
+
+  const hasReadyTranslation = completed?.signature === payload.signature;
+  const displayReady = isThoughtTranslationDisplayReady(container, hasReadyTranslation);
+
+  if (hasReadyTranslation) {
+    if (displayReady) {
+      showCompletedThoughtTranslation(container, payload, completed);
+      traceContainer(container, 'process-skip-ready-translation', {
+        blockCount: payload.blocks.length,
+        sourceLength: payload.sourceText.length,
+      });
+    } else {
+      hideThoughtTranslationUntilReady(container);
+      traceContainer(container, 'process-wait-display-complete', {
+        blockCount: payload.blocks.length,
+        sourceLength: payload.sourceText.length,
+      });
+    }
+
+    if (!isProcessing && !hasPendingPayload && !hasIncompleteRetry) {
+      return;
+    }
+  }
 
   if (
-    container.getAttribute(TRANSLATED_ATTR) === '1' &&
+    hasReadyTranslation &&
     !isProcessing &&
     sameAsCurrentSource &&
     !hasPendingPayload &&
     !hasIncompleteRetry
   ) {
+    traceContainer(container, 'process-skip-same-source', {
+      blockCount: payload.blocks.length,
+      sourceLength: payload.sourceText.length,
+    });
     return;
   }
 
@@ -926,21 +1368,42 @@ const processContainer = (container: HTMLElement): void => {
     if (!sameAsCurrentSource) {
       pendingPayloadByContainer.set(container, payload);
     }
+    traceContainer(container, 'process-pending-while-processing', {
+      sameAsCurrentSource,
+      blockCount: payload.blocks.length,
+      sourceLength: payload.sourceText.length,
+    });
     return;
   }
 
   if (activeTranslationRequests >= MAX_CONCURRENT_TRANSLATIONS) {
     pendingPayloadByContainer.set(container, payload);
+    traceContainer(container, 'process-queued-concurrency', {
+      activeTranslationRequests,
+      blockCount: payload.blocks.length,
+      sourceLength: payload.sourceText.length,
+    });
     return;
   }
 
   const lastRequestAt = lastRequestAtByContainer.get(container) ?? 0;
   if (prevSource && !sameAsCurrentSource && now - lastRequestAt < MIN_REQUEST_INTERVAL_MS) {
     pendingPayloadByContainer.set(container, payload);
-    scheduleContainerRetry(container, MIN_REQUEST_INTERVAL_MS - (now - lastRequestAt));
+    const delayMs = MIN_REQUEST_INTERVAL_MS - (now - lastRequestAt);
+    traceContainer(container, 'process-throttled', {
+      blockCount: payload.blocks.length,
+      sourceLength: payload.sourceText.length,
+      delayMs,
+    });
+    scheduleContainerRetry(container, delayMs);
     return;
   }
 
+  traceContainer(container, 'process-run-translation', {
+    blockCount: payload.blocks.length,
+    sourceLength: payload.sourceText.length,
+    sameAsCurrentSource,
+  });
   runTranslationForContainer(container, payload);
 };
 
@@ -951,20 +1414,27 @@ const processThoughts = (): void => {
   }
 
   const containers = getThoughtContainers();
+  const managedContainers = getManagedThoughtContainers();
   logTrace('thought-container-scan', { count: containers.length });
+  emitThinkingDebugTrace('container-scan', {
+    count: containers.length,
+    containerIds: containers.slice(0, 6).map((container) => getContainerDebugId(container)),
+    managedCount: managedContainers.length,
+    managedContainerIds: managedContainers.slice(0, 6).map((container) => getContainerDebugId(container)),
+  });
 
-  document
-    .querySelectorAll<HTMLElement>(`.${TRANSLATION_CLASS}, ${THOUGHT_ROOT_SELECTOR}`)
-    .forEach((node) => {
-      const container = node.matches(THOUGHT_ROOT_SELECTOR)
-        ? node
-        : node.closest<HTMLElement>(THOUGHT_ROOT_SELECTOR);
-      if (container && !containers.includes(container)) {
-        restoreOriginalThoughtLayout(container);
-        resetContainerState(container);
-        container.removeAttribute(MODE_ATTR);
-      }
-    });
+  selectThoughtContainersForCleanup(
+    managedContainers.map((container) => ({
+      container,
+      isActive: containers.includes(container),
+      isManaged: true,
+    })),
+  ).forEach((container) => {
+    traceContainer(container, 'process-cleanup-stale-container');
+    restoreOriginalThoughtLayout(container);
+    resetContainerState(container);
+    container.removeAttribute(MODE_ATTR);
+  });
 
   containers.forEach((container) => processContainer(container));
 };
@@ -1019,12 +1489,46 @@ const hasRelevantThoughtMutations = (mutations: MutationRecord[]): boolean =>
     return false;
   });
 
-const scheduleProcess = (): void => {
+const traceMutationBatch = (mutations: MutationRecord[]): void => {
+  const now = Date.now();
+  if (now - lastMutationTraceAt < THINKING_DEBUG_SAMPLE_MS) {
+    suppressedMutationTraceCount += 1;
+    return;
+  }
+
+  const containerIds = new Set<string>();
+  const mutationTypes = new Set<string>();
+  mutations.forEach((mutation) => {
+    mutationTypes.add(mutation.type);
+    const container = getClosestThoughtContainer(mutation.target);
+    if (container) {
+      containerIds.add(getContainerDebugId(container));
+    }
+  });
+
+  emitThinkingDebugTrace('mutation-batch', {
+    mutationCount: mutations.length,
+    mutationTypes: Array.from(mutationTypes),
+    containerIds: Array.from(containerIds).slice(0, 6),
+    suppressedCount: suppressedMutationTraceCount,
+  });
+  suppressedMutationTraceCount = 0;
+  lastMutationTraceAt = now;
+};
+
+const scheduleProcess = (
+  reason = 'unspecified',
+  detail: Record<string, unknown> = {},
+): void => {
   if (!enabled) {
     removeAllTranslations();
     return;
   }
 
+  traceScheduledProcess(reason, {
+    hasDebounceTimer: debounceTimer !== null,
+    ...detail,
+  });
   if (debounceTimer !== null) {
     clearTimeout(debounceTimer);
   }
@@ -1039,6 +1543,7 @@ const scheduleWarmupPasses = (): void => {
     const timerId = window.setTimeout(() => {
       startupTimerIds.delete(timerId);
       if (!enabled) return;
+      emitThinkingDebugTrace('warmup-pass', { delayMs: delay });
       processThoughts();
     }, delay);
     startupTimerIds.add(timerId);
@@ -1054,13 +1559,15 @@ const handleStorageChanged = (
   if (!modeChange) return;
 
   translationMode = resolveTranslationMode(modeChange.newValue);
-  document.querySelectorAll<HTMLElement>(THOUGHT_ROOT_SELECTOR).forEach((container) => {
-    applyTranslationMode(container);
+  getKnownThoughtContainers().forEach((container) => {
     bumpContainerVersion(container);
-    container.removeAttribute(PROCESSING_ATTR);
-    container.removeAttribute(TRANSLATED_ATTR);
+    processingContainerSet.delete(container);
+    completedTranslationByContainer.delete(container);
+    sourceTextByContainer.delete(container);
+    restoreOriginalThoughtLayout(container);
+    container.removeAttribute(MODE_ATTR);
   });
-  scheduleProcess();
+  scheduleProcess('storage-mode-change');
 };
 
 export function startThoughtTranslation(): void {
@@ -1068,10 +1575,7 @@ export function startThoughtTranslation(): void {
   ensureStyle();
   chrome.storage.local.get([StorageKeys.THOUGHT_TRANSLATION_MODE], (result) => {
     translationMode = resolveTranslationMode(result[StorageKeys.THOUGHT_TRANSLATION_MODE]);
-    document.querySelectorAll<HTMLElement>(THOUGHT_ROOT_SELECTOR).forEach((container) => {
-      applyTranslationMode(container);
-    });
-    scheduleProcess();
+    scheduleProcess('startup-storage-sync');
   });
 
   chrome.storage.onChanged.removeListener(handleStorageChanged);
@@ -1080,7 +1584,8 @@ export function startThoughtTranslation(): void {
   if (!observer && document.body) {
     observer = new MutationObserver((mutations) => {
       if (!hasRelevantThoughtMutations(mutations)) return;
-      scheduleProcess();
+      traceMutationBatch(mutations);
+      scheduleProcess('mutation-observer', { mutationCount: mutations.length });
     });
     observer.observe(document.body, {
       childList: true,
@@ -1096,7 +1601,7 @@ export function startThoughtTranslation(): void {
     logTrace('start');
   }
 
-  scheduleProcess();
+  scheduleProcess('start-thought-translation');
   scheduleWarmupPasses();
 }
 
@@ -1117,7 +1622,7 @@ export function stopThoughtTranslation(): void {
   startupTimerIds.forEach((timerId) => clearTimeout(timerId));
   startupTimerIds.clear();
 
-  document.querySelectorAll<HTMLElement>(THOUGHT_ROOT_SELECTOR).forEach((container) => {
+  getKnownThoughtContainers().forEach((container) => {
     clearContainerRetryTimer(container);
     clearIncompleteRetryState(container);
   });

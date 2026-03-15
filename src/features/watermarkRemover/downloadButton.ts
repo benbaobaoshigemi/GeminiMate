@@ -38,3 +38,34 @@ export function findNativeDownloadButton(target: EventTarget | null): HTMLButton
 
   return null;
 }
+
+export function findNativeDownloadButtonInContainer(
+  container: ParentNode | null,
+): HTMLButtonElement | null {
+  if (!container) return null;
+
+  const dataTestButton = container.querySelector('button[data-test-id="download-generated-image-button"]');
+  if (dataTestButton instanceof HTMLButtonElement) {
+    return dataTestButton;
+  }
+
+  const hostButton = container.querySelector('download-generated-image-button button');
+  if (hostButton instanceof HTMLButtonElement) {
+    return hostButton;
+  }
+
+  const icon = container.querySelector(DOWNLOAD_ICON_SELECTOR);
+  const buttonFromIcon = icon?.closest('button');
+  if (buttonFromIcon instanceof HTMLButtonElement) {
+    return buttonFromIcon;
+  }
+
+  const buttons = container.querySelectorAll('button');
+  for (const button of buttons) {
+    if (button.querySelector(DOWNLOAD_ICON_SELECTOR)) {
+      return button;
+    }
+  }
+
+  return null;
+}

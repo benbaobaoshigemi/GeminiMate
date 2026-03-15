@@ -21,6 +21,26 @@ import {
   SIDEBAR_EXPANDED_BASELINE_PX,
 } from '../src/features/layout/layoutScale.ts';
 import { resolveThoughtTranslationEnabled } from '../src/features/thoughtTranslation/settings.ts';
+import { isThoughtContainerActive } from '../src/features/thoughtTranslation/domState.ts';
+import {
+  hasMeaningfulResponseBodyContentState,
+  shouldHideThoughtTranslationDuringRefresh,
+  shouldDisplayThoughtTranslation,
+} from '../src/features/thoughtTranslation/displayState.ts';
+import { selectActiveThoughtSourceNodes } from '../src/features/thoughtTranslation/sourceSelection.ts';
+import {
+  isManagedThoughtContainerState,
+  selectThoughtContainersForCleanup,
+} from '../src/features/thoughtTranslation/containerOwnership.ts';
+import {
+  resolveThoughtLayoutInsertionMode,
+  resolveThoughtTextEmphasis,
+} from '../src/features/thoughtTranslation/presentationState.ts';
+import {
+  normalizeThoughtSourceTextBlock,
+  sanitizeThoughtTranslationArtifacts,
+} from '../src/features/thoughtTranslation/translationArtifacts.ts';
+import { resolveWatermarkFetchPlan } from '../src/features/watermarkRemover/fetchStrategy.ts';
 import { isExactUltraUpsellLabel } from '../src/features/uiCleanup/ultraUpsell.ts';
 
 assert.equal(
@@ -157,6 +177,260 @@ assert.equal(
   }),
   false,
   'normal chat view should keep timeline UI available',
+);
+
+assert.equal(
+  isThoughtContainerActive({
+    hasManagedLayout: true,
+    hasExpandedClass: false,
+    toggleExpanded: null,
+    isAriaHidden: false,
+    isHiddenAttr: false,
+    ancestorHidden: false,
+    isDisplayNone: false,
+    isVisibilityHidden: false,
+    hasGeometry: true,
+  }),
+  true,
+  'existing dual-column thought layout should stay active even if expanded class is replaced',
+);
+assert.equal(
+  isThoughtContainerActive({
+    hasManagedLayout: false,
+    hasExpandedClass: false,
+    toggleExpanded: true,
+    isAriaHidden: false,
+    isHiddenAttr: false,
+    ancestorHidden: false,
+    isDisplayNone: false,
+    isVisibilityHidden: false,
+    hasGeometry: true,
+  }),
+  true,
+  'expanded toggle should be sufficient to create the dual-column thought layout on first render',
+);
+assert.equal(
+  isThoughtContainerActive({
+    hasManagedLayout: true,
+    hasExpandedClass: false,
+    toggleExpanded: false,
+    isAriaHidden: false,
+    isHiddenAttr: false,
+    ancestorHidden: false,
+    isDisplayNone: false,
+    isVisibilityHidden: false,
+    hasGeometry: true,
+  }),
+  false,
+  'collapsed toggle should still tear down the dual-column thought layout',
+);
+assert.deepEqual(
+  selectActiveThoughtSourceNodes([
+    { node: 'old-1', isInOriginalSlot: true },
+    { node: 'old-2', isInOriginalSlot: true },
+    { node: 'fresh-1', isInOriginalSlot: false },
+  ]),
+  ['fresh-1'],
+  'streaming updates should prefer fresh source nodes outside the original slot instead of accumulating old snapshots',
+);
+assert.deepEqual(
+  selectActiveThoughtSourceNodes([
+    { node: 'old-1', isInOriginalSlot: true },
+    { node: 'old-2', isInOriginalSlot: true },
+  ]),
+  ['old-1', 'old-2'],
+  'without fresh external source nodes the existing original slot snapshot should remain the active source',
+);
+assert.equal(
+  isManagedThoughtContainerState({
+    hasManagedLayout: false,
+    hasTranslatedAttr: false,
+    hasProcessingAttr: false,
+    hasSourceAttr: false,
+    hasErrorAttr: false,
+    hasModeAttr: false,
+  }),
+  false,
+  'plain thought wrappers without GeminiMate markers should never enter cleanup ownership',
+);
+assert.equal(
+  isManagedThoughtContainerState({
+    hasManagedLayout: true,
+    hasTranslatedAttr: false,
+    hasProcessingAttr: false,
+    hasSourceAttr: false,
+    hasErrorAttr: false,
+    hasModeAttr: false,
+  }),
+  true,
+  'a container with the managed dual-column layout is owned by GeminiMate and must be eligible for cleanup',
+);
+assert.deepEqual(
+  selectThoughtContainersForCleanup([
+    { container: 'wrapper', isActive: false, isManaged: false },
+    { container: 'stale-layout', isActive: false, isManaged: true },
+    { container: 'active-layout', isActive: true, isManaged: true },
+  ]),
+  ['stale-layout'],
+  'cleanup must target only stale managed containers instead of every ancestor wrapper in the thought tree',
+);
+assert.equal(
+  shouldDisplayThoughtTranslation({
+    hasReadyTranslation: false,
+    hasResponseBodyContent: true,
+  }),
+  false,
+  'without a completed translation result the thought tree must not inject any translation DOM',
+);
+assert.equal(
+  shouldDisplayThoughtTranslation({
+    hasReadyTranslation: true,
+    hasResponseBodyContent: false,
+  }),
+  false,
+  'thought translation should stay hidden until the reply body block contains actual content',
+);
+assert.equal(
+  shouldDisplayThoughtTranslation({
+    hasReadyTranslation: true,
+    hasResponseBodyContent: true,
+  }),
+  true,
+  'thought translation should appear as soon as the reply body block contains actual content',
+);
+assert.equal(
+  shouldHideThoughtTranslationDuringRefresh({
+    hasDisplayedTranslation: true,
+    isDisplayReady: true,
+  }),
+  false,
+  'once a completed thought translation is already on screen, background refresh must preserve it instead of tearing the layout down',
+);
+assert.equal(
+  shouldHideThoughtTranslationDuringRefresh({
+    hasDisplayedTranslation: false,
+    isDisplayReady: true,
+  }),
+  true,
+  'the first unfinished translation refresh should still keep the DOM empty until a completed translation is ready',
+);
+assert.equal(
+  shouldHideThoughtTranslationDuringRefresh({
+    hasDisplayedTranslation: true,
+    isDisplayReady: false,
+  }),
+  true,
+  'if the reply body is no longer display-ready, the thought translation must still be hidden',
+);
+assert.equal(
+  resolveThoughtLayoutInsertionMode({
+    hasExistingLayout: false,
+    hasIncomingSourceNodes: true,
+  }),
+  'before-first-source',
+  'the dual-column thought layout should anchor to the first source node instead of being appended to the tail on first display',
+);
+assert.equal(
+  resolveThoughtLayoutInsertionMode({
+    hasExistingLayout: true,
+    hasIncomingSourceNodes: true,
+  }),
+  'keep-existing',
+  'once the layout already exists, re-sync should preserve the existing anchor instead of moving the layout again',
+);
+assert.equal(
+  resolveThoughtLayoutInsertionMode({
+    hasExistingLayout: false,
+    hasIncomingSourceNodes: false,
+  }),
+  'append-tail',
+  'without any incoming source nodes there is no anchor to bind against, so tail append remains the only valid fallback',
+);
+assert.equal(
+  resolveThoughtTextEmphasis({
+    fullTextLength: 18,
+    strongTextLength: 18,
+    textOutsideStrongLength: 0,
+  }),
+  'strong',
+  'a fully bold source paragraph should remain bold in the translated thought output',
+);
+assert.equal(
+  resolveThoughtTextEmphasis({
+    fullTextLength: 24,
+    strongTextLength: 8,
+    textOutsideStrongLength: 16,
+  }),
+  'normal',
+  'mixed normal and bold inline content should not be upcast into a fully bold translated paragraph',
+);
+assert.equal(
+  sanitizeThoughtTranslationArtifacts('你好 〈2026-03-15 02:38〉 zh-CNzh-CN'),
+  '你好 〈2026-03-15 02:38〉',
+  'duplicated target-language tags must be stripped from translated thought output',
+);
+assert.equal(
+  sanitizeThoughtTranslationArtifacts('内容 zh-CN'),
+  '内容',
+  'a trailing standalone target-language tag must not leak into the rendered translation',
+);
+assert.equal(
+  sanitizeThoughtTranslationArtifacts('\\n\\nenen'),
+  '',
+  'escaped newline placeholder blocks and their duplicated en markers must be stripped from translated thought output',
+);
+assert.equal(
+  normalizeThoughtSourceTextBlock('\\n\\n'),
+  '',
+  'source thought blocks that are only escaped newline markers must be dropped before translation',
+);
+assert.deepEqual(
+  resolveWatermarkFetchPlan({
+    sourceUrl: 'https://lh3.googleusercontent.com/example=s1024',
+    hasProcessedBlobUrl: false,
+    hasRenderableImageElement: true,
+  }),
+  ['background-runtime', 'page-fetch', 'rendered-image'],
+  'watermark download must fall back from background fetch to page fetch and finally to the already-rendered image element',
+);
+assert.deepEqual(
+  resolveWatermarkFetchPlan({
+    sourceUrl: 'blob:https://gemini.google.com/abc',
+    hasProcessedBlobUrl: false,
+    hasRenderableImageElement: true,
+  }),
+  ['rendered-image'],
+  'blob-scoped Gemini images cannot go through runtime fetch and must fall back to the rendered image element',
+);
+assert.equal(
+  hasMeaningfulResponseBodyContentState({
+    textLength: 0,
+    hasImageLikeContent: false,
+    hasTableLikeContent: false,
+    hasCodeLikeContent: false,
+  }),
+  false,
+  'empty reply-body placeholders must not count as body content',
+);
+assert.equal(
+  hasMeaningfulResponseBodyContentState({
+    textLength: 18,
+    hasImageLikeContent: false,
+    hasTableLikeContent: false,
+    hasCodeLikeContent: false,
+  }),
+  true,
+  'actual reply-body text should unlock thought translation display',
+);
+assert.equal(
+  hasMeaningfulResponseBodyContentState({
+    textLength: 0,
+    hasImageLikeContent: true,
+    hasTableLikeContent: false,
+    hasCodeLikeContent: false,
+  }),
+  true,
+  'non-text media replies should still count as reply-body content',
 );
 
 console.log('sidebar_search_thought_cleanup_regression: ok');
