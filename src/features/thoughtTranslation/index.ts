@@ -851,6 +851,7 @@ const resolveTopLevelSourceAnchor = (
 const ensureTranslationLayout = (
   container: HTMLElement,
   sourceNodes: HTMLElement[],
+  initialTranslationHtml?: string,
 ): { originalNode: HTMLDivElement; translationNode: HTMLDivElement } => {
   applyTranslationMode(container);
   let layout = container.querySelector<HTMLDivElement>(`:scope > .${LAYOUT_CLASS}`);
@@ -871,6 +872,10 @@ const ensureTranslationLayout = (
     hasExistingLayout: hadLayout,
     hasIncomingSourceNodes: incomingSourceNodes.length > 0,
   });
+  const anchorNode =
+    insertionMode === 'before-first-source'
+      ? resolveTopLevelSourceAnchor(container, incomingSourceNodes)
+      : null;
 
   if (!(layout instanceof HTMLDivElement)) {
     layout = document.createElement('div');
@@ -882,6 +887,9 @@ const ensureTranslationLayout = (
 
     translationNode = document.createElement('div');
     translationNode.className = TRANSLATION_CLASS;
+    if (typeof initialTranslationHtml === 'string') {
+      translationNode.innerHTML = initialTranslationHtml;
+    }
     layout.appendChild(translationNode);
 
     if (incomingSourceNodes.length > 0) {
@@ -897,10 +905,6 @@ const ensureTranslationLayout = (
       });
     }
 
-    const anchorNode =
-      insertionMode === 'before-first-source'
-        ? resolveTopLevelSourceAnchor(container, incomingSourceNodes)
-        : null;
     if (anchorNode) {
       container.insertBefore(layout, anchorNode);
     } else {
@@ -933,6 +937,10 @@ const ensureTranslationLayout = (
     layout.appendChild(translationNode);
   }
 
+  if (typeof initialTranslationHtml === 'string') {
+    translationNode.innerHTML = initialTranslationHtml;
+  }
+
   traceContainer(container, 'layout-synced', {
     sourceNodeCount: sourceNodes.length,
     incomingSourceNodeCount: incomingSourceNodes.length,
@@ -960,8 +968,11 @@ const showCompletedThoughtTranslation = (
   payload: TranslationPayload,
   completed: CompletedTranslationResult,
 ): void => {
-  const { translationNode } = ensureTranslationLayout(container, payload.sourceNodes);
-  translationNode.innerHTML = completed.html;
+  const { translationNode } = ensureTranslationLayout(
+    container,
+    payload.sourceNodes,
+    completed.html,
+  );
   translationNode.removeAttribute(ERROR_ATTR);
   container.removeAttribute(ERROR_ATTR);
   container.setAttribute(TRANSLATED_ATTR, '1');
