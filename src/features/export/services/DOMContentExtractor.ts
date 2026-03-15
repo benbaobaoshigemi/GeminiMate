@@ -3,6 +3,8 @@
  * Extracts rich content from Gemini's DOM structure preserving formatting
  */
 
+import { wrapInlineExportContent } from './inlineExportFormatting';
+
 export interface ExtractedContent {
   text: string;
   html: string;
@@ -616,17 +618,25 @@ export class DOMContentExtractor {
 
         // Emphasis
         if (el.tagName === 'I' || el.tagName === 'EM') {
-          const text = this.normalizeText(el.textContent || '');
-          htmlParts.push(`<em>${this.escapeHtml(text)}</em>`);
-          textParts.push(`*${text}*`);
+          const nested = this.processInlineContent(el as HTMLElement);
+          const wrapped = wrapInlineExportContent('em', nested);
+          htmlParts.push(wrapped.html);
+          textParts.push(wrapped.text);
+          if (wrapped.hasFormulas) {
+            hasFormulas = true;
+          }
           return;
         }
 
         // Strong
         if (el.tagName === 'B' || el.tagName === 'STRONG') {
-          const text = this.normalizeText(el.textContent || '');
-          htmlParts.push(`<strong>${this.escapeHtml(text)}</strong>`);
-          textParts.push(`**${text}**`);
+          const nested = this.processInlineContent(el as HTMLElement);
+          const wrapped = wrapInlineExportContent('strong', nested);
+          htmlParts.push(wrapped.html);
+          textParts.push(wrapped.text);
+          if (wrapped.hasFormulas) {
+            hasFormulas = true;
+          }
           return;
         }
 

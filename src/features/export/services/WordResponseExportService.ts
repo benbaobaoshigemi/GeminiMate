@@ -1,5 +1,6 @@
 import temml from 'temml';
 import { mml2omml } from '@hungknguyen/mathml2omml';
+import { sanitizeMathMlForOmml } from './mathMlSanitizer';
 import type { Buffer } from 'buffer';
 import {
   AlignmentType,
@@ -914,7 +915,7 @@ export class WordResponseExportService {
   }
 
   private static createOmmlComponent(mathElement: Element): ParagraphChild {
-    const mathMarkup = this.ensureMathMlNamespace(mathElement.outerHTML);
+    const mathMarkup = sanitizeMathMlForOmml(this.ensureMathMlNamespace(mathElement.outerHTML));
     const omml = mml2omml(mathMarkup);
     if (!omml || !omml.includes('<m:oMath')) {
       throw new Error('word_formula_omml_conversion_failed');
@@ -922,6 +923,10 @@ export class WordResponseExportService {
 
     const xmlDoc = new DOMParser().parseFromString(omml, 'application/xml');
     if (xmlDoc.getElementsByTagName('parsererror').length > 0 || !xmlDoc.documentElement) {
+      console.error('[VIBE_DEBUG_TRACE][WORD_EXPORT_OMML_PARSE_FAILED]', {
+        mathMarkup,
+        omml,
+      });
       throw new Error('word_formula_omml_parse_failed');
     }
 

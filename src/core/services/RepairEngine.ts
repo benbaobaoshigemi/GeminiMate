@@ -4,6 +4,7 @@ import { StorageKeys } from '../types/common';
 import { isNodeInModelResponse, isNodeInThoughtTree } from '../utils/responseLifecycle';
 import { debugService } from './DebugService';
 import { logger } from './LoggerService';
+import { findSplitMarkdownBoldRanges } from './markdownSplitBold';
 
 const RE_MATH = /(\$\$[\s\S]*?\$\$)|(\$((?:\\\$|[^$])+?)\$)/g;
 const INLINE_MATH_HTML_REGEX = /\$((?:\\\$|[^$])+?)\$/g;
@@ -813,6 +814,7 @@ export class RepairEngine {
 
   private repairMarkdown(container: HTMLElement): void {
     const boldStyle = this.getMarkdownEmphasisStyle();
+    this.repairSplitMarkdownRanges(container, boldStyle);
     const walker = document.createTreeWalker(container, NodeFilter.SHOW_TEXT);
     const textNodes: Text[] = [];
     let node = walker.nextNode();
@@ -844,6 +846,186 @@ export class RepairEngine {
       }
       this.applyEmphasisToElement(b, false, boldStyle);
     });
+  }
+
+  private repairSplitMarkdownRanges(container: HTMLElement, boldStyle: string): void {
+    const parents = [
+      container,
+      ...Array.from(container.querySelectorAll('*')),
+    ].filter((node): node is HTMLElement => node instanceof HTMLElement);
+    let changed = false;
+
+    parents.forEach((parent) => {
+      if (this.shouldSkipMarkdownContainer(parent)) return;
+      while (this.rewriteSplitMarkdownInParent(parent, boldStyle)) {
+        changed = true;
+      }
+    });
+
+    if (changed) {
+      container.normalize();
+    }
+  }
+
+  private shouldSkipMarkdownContainer(container: HTMLElement): boolean {
+    if (container.closest(`pre, code, .code-block, code-block, .${DONE_CLASS}`)) return true;
+    if (container.closest('.katex, .katex-display, math, svg')) return true;
+    if (
+      container.closest(
+        'a, button, [role="button"], [role="link"], input, textarea, select, option, label, summary, details',
+      )
+    ) {
+      return true;
+    }
+    if (container.closest('[contenteditable="true"], [data-gm-ignore-markdown="1"]')) return true;
+    return false;
+  }
+
+  private rewriteSplitMarkdownInParent(parent: HTMLElement, boldStyle: string): boolean {
+    const childNodes = Array.from(parent.childNodes);
+    if (childNodes.length < 3) {
+      return false;
+    }
+
+    const range = findSplitMarkdownBoldRanges(
+      childNodes.map((node) => ({
+        kind:
+          node.nodeType === Node.TEXT_NODE
+            ? 'text'
+            : this.isMarkdownBridgeNode(node)
+              ? 'bridge'
+              : 'blocked',
+        text: node.nodeType === Node.TEXT_NODE ? node.nodeValue ?? '' : node.textContent ?? '',
+      })),
+    )[0];
+
+    if (!range) {
+      return false;
+    }
+
+    const startNode = childNodes[range.startTokenIndex];
+    const endNode = childNodes[range.endTokenIndex];
+    if (!(startNode instanceof Text) || !(endNode instanceof Text) || startNode === endNode) {
+      return false;
+    }
+    const startText = startNode.nodeValue ?? '';
+    const endText = endNode.nodeValue ?? '';
+    const beforeStart = this.normalizeMathSpacingInText(startText.slice(0, range.startMarkerIndex));
+    const insideStart = startText.slice(range.startMarkerIndex + 2);
+    const insideEnd = endText.slice(0, range.endMarkerIndex);
+    const afterEnd = this.normalizeMathSpacingInText(endText.slice(range.endMarkerIndex + 2));
+
+    const boldNode = document.createElement('b');
+    boldNode.className = `${MD_FIX_CLASS} ${MD_MARK_CLASS}`;
+    this.applyEmphasisToElement(boldNode, true, boldStyle);
+    boldNode.setAttribute('title', 'Markdown Bold Repaired');
+
+    if (beforeStart) {
+      parent.insertBefore(document.createTextNode(beforeStart), startNode);
+    }
+    parent.insertBefore(boldNode, startNode);
+
+    if (insideStart) {
+      boldNode.appendChild(document.createTextNode(insideStart));
+    }
+
+    parent.removeChild(startNode);
+
+    let cursor = boldNode.nextSibling;
+    while (cursor && cursor !== endNode) {
+      const nextSibling = cursor.nextSibling;
+      boldNode.appendChild(cursor);
+      cursor = nextSibling;
+    }
+
+    if (insideEnd) {
+      boldNode.appendChild(document.createTextNode(insideEnd));
+    }
+
+    const afterAnchor = endNode.nextSibling;
+    parent.removeChild(endNode);
+    if (afterEnd) {
+      parent.insertBefore(document.createTextNode(afterEnd), afterAnchor);
+    }
+
+    this.trimMarkdownEdgeWhitespace(boldNode);
+    return true;
+  }
+
+  private isMarkdownBridgeNode(node: Node): boolean {
+    if (!(node instanceof HTMLElement)) {
+      return false;
+    }
+
+    if (
+      node.closest(
+        'pre, code, .code-block, code-block, .katex, .katex-display, math, svg, a, button, [role="button"], [role="link"], input, textarea, select, option, label, summary, details, [contenteditable="true"], [data-gm-ignore-markdown="1"]',
+      )
+    ) {
+      return false;
+    }
+
+    const tag = node.tagName.toUpperCase();
+    return ![
+      'ADDRESS',
+      'ARTICLE',
+      'ASIDE',
+      'BLOCKQUOTE',
+      'DETAILS',
+      'DIV',
+      'DL',
+      'FIELDSET',
+      'FIGCAPTION',
+      'FIGURE',
+      'FOOTER',
+      'FORM',
+      'H1',
+      'H2',
+      'H3',
+      'H4',
+      'H5',
+      'H6',
+      'HEADER',
+      'HR',
+      'LI',
+      'MAIN',
+      'NAV',
+      'OL',
+      'P',
+      'SECTION',
+      'TABLE',
+      'TBODY',
+      'TD',
+      'TFOOT',
+      'TH',
+      'THEAD',
+      'TR',
+      'UL',
+    ].includes(tag);
+  }
+
+  private trimMarkdownEdgeWhitespace(boldNode: HTMLElement): void {
+    const firstChild = boldNode.firstChild;
+    if (firstChild?.nodeType === Node.TEXT_NODE) {
+      const firstTextNode = firstChild as Text;
+      const trimmedLeading = (firstTextNode.nodeValue ?? '').replace(/^[\s\xa0]+/g, '');
+      if (trimmedLeading.length === 0) {
+        boldNode.removeChild(firstTextNode);
+      } else if (trimmedLeading !== firstTextNode.nodeValue) {
+        firstTextNode.nodeValue = trimmedLeading;
+      }
+    }
+
+    const lastChild = boldNode.lastChild;
+    if (lastChild?.nodeType === Node.TEXT_NODE) {
+      const lastTextNode = lastChild as Text;
+      const trimmedTrailing = (lastTextNode.nodeValue ?? '').replace(/[\s\xa0]+$/g, '');
+      if (trimmedTrailing.length === 0) {
+        boldNode.removeChild(lastTextNode);
+      } else if (trimmedTrailing !== lastTextNode.nodeValue) {
+        lastTextNode.nodeValue = trimmedTrailing;
+      }
+    }
   }
 
   private normalizeMathSpacingInText(text: string): string {
