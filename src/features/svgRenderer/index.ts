@@ -748,6 +748,8 @@ const createSvgPreviewDocument = (svgMarkup: string): string => `<!doctype html>
   <body>${svgMarkup}</body>
 </html>`;
 
+import { isModelResponseComplete } from '@/core/utils/responseLifecycle';
+
 const setDiagramMarkup = (
   codeBlockHost: HTMLElement,
   diagramContainer: HTMLElement,
@@ -768,11 +770,7 @@ const setDiagramMarkup = (
 };
 
 const isResponseComplete = (codeBlockHost: HTMLElement): boolean => {
-  const responseEl = codeBlockHost.closest('model-response, .model-response, [data-message-author-role="model"]');
-  if (!responseEl) return true;
-  if (responseEl.querySelector('message-actions')) return true;
-  if (responseEl.querySelector('.deferred-response-indicator')) return false;
-  return false;
+  return isModelResponseComplete(codeBlockHost);
 };
 
 const showDiagramOnly = (codeBlockHost: HTMLElement): void => {

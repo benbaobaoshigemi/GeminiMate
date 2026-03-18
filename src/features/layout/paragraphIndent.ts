@@ -1,9 +1,12 @@
 import { StorageKeys } from '@/core/types/common';
 import {
+  cancelWaitForModelResponsesComplete,
+  createResponseCompletionWaitState,
   isAnyModelResponseStreaming,
   isModelResponseComplete,
   isNodeInModelResponse,
   isNodeInThoughtTree,
+  waitForModelResponsesComplete,
 } from '@/core/utils/responseLifecycle';
 
 const STYLE_ID = 'geminimate-paragraph-indent-style';
@@ -63,8 +66,7 @@ let started = false;
 let enabled = DEFAULT_ENABLED;
 let observer: MutationObserver | null = null;
 let applyTimer: number | null = null;
-let streamCompletionTimer: number | null = null;
-let pendingApplyAfterStreaming = false;
+const responseCompletionWaitState = createResponseCompletionWaitState();
 let storageChangeListener:
   | ((changes: { [key: string]: chrome.storage.StorageChange }, areaName: string) => void)
   | null = null;
@@ -91,12 +93,6 @@ function clearApplyTimer(): void {
   if (applyTimer === null) return;
   clearTimeout(applyTimer);
   applyTimer = null;
-}
-
-function clearStreamCompletionTimer(): void {
-  if (streamCompletionTimer === null) return;
-  clearTimeout(streamCompletionTimer);
-  streamCompletionTimer = null;
 }
 
 function removeIndentMark(el: Element): void {
@@ -242,18 +238,9 @@ function scheduleApply(): void {
 }
 
 function scheduleApplyAfterStreamingCompletes(): void {
-  pendingApplyAfterStreaming = true;
-  if (streamCompletionTimer !== null) return;
-  streamCompletionTimer = window.setTimeout(() => {
-    streamCompletionTimer = null;
-    if (!pendingApplyAfterStreaming) return;
-    if (isAnyModelResponseStreaming()) {
-      scheduleApplyAfterStreamingCompletes();
-      return;
-    }
-    pendingApplyAfterStreaming = false;
+  waitForModelResponsesComplete(responseCompletionWaitState, () => {
     scheduleApply();
-  }, 220);
+  });
 }
 
 function isRelevantMutationNode(node: Node): boolean {
@@ -295,9 +282,6 @@ function setupObserver(): void {
       return;
     }
 
-    if (pendingApplyAfterStreaming) {
-      pendingApplyAfterStreaming = false;
-    }
     scheduleApply();
   });
 
@@ -335,9 +319,8 @@ export function startParagraphIndentAdjuster(): void {
     if (!changes[StorageKeys.GEMINI_PARAGRAPH_INDENT_ENABLED]) return;
     enabled = changes[StorageKeys.GEMINI_PARAGRAPH_INDENT_ENABLED].newValue === true;
     if (!enabled) {
-      pendingApplyAfterStreaming = false;
       clearApplyTimer();
-      clearStreamCompletionTimer();
+      cancelWaitForModelResponsesComplete(responseCompletionWaitState);
       rollbackAll();
       return;
     }
@@ -379,9 +362,8 @@ export function startParagraphIndentAdjuster(): void {
         chrome.storage.onChanged.removeListener(storageChangeListener);
         storageChangeListener = null;
       }
-      pendingApplyAfterStreaming = false;
       clearApplyTimer();
-      clearStreamCompletionTimer();
+      cancelWaitForModelResponsesComplete(responseCompletionWaitState);
       rollbackAll();
       document.getElementById(STYLE_ID)?.remove();
       started = false;

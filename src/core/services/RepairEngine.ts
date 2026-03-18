@@ -2,15 +2,19 @@
 
 import { StorageKeys } from '../types/common';
 import {
+  cancelWaitForModelResponsesComplete,
+  createResponseCompletionWaitState,
   isAnyModelResponseStreaming,
   isModelResponseComplete,
   isNodeInModelResponse,
   isNodeInThoughtTree,
+  waitForModelResponsesComplete,
 } from '../utils/responseLifecycle';
 import { debugService } from './DebugService';
 import {
   collectBlockMathRepairReasons,
   collectInlineMathRepairReasons,
+  type LatexRepairReason,
 } from './latexRepairHeuristics';
 import { logger } from './LoggerService';
 import { findSplitMarkdownBoldRanges } from './markdownSplitBold';
@@ -67,10 +71,10 @@ export class RepairEngine {
   private sourceSnapshots = new WeakMap<HTMLElement, string>();
   private rawSnapshots = new WeakMap<HTMLElement, string>();
   private renderedSnapshots = new WeakMap<HTMLElement, string>();
+  private latexNormalizationHints = new WeakMap<HTMLElement, Map<string, number>>();
   private pendingFixTimer: ReturnType<typeof setTimeout> | null = null;
   private pendingRollbackTimer: ReturnType<typeof setTimeout> | null = null;
-  private streamCompletionTimer: ReturnType<typeof setTimeout> | null = null;
-  private pendingFixAfterStreaming = false;
+  private responseCompletionWaitState = createResponseCompletionWaitState();
   private forceMarkdownRefresh = false;
   private storageListener:
     | ((changes: Record<string, chrome.storage.StorageChange>, areaName: string) => void)
@@ -236,23 +240,14 @@ export class RepairEngine {
   }
 
   private scheduleFixAfterStreamingCompletes(reason: string): void {
-    this.pendingFixAfterStreaming = true;
-    if (this.streamCompletionTimer !== null) return;
-
     this.trace('schedule-fix-after-streaming', { reason });
-    this.streamCompletionTimer = setTimeout(() => {
-      this.streamCompletionTimer = null;
-      if (!this.pendingFixAfterStreaming) return;
-      if (isAnyModelResponseStreaming()) {
-        this.scheduleFixAfterStreamingCompletes('streaming-wait');
-        return;
-      }
-      this.pendingFixAfterStreaming = false;
+    waitForModelResponsesComplete(this.responseCompletionWaitState, () => {
       this.scheduleFixAll('streaming-complete');
-    }, 220);
+    });
   }
 
   private scheduleRollback(reason: string): void {
+    cancelWaitForModelResponsesComplete(this.responseCompletionWaitState);
     if (this.pendingFixTimer !== null) {
       clearTimeout(this.pendingFixTimer);
       this.pendingFixTimer = null;
@@ -620,10 +615,12 @@ export class RepairEngine {
         const blockSource = blockMath.trim().slice(2, -2);
         const { prefix, mathSrc, suffix } = this.sanitizeMathContent(blockSource);
         const repairReasons = collectBlockMathRepairReasons(blockSource, mathSrc, prefix, suffix);
-        const repaired = text !== originalText || repairReasons.length > 0;
+        if (text !== originalText) {
+          repairReasons.push('normalized-math-content');
+        }
         if (prefix) fragments.push(document.createTextNode(prefix));
         fragments.push(
-          this.createNativeMathNode(mathSrc, true, repaired) ?? document.createTextNode(blockMath),
+          this.createNativeMathNode(mathSrc, true, repairReasons) ?? document.createTextNode(blockMath),
         );
         if (suffix) fragments.push(document.createTextNode(suffix));
       } else if (inlineMath) {
@@ -638,15 +635,20 @@ export class RepairEngine {
           before,
           after,
         );
+        if (text !== originalText) {
+          repairReasons.push('normalized-math-content');
+        }
+        if (this.consumeLatexNormalizationHint(textNode, mathSrc)) {
+          repairReasons.push('normalized-markup');
+        }
         const beforeNeedsSpace = repairReasons.includes('boundary-space-before');
         const afterNeedsSpace = repairReasons.includes('boundary-space-after');
-        const repaired = text !== originalText || repairReasons.length > 0;
 
         if (beforeNeedsSpace) fragments.push(document.createTextNode(' '));
         if (prefix) fragments.push(document.createTextNode(prefix));
         if (mathSrc.length > 0) {
           fragments.push(
-            this.createNativeMathNode(mathSrc, false, repaired) ?? document.createTextNode(inlineMath),
+            this.createNativeMathNode(mathSrc, false, repairReasons) ?? document.createTextNode(inlineMath),
           );
         }
         if (suffix) fragments.push(document.createTextNode(suffix));
@@ -678,20 +680,25 @@ export class RepairEngine {
       const originalHTML = element.innerHTML;
       if (!originalHTML.includes('$') && !originalHTML.includes('＄')) return;
 
-      const normalizedHTML = this.normalizeMathInBlockHtml(originalHTML);
-      if (normalizedHTML !== originalHTML) {
-        this.safeSetInnerHTML(element, normalizedHTML);
+      const normalization = this.normalizeMathInBlockHtml(originalHTML);
+      if (normalization.html !== originalHTML) {
+        this.safeSetInnerHTML(element, normalization.html);
         element.setAttribute(LATEX_NORMALIZED_ATTR, '1');
+        this.setLatexNormalizationHints(element, normalization.inlineRepairHints);
       } else if (element.hasAttribute(LATEX_NORMALIZED_ATTR)) {
         element.removeAttribute(LATEX_NORMALIZED_ATTR);
+        this.latexNormalizationHints.delete(element);
       }
     });
   }
 
-  private normalizeMathInBlockHtml(html: string): string {
+  private normalizeMathInBlockHtml(
+    html: string,
+  ): { html: string; inlineRepairHints: string[] } {
     const inlineMathRegex = new RegExp(INLINE_MATH_HTML_REGEX.source, 'g');
     const normalizedInput = html.replace(/＄/g, '$');
     let changed = false;
+    const inlineRepairHints: string[] = [];
 
     const normalized = normalizedInput.replace(inlineMathRegex, (full: string, inner: string) => {
       if (!inner.includes('<') && !inner.includes('math-inline') && !inner.includes('math-block')) {
@@ -707,11 +714,15 @@ export class RepairEngine {
       const candidate = rebuilt ?? `$${normalizedInner}$`;
       if (candidate !== full) {
         changed = true;
+        inlineRepairHints.push(normalizedInner);
       }
       return candidate;
     });
 
-    return changed ? normalized : html;
+    return {
+      html: changed ? normalized : html,
+      inlineRepairHints,
+    };
   }
 
   private normalizeInlineMathSegment(segmentInnerHtml: string): string {
@@ -799,29 +810,67 @@ export class RepairEngine {
     return { prefix, mathSrc: cleaned, suffix };
   }
 
-  private createNativeMathNode(mathSrc: string, displayMode: boolean, repaired: boolean): HTMLElement | null {
+  private setLatexNormalizationHints(element: HTMLElement, hints: string[]): void {
+    if (hints.length === 0) {
+      this.latexNormalizationHints.delete(element);
+      return;
+    }
+
+    const counts = new Map<string, number>();
+    hints.forEach((hint) => {
+      counts.set(hint, (counts.get(hint) ?? 0) + 1);
+    });
+    this.latexNormalizationHints.set(element, counts);
+  }
+
+  private consumeLatexNormalizationHint(textNode: Text, mathSrc: string): boolean {
+    const owner = textNode.parentElement?.closest<HTMLElement>(`[${LATEX_NORMALIZED_ATTR}="1"]`);
+    if (!owner) return false;
+    const hints = this.latexNormalizationHints.get(owner);
+    if (!hints) return false;
+    const remaining = hints.get(mathSrc) ?? 0;
+    if (remaining <= 0) return false;
+    if (remaining === 1) {
+      hints.delete(mathSrc);
+    } else {
+      hints.set(mathSrc, remaining - 1);
+    }
+    return true;
+  }
+
+  private createNativeMathNode(
+    mathSrc: string,
+    displayMode: boolean,
+    repairReasons: LatexRepairReason[],
+  ): HTMLElement | null {
     if (!mathSrc) return null;
     try {
+      const uniqueRepairReasons = [...new Set(repairReasons)];
+      const repaired = uniqueRepairReasons.length > 0;
       const html = katex.renderToString(mathSrc, { displayMode, throwOnError: false, strict: false });
       const el = document.createElement(displayMode ? 'div' : 'span');
       el.className = `${displayMode ? 'math-block' : 'math-inline'} ${DONE_CLASS}`;
       el.setAttribute('data-math', mathSrc);
       if (repaired) {
         el.setAttribute(LATEX_REPAIRED_ATTR, '1');
+        el.setAttribute('data-gm-latex-repair-reasons', uniqueRepairReasons.join(','));
       }
 
       if (displayMode) {
-        if (repaired) {
-          el.style.borderLeft = '2px solid rgba(220, 38, 38, 0.45)';
-        }
+        el.style.padding = '0 2px';
       } else {
         el.style.padding = '0 2px';
-        if (repaired) {
-          el.style.borderBottom = '1px dashed rgba(220, 38, 38, 0.75)';
-        }
       }
 
       this.safeSetInnerHTML(el, html);
+      if (repaired) {
+        const renderedMath = el.firstElementChild;
+        if (renderedMath instanceof HTMLElement) {
+          renderedMath.style.borderBottom = '1px dashed rgba(220, 38, 38, 0.75)';
+        } else {
+          el.style.borderBottom = '1px dashed rgba(220, 38, 38, 0.75)';
+        }
+      }
       return el;
     } catch {
       return null;

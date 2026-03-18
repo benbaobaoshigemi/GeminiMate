@@ -1,4 +1,5 @@
 import { debugService } from '@/core/services/DebugService';
+import { isModelResponseComplete } from '@/core/utils/responseLifecycle';
 import {
   ACTION_BUTTON_BUSY_CLASS,
   setActionButtonBusy,
@@ -1532,10 +1533,9 @@ const processCodeBlocks = (): void => {
     ensureShareButton(codeBlockHost);
     ensureDownloadButton(codeBlockHost);
 
-    // Only render Mermaid after the response is complete (message-actions present).
+    // Only render Mermaid after the response is complete.
     // This prevents parsing errors on incomplete/mid-stream Mermaid syntax.
-    const responseEl = codeBlockHost.closest('model-response, .model-response, [data-message-author-role="model"]');
-    const responseComplete = !responseEl || responseEl.querySelector('message-actions') !== null;
+    const responseComplete = isModelResponseComplete(codeBlockHost);
     const shouldRenderMermaid =
       renderEnabled &&
       responseComplete &&

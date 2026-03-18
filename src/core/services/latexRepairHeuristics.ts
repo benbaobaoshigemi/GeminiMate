@@ -5,6 +5,7 @@ export type LatexRepairReason =
   | 'boundary-space-after'
   | 'trimmed-inner-padding'
   | 'normalized-math-content'
+  | 'normalized-markup'
   | 'extracted-prefix'
   | 'extracted-suffix';
 

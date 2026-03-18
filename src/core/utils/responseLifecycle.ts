@@ -62,6 +62,16 @@ const findModelResponseCompletionRoot = (node: Node | Element | null): Element |
   return element.closest(MODEL_RESPONSE_COMPLETION_ROOT_SELECTOR) ?? findModelResponseRoot(element);
 };
 
+export interface ResponseCompletionWaitState {
+  pending: boolean;
+  timer: ReturnType<typeof setTimeout> | null;
+}
+
+export const createResponseCompletionWaitState = (): ResponseCompletionWaitState => ({
+  pending: false,
+  timer: null,
+});
+
 export const isNodeInThoughtTree = (node: Node | Element | null): boolean => {
   const element = resolveElement(node);
   if (!element) return false;
@@ -85,6 +95,34 @@ export const isAnyModelResponseStreaming = (
     querySelector<E extends Element = Element>(selectors: string): E | null;
   } = document,
 ): boolean => root.querySelector(STREAMING_HINT_SELECTOR) !== null;
+
+export const cancelWaitForModelResponsesComplete = (state: ResponseCompletionWaitState): void => {
+  state.pending = false;
+  if (state.timer !== null) {
+    clearTimeout(state.timer);
+    state.timer = null;
+  }
+};
+
+export const waitForModelResponsesComplete = (
+  state: ResponseCompletionWaitState,
+  onComplete: () => void,
+  delayMs = 220,
+): void => {
+  state.pending = true;
+  if (state.timer !== null) return;
+
+  state.timer = setTimeout(() => {
+    state.timer = null;
+    if (!state.pending) return;
+    if (isAnyModelResponseStreaming()) {
+      waitForModelResponsesComplete(state, onComplete, delayMs);
+      return;
+    }
+    state.pending = false;
+    onComplete();
+  }, delayMs);
+};
 
 export {
   MODEL_RESPONSE_COMPLETION_ROOT_SELECTOR,
