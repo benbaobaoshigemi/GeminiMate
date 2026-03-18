@@ -71,7 +71,10 @@ export class RepairEngine {
   private sourceSnapshots = new WeakMap<HTMLElement, string>();
   private rawSnapshots = new WeakMap<HTMLElement, string>();
   private renderedSnapshots = new WeakMap<HTMLElement, string>();
-  private latexNormalizationHints = new WeakMap<HTMLElement, Map<string, number>>();
+  private latexNormalizationHints = new WeakMap<
+    HTMLElement,
+    { exactCounts: Map<string, number>; genericCount: number }
+  >();
   private pendingFixTimer: ReturnType<typeof setTimeout> | null = null;
   private pendingRollbackTimer: ReturnType<typeof setTimeout> | null = null;
   private responseCompletionWaitState = createResponseCompletionWaitState();
@@ -820,7 +823,10 @@ export class RepairEngine {
     hints.forEach((hint) => {
       counts.set(hint, (counts.get(hint) ?? 0) + 1);
     });
-    this.latexNormalizationHints.set(element, counts);
+    this.latexNormalizationHints.set(element, {
+      exactCounts: counts,
+      genericCount: hints.length,
+    });
   }
 
   private consumeLatexNormalizationHint(textNode: Text, mathSrc: string): boolean {
@@ -828,12 +834,22 @@ export class RepairEngine {
     if (!owner) return false;
     const hints = this.latexNormalizationHints.get(owner);
     if (!hints) return false;
-    const remaining = hints.get(mathSrc) ?? 0;
-    if (remaining <= 0) return false;
-    if (remaining === 1) {
-      hints.delete(mathSrc);
+    const exactRemaining = hints.exactCounts.get(mathSrc) ?? 0;
+    if (exactRemaining > 0) {
+      if (exactRemaining === 1) {
+        hints.exactCounts.delete(mathSrc);
+      } else {
+        hints.exactCounts.set(mathSrc, exactRemaining - 1);
+      }
+      hints.genericCount = Math.max(0, hints.genericCount - 1);
+      return true;
+    }
+    if (hints.genericCount <= 0) return false;
+    hints.genericCount -= 1;
+    if (hints.genericCount === 0 && hints.exactCounts.size === 0) {
+      this.latexNormalizationHints.delete(owner);
     } else {
-      hints.set(mathSrc, remaining - 1);
+      this.latexNormalizationHints.set(owner, hints);
     }
     return true;
   }

@@ -13,6 +13,9 @@ const MODEL_RESPONSE_COMPLETION_ROOT_SELECTOR = [
   '[data-message-author-role="model"]',
   '[aria-label="Gemini response"]',
   '.response-container',
+  '.response-content',
+  '.response-container-content',
+  '.presented-response-container',
 ].join(', ');
 
 const STOP_GENERATING_ZH = '\u505c\u6b62\u751f\u6210';
@@ -37,11 +40,20 @@ const STREAMING_HINT_SELECTOR = [
   '[data-message-author-role="model"] .deferred-response-indicator',
   '[aria-label="Gemini response"] .deferred-response-indicator',
   '.response-container .deferred-response-indicator',
+  '.response-content .deferred-response-indicator',
+  '.response-container-content .deferred-response-indicator',
+  '.presented-response-container .deferred-response-indicator',
   'button[aria-label*="Stop generating"]',
   'button[aria-label*="Stop response"]',
   `button[aria-label*="${STOP_GENERATING_ZH}"]`,
   '[data-test-id*="stop"][data-test-id*="response"]',
   '[data-test-id*="stop"][data-test-id*="generate"]',
+].join(', ');
+
+const RESPONSE_COMPLETION_SIGNAL_SELECTOR = [
+  'message-actions',
+  '[data-test-id="copy-button"]',
+  '[data-test-id="more-menu-button"]',
 ].join(', ');
 
 const resolveElement = (node: Node | Element | null): Element | null => {
@@ -60,6 +72,22 @@ const findModelResponseCompletionRoot = (node: Node | Element | null): Element |
   const element = resolveElement(node);
   if (!element) return null;
   return element.closest(MODEL_RESPONSE_COMPLETION_ROOT_SELECTOR) ?? findModelResponseRoot(element);
+};
+
+const hasCompletionSignalNearby = (root: Element): boolean => {
+  if (root.querySelector(RESPONSE_COMPLETION_SIGNAL_SELECTOR) !== null) return true;
+
+  let current: Element | null = root;
+  let depth = 0;
+  while (current && depth < 4) {
+    const parent = current.parentElement;
+    if (!parent) break;
+    if (parent.querySelector(RESPONSE_COMPLETION_SIGNAL_SELECTOR) !== null) return true;
+    current = parent;
+    depth += 1;
+  }
+
+  return false;
 };
 
 export interface ResponseCompletionWaitState {
@@ -86,7 +114,7 @@ export const isModelResponseComplete = (node: Node | Element | null): boolean =>
   const responseRoot = findModelResponseCompletionRoot(node);
   if (!responseRoot) return false;
   if (responseRoot.querySelector(STREAMING_HINT_SELECTOR) !== null) return false;
-  return responseRoot.querySelector('message-actions') !== null;
+  return hasCompletionSignalNearby(responseRoot);
 };
 
 export const isAnyModelResponseStreaming = (
