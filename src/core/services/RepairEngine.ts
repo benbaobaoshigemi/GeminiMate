@@ -9,8 +9,8 @@ import {
 } from '../utils/responseLifecycle';
 import { debugService } from './DebugService';
 import {
-  hasMeaningfulInlineMathContentRepair,
-  shouldRepairInlineMathBoundary,
+  collectBlockMathRepairReasons,
+  collectInlineMathRepairReasons,
 } from './latexRepairHeuristics';
 import { logger } from './LoggerService';
 import { findSplitMarkdownBoldRanges } from './markdownSplitBold';
@@ -619,11 +619,8 @@ export class RepairEngine {
       if (blockMath) {
         const blockSource = blockMath.trim().slice(2, -2);
         const { prefix, mathSrc, suffix } = this.sanitizeMathContent(blockSource);
-        const repaired =
-          text !== originalText ||
-          prefix.length > 0 ||
-          suffix.length > 0 ||
-          mathSrc !== blockSource.trim();
+        const repairReasons = collectBlockMathRepairReasons(blockSource, mathSrc, prefix, suffix);
+        const repaired = text !== originalText || repairReasons.length > 0;
         if (prefix) fragments.push(document.createTextNode(prefix));
         fragments.push(
           this.createNativeMathNode(mathSrc, true, repaired) ?? document.createTextNode(blockMath),
@@ -633,19 +630,17 @@ export class RepairEngine {
         const { prefix, mathSrc, suffix } = this.sanitizeMathContent(inner);
         const before = match.index > 0 ? text[match.index - 1] : '';
         const after = RE_MATH.lastIndex < text.length ? text[RE_MATH.lastIndex] : '';
-        const beforeNeedsSpace = shouldRepairInlineMathBoundary(before);
-        const afterNeedsSpace = shouldRepairInlineMathBoundary(after);
-        const hasMeaningfulContentRepair = hasMeaningfulInlineMathContentRepair(
+        const repairReasons = collectInlineMathRepairReasons(
           inner,
           mathSrc,
           prefix,
           suffix,
+          before,
+          after,
         );
-        const repaired =
-          text !== originalText ||
-          beforeNeedsSpace ||
-          afterNeedsSpace ||
-          hasMeaningfulContentRepair;
+        const beforeNeedsSpace = repairReasons.includes('boundary-space-before');
+        const afterNeedsSpace = repairReasons.includes('boundary-space-after');
+        const repaired = text !== originalText || repairReasons.length > 0;
 
         if (beforeNeedsSpace) fragments.push(document.createTextNode(' '));
         if (prefix) fragments.push(document.createTextNode(prefix));
