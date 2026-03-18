@@ -8,6 +8,10 @@ import {
   isNodeInThoughtTree,
 } from '../utils/responseLifecycle';
 import { debugService } from './DebugService';
+import {
+  hasMeaningfulInlineMathContentRepair,
+  shouldRepairInlineMathBoundary,
+} from './latexRepairHeuristics';
 import { logger } from './LoggerService';
 import { findSplitMarkdownBoldRanges } from './markdownSplitBold';
 import { buildMarkdownRepairStyle, getMarkdownEmphasisStyle } from './repairPresentation';
@@ -629,15 +633,19 @@ export class RepairEngine {
         const { prefix, mathSrc, suffix } = this.sanitizeMathContent(inner);
         const before = match.index > 0 ? text[match.index - 1] : '';
         const after = RE_MATH.lastIndex < text.length ? text[RE_MATH.lastIndex] : '';
-        const beforeNeedsSpace = Boolean(before && !/\s/.test(before));
-        const afterNeedsSpace = Boolean(after && !/\s/.test(after));
+        const beforeNeedsSpace = shouldRepairInlineMathBoundary(before);
+        const afterNeedsSpace = shouldRepairInlineMathBoundary(after);
+        const hasMeaningfulContentRepair = hasMeaningfulInlineMathContentRepair(
+          inner,
+          mathSrc,
+          prefix,
+          suffix,
+        );
         const repaired =
           text !== originalText ||
           beforeNeedsSpace ||
           afterNeedsSpace ||
-          prefix.length > 0 ||
-          suffix.length > 0 ||
-          mathSrc !== inner.trim();
+          hasMeaningfulContentRepair;
 
         if (beforeNeedsSpace) fragments.push(document.createTextNode(' '));
         if (prefix) fragments.push(document.createTextNode(prefix));
