@@ -16,6 +16,7 @@
 
   /** Timeout for watermark processing in milliseconds */
   const WATERMARK_PROCESSING_TIMEOUT_MS = 30000;
+  const DOWNLOAD_AUTH_TRIGGER = 'banana';
 
   // Prevent double injection
   if (window.__gvFetchInterceptorInstalled) {
@@ -24,7 +25,6 @@
   }
   window.__gvFetchInterceptorInstalled = true;
 
-  console.log('[GeminiMate] Fetch interceptor loading (MAIN world)...');
 
   /**
    * Pattern to match Gemini download URLs
@@ -91,6 +91,31 @@
     return bridge.dataset.enabled === 'true';
   };
 
+  const clearDownloadAuthorization = (bridge) => {
+    bridge.removeAttribute('data-download-auth-trigger');
+    bridge.removeAttribute('data-download-auth-token');
+    bridge.removeAttribute('data-download-auth-expires-at');
+  };
+
+  const consumeAuthorizedWatermarkDownload = () => {
+    const bridge = getBridgeElement();
+    const downloadAuthTrigger = bridge.dataset.downloadAuthTrigger ?? '';
+    const downloadAuthToken = bridge.dataset.downloadAuthToken ?? '';
+    const downloadAuthExpiresAt = Number(bridge.dataset.downloadAuthExpiresAt ?? '0');
+
+    if (!downloadAuthToken || downloadAuthTrigger !== DOWNLOAD_AUTH_TRIGGER) {
+      return false;
+    }
+
+    if (!Number.isFinite(downloadAuthExpiresAt) || downloadAuthExpiresAt <= Date.now()) {
+      clearDownloadAuthorization(bridge);
+      return false;
+    }
+
+    clearDownloadAuthorization(bridge);
+    return true;
+  };
+
   // Store original fetch
   const originalFetch = window.fetch;
 
@@ -135,8 +160,11 @@
         });
       }
 
-      // Only process watermark removal if enabled — use async IIFE only for this path
-      if (isWatermarkRemoverEnabled()) {
+      const shouldProcessWatermarkRemoval =
+        isWatermarkRemoverEnabled() && consumeAuthorizedWatermarkDownload();
+
+      // Only process watermark removal for an explicitly authorized banana-button click.
+      if (shouldProcessWatermarkRemoval) {
         return (async () => {
           console.log('[GeminiMate] Intercepting download for watermark removal');
 
@@ -242,6 +270,5 @@
     return originalFetch.apply(this, args);
   };
 
-  console.log('[GeminiMate] Fetch interceptor active');
 })();
 

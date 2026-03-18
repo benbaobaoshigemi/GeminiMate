@@ -48,7 +48,6 @@ let refreshRafId: number | null = null;
 
 const logTrace = (event: string, data: Record<string, unknown> = {}): void => {
   debugService.log('bottom-cleanup', event, data);
-  console.info('[GM-TRACE][BottomCleanup]', event, data);
 };
 
 const countMatches = (selectors: readonly string[]): number =>

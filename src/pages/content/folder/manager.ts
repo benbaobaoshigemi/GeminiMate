@@ -5025,8 +5025,8 @@ export class FolderManager {
 
   private async loadFolderEnabledSetting(): Promise<void> {
     try {
-      const result = await browser.storage.sync.get({ geminiFolderEnabled: true });
-      this.folderEnabled = result.geminiFolderEnabled !== false;
+      const result = await browser.storage.sync.get({ [StorageKeys.FOLDER_ENABLED]: true });
+      this.folderEnabled = result[StorageKeys.FOLDER_ENABLED] !== false;
       this.debug('Loaded folder enabled setting:', this.folderEnabled);
     } catch (error) {
       console.error('[FolderManager] Failed to load folder enabled setting:', error);
@@ -5049,9 +5049,9 @@ export class FolderManager {
   private async loadHideArchivedSetting(): Promise<void> {
     try {
       const result = await browser.storage.sync.get({
-        geminiFolderHideArchivedConversations: false,
+        [StorageKeys.FOLDER_HIDE_ARCHIVED_CONVERSATIONS]: false,
       });
-      this.hideArchivedConversations = !!result.geminiFolderHideArchivedConversations;
+      this.hideArchivedConversations = !!result[StorageKeys.FOLDER_HIDE_ARCHIVED_CONVERSATIONS];
       this.debug('Loaded hide archived setting:', this.hideArchivedConversations);
     } catch (error) {
       console.error('[FolderManager] Failed to load hide archived setting:', error);
@@ -5106,14 +5106,15 @@ export class FolderManager {
     // Listen for sync settings changes
     browser.storage.onChanged.addListener((changes, areaName) => {
       if (areaName === 'sync') {
-        if (changes.geminiFolderEnabled) {
-          this.folderEnabled = changes.geminiFolderEnabled.newValue !== false;
+        if (changes[StorageKeys.FOLDER_ENABLED]) {
+          this.folderEnabled = changes[StorageKeys.FOLDER_ENABLED].newValue !== false;
           this.debug('Folder enabled setting changed:', this.folderEnabled);
           // Apply the change to folder visibility
           this.applyFolderEnabledSetting();
         }
-        if (changes.geminiFolderHideArchivedConversations) {
-          this.hideArchivedConversations = !!changes.geminiFolderHideArchivedConversations.newValue;
+        if (changes[StorageKeys.FOLDER_HIDE_ARCHIVED_CONVERSATIONS]) {
+          this.hideArchivedConversations =
+            !!changes[StorageKeys.FOLDER_HIDE_ARCHIVED_CONVERSATIONS].newValue;
           this.debug('Hide archived setting changed:', this.hideArchivedConversations);
           // Apply the change to all conversations
           this.applyHideArchivedSetting();

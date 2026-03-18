@@ -168,12 +168,9 @@ let suppressedMutationTraceCount = 0;
 const logTrace = (event: string, detail?: Record<string, unknown>): void => {
   if (!TRACE_ENABLED) return;
   debugService.log('thought-translation', event, detail);
-  console.info('[GM-TRACE][ThoughtTranslation]', event, detail ?? {});
 };
 
-const emitThinkingDebugTrace = (event: string, detail: Record<string, unknown> = {}): void => {
-  console.info(THINKING_DEBUG_TRACE_PREFIX, event, detail);
-};
+const emitThinkingDebugTrace = (_event: string, _detail: Record<string, unknown> = {}): void => {};
 
 const getContainerDebugId = (container: HTMLElement): string => {
   const existing = debugIdByContainer.get(container);

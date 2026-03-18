@@ -20,7 +20,6 @@ const EDIT_WIDTH_LEGACY_MAX = 100;
 
 const traceWidth = (event: string, detail: Record<string, unknown> = {}): void => {
     try {
-        console.info(WIDTH_DIAG_PREFIX, { event, detail, ts: new Date().toISOString() });
         debugService.log('edit-width', event, detail);
     } catch {
         // ignore

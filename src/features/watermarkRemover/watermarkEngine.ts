@@ -115,8 +115,6 @@ export class WatermarkEngine {
     const bg48Path = getBgPath(BG_48_IMPORT);
     const bg96Path = getBgPath(BG_96_IMPORT);
 
-    console.log('[GeminiMate] Loading watermark assets:', { bg48Path, bg96Path });
-
     await Promise.all([
       new Promise<void>((resolve, reject) => {
         bg48.onload = () => resolve();

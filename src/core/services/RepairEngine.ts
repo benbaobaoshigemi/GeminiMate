@@ -18,7 +18,9 @@ import {
 } from './latexRepairHeuristics';
 import { logger } from './LoggerService';
 import { findSplitMarkdownBoldRanges } from './markdownSplitBold';
+import { decideRepairContainerAction } from './repairContainerState';
 import { buildMarkdownRepairStyle, getMarkdownEmphasisStyle } from './repairPresentation';
+import { decideStreamingSourceSnapshotAction } from './repairSourceSnapshotState';
 
 const RE_MATH = /(\$\$[\s\S]*?\$\$)|(\$((?:\\\$|[^$])+?)\$)/g;
 const INLINE_MATH_HTML_REGEX = /\$((?:\\\$|[^$])+?)\$/g;
@@ -173,6 +175,7 @@ export class RepairEngine {
 
     this.setupObserver();
     if (isAnyModelResponseStreaming()) {
+      this.captureStreamingSourceSnapshots('startup');
       this.scheduleFixAfterStreamingCompletes('startup');
       return;
     }
@@ -197,6 +200,7 @@ export class RepairEngine {
         debugService.log('repair', 'mutation-detected', { count: mutations.length });
         this.trace('mutation-detected', { count: mutations.length });
         if (isAnyModelResponseStreaming()) {
+          this.captureStreamingSourceSnapshots('mutation');
           this.scheduleFixAfterStreamingCompletes('mutation');
           return;
         }
@@ -264,12 +268,12 @@ export class RepairEngine {
     }, 120);
   }
 
-  private getMessageContainers(): HTMLElement[] {
+  private getScopedMessageContainers(requireComplete: boolean): HTMLElement[] {
     const containers = Array.from(document.querySelectorAll(MESSAGE_CONTAINER_SELECTOR)) as HTMLElement[];
     const scopedContainers = containers.filter((container) => {
       if (container.closest(HARD_THOUGHT_ROOT_SELECTOR)) return false;
       if (isNodeInThoughtTree(container)) return false;
-      if (!isModelResponseComplete(container)) return false;
+      if (requireComplete && !isModelResponseComplete(container)) return false;
       return isNodeInModelResponse(container);
     });
 
@@ -277,6 +281,14 @@ export class RepairEngine {
     return scopedContainers.filter(
       (container) => !scopedContainers.some((other) => other !== container && container.contains(other)),
     );
+  }
+
+  private getMessageContainers(): HTMLElement[] {
+    return this.getScopedMessageContainers(true);
+  }
+
+  private getStreamingMessageContainers(): HTMLElement[] {
+    return this.getScopedMessageContainers(false);
   }
 
   private isRelevantMutationNode(node: Node): boolean {
@@ -309,6 +321,35 @@ export class RepairEngine {
       }
 
       return false;
+    });
+  }
+
+  private captureStreamingSourceSnapshots(reason: string): void {
+    const containers = this.getStreamingMessageContainers();
+    this.trace('capture-streaming-source-snapshots', {
+      reason,
+      count: containers.length,
+    });
+    containers.forEach((container) => {
+      this.captureStreamingSourceSnapshot(container);
+    });
+  }
+
+  private captureStreamingSourceSnapshot(container: HTMLElement): void {
+    const currentHtml = container.innerHTML;
+    if (this.containsOwnPatchMarkers(currentHtml)) {
+      return;
+    }
+
+    const existingSource = this.sourceSnapshots.get(container) ?? null;
+    if (decideStreamingSourceSnapshotAction(existingSource, currentHtml) === 'keep') {
+      return;
+    }
+
+    this.sourceSnapshots.set(container, currentHtml);
+    this.rawSnapshots.set(container, currentHtml);
+    this.trace('streaming-source-snapshot-captured', {
+      length: currentHtml.length,
     });
   }
 
@@ -392,8 +433,12 @@ export class RepairEngine {
 
     // Initial snapshot
     if (previousRendered === undefined) {
-      this.sourceSnapshots.set(container, currentHtml);
-      this.rawSnapshots.set(container, currentHtml);
+      if (!this.sourceSnapshots.has(container)) {
+        this.sourceSnapshots.set(container, currentHtml);
+      }
+      if (!this.rawSnapshots.has(container)) {
+        this.rawSnapshots.set(container, currentHtml);
+      }
       this.renderedSnapshots.set(container, currentHtml);
       return;
     }
@@ -441,13 +486,24 @@ export class RepairEngine {
     const source = this.sourceSnapshots.get(container) ?? container.innerHTML;
     const rawSource = this.rawSnapshots.get(container) ?? source;
     const currentInnerHTML = container.innerHTML;
-    const hasPatchMarkers = this.containsOwnPatchMarkers(currentInnerHTML);
-    const shouldRebuildMarkdown =
-      this.forceMarkdownRefresh &&
-      this.config.markdownEnabled &&
-      (currentInnerHTML.includes(MD_FIX_CLASS) || currentInnerHTML.includes(MD_MARK_CLASS));
+    const hasLatexPatchMarkers =
+      currentInnerHTML.includes(DONE_CLASS) ||
+      currentInnerHTML.includes(LATEX_NORMALIZED_ATTR) ||
+      currentInnerHTML.includes(LATEX_REPAIRED_ATTR);
+    const hasMarkdownPatchMarkers =
+      currentInnerHTML.includes(MD_FIX_CLASS) || currentInnerHTML.includes(MD_MARK_CLASS);
+    const action = decideRepairContainerAction({
+      currentHtml: currentInnerHTML,
+      sourceHtml: source,
+      rawSourceHtml: rawSource,
+      latexEnabled: this.config.latexEnabled,
+      markdownEnabled: this.config.markdownEnabled,
+      forceMarkdownRefresh: this.forceMarkdownRefresh,
+      hasLatexPatchMarkers,
+      hasMarkdownPatchMarkers,
+    });
 
-    if (shouldRebuildMarkdown) {
+    if (action === 'rebuild-markdown') {
       // Rebuild from current patched DOM even when snapshot === current HTML.
       // This guarantees emphasis mode toggles reflow all old markdown repairs.
       const rebuiltSource = this.extractSourceFromPatchedHtml(currentInnerHTML);
@@ -455,26 +511,10 @@ export class RepairEngine {
       if (currentInnerHTML !== rebuiltSource) {
         this.safeSetInnerHTML(container, rebuiltSource);
       }
-    } else if (currentInnerHTML !== source) {
-      // Reset to source when:
-      // (a) no patch markers at all (external update), OR
-      // (b) latex is now disabled but our rendered math markers are still present
-      const shouldReset =
-        !hasPatchMarkers ||
-        (!this.config.latexEnabled && currentInnerHTML.includes(DONE_CLASS));
-      if (shouldReset) {
-        const nextHtml =
-          !this.config.latexEnabled && currentInnerHTML.includes(DONE_CLASS) ? rawSource : source;
-        this.safeSetInnerHTML(container, nextHtml);
-      }
-    }
-
-    if (
-      !this.config.latexEnabled &&
-      currentInnerHTML !== rawSource &&
-      (currentInnerHTML.includes(DONE_CLASS) || currentInnerHTML.includes(LATEX_NORMALIZED_ATTR))
-    ) {
+    } else if (action === 'reset-to-raw-source') {
       this.safeSetInnerHTML(container, rawSource);
+    } else if (action === 'reset-to-source') {
+      this.safeSetInnerHTML(container, source);
     }
 
     if (this.config.latexEnabled) {

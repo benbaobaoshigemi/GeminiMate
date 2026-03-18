@@ -1,6 +1,6 @@
 import { debugService } from '@/core/services/DebugService';
 
-import { findNativeDownloadButton, findNativeDownloadButtonInContainer } from './downloadButton';
+import { findNativeDownloadButtonInContainer } from './downloadButton';
 import { resolveWatermarkFetchPlan } from './fetchStrategy';
 import { type StatusToastManager, createStatusToastManager } from './statusToast';
 import { WatermarkEngine } from './watermarkEngine';
@@ -11,6 +11,8 @@ const BUTTON_CLASS = 'gm-watermark-download-btn';
 const ORIGINAL_SRC_KEY = 'gmOriginalSrc';
 const PROCESSED_FLAG = 'watermarkProcessed';
 const PROCESSED_URL_KEY = 'processedUrl';
+const DOWNLOAD_AUTH_TRIGGER = 'banana';
+const DOWNLOAD_AUTH_TTL_MS = 15000;
 const LARGE_WARNING_AUTO_DISMISS_MS = 8000;
 const PROCESSING_FALLBACK_AUTO_DISMISS_MS = 35000;
 
@@ -21,7 +23,6 @@ const STATUS_TEXT = {
   processing: '正在处理水印中',
   success: '下载已开始（去水印）',
   failPrefix: '去水印下载失败',
-  missingNativeButton: '未找到 Gemini 原生下载按钮',
 } as const;
 
 type DownloadToastSequence = {
@@ -38,19 +39,28 @@ let statusToastManager: StatusToastManager | null = null;
 let mutationObserver: MutationObserver | null = null;
 let fetchBridgeObserver: MutationObserver | null = null;
 let statusObserver: MutationObserver | null = null;
-let downloadTrackingReady = false;
 let lastImmediateToastAt = 0;
 let sequenceCounter = 0;
 let activeSequence: DownloadToastSequence | null = null;
+let debouncedProcessAllImages: DebouncedFunction<() => void> | null = null;
 const processingQueue = new Set<HTMLImageElement>();
 const processedBlobUrls = new Set<string>();
+const activeDownloadButtons = new WeakSet<HTMLButtonElement>();
 
-const debounce = <T extends (...args: unknown[]) => void>(func: T, wait: number): T => {
+type DebouncedFunction<T extends (...args: unknown[]) => void> = T & { cancel: () => void };
+
+const debounce = <T extends (...args: unknown[]) => void>(func: T, wait: number): DebouncedFunction<T> => {
   let timeout: ReturnType<typeof setTimeout> | null = null;
-  return ((...args: unknown[]) => {
+  const debounced = ((...args: unknown[]) => {
     if (timeout) clearTimeout(timeout);
     timeout = setTimeout(() => func(...args), wait);
-  }) as T;
+  }) as DebouncedFunction<T>;
+  debounced.cancel = () => {
+    if (!timeout) return;
+    clearTimeout(timeout);
+    timeout = null;
+  };
+  return debounced;
 };
 
 function injectStyles(): void {
@@ -137,6 +147,20 @@ function notifyFetchInterceptor(enabled: boolean): void {
   bridge.dataset.enabled = String(enabled);
 }
 
+function clearDownloadAuthorization(): void {
+  const bridge = getBridgeElement();
+  bridge.removeAttribute('data-download-auth-trigger');
+  bridge.removeAttribute('data-download-auth-token');
+  bridge.removeAttribute('data-download-auth-expires-at');
+}
+
+function authorizeBananaDownload(): void {
+  const bridge = getBridgeElement();
+  bridge.dataset.downloadAuthTrigger = DOWNLOAD_AUTH_TRIGGER;
+  bridge.dataset.downloadAuthToken = `${Date.now()}_${Math.random().toString(36).slice(2)}`;
+  bridge.dataset.downloadAuthExpiresAt = String(Date.now() + DOWNLOAD_AUTH_TTL_MS);
+}
+
 const canvasToBlob = (canvas: HTMLCanvasElement, type = 'image/png'): Promise<Blob> =>
   new Promise((resolve, reject) => {
     canvas.toBlob((blob) => {
@@ -220,8 +244,25 @@ const getStatusToastManager = (): StatusToastManager => {
   return statusToastManager;
 };
 
-const replaceWithNormalSize = (src: string): string =>
-  /^https?:\/\//i.test(src) ? src.replace(/=s\d+[^?#]*/, '=s0') : src;
+const GOOGLE_IMAGE_SIZE_PATTERN = /=[swh]\d+[^?#]*/;
+
+const replaceWithNormalSize = (src: string): string => {
+  if (!/^https?:\/\//i.test(src)) {
+    return src;
+  }
+
+  const isGoogleImage =
+    src.includes('googleusercontent.com') || src.includes('ggpht.com');
+  if (!isGoogleImage) {
+    return src;
+  }
+
+  if (GOOGLE_IMAGE_SIZE_PATTERN.test(src)) {
+    return src.replace(GOOGLE_IMAGE_SIZE_PATTERN, '=s0');
+  }
+
+  return src.includes('=') ? `${src}-s0` : `${src}=s0`;
+};
 
 const renderImageElementToCanvas = (imgElement: HTMLImageElement): HTMLCanvasElement => {
   if (imgElement.naturalWidth <= 0 || imgElement.naturalHeight <= 0) {
@@ -239,6 +280,23 @@ const renderImageElementToCanvas = (imgElement: HTMLImageElement): HTMLCanvasEle
   ctx.drawImage(imgElement, 0, 0, canvas.width, canvas.height);
   return canvas;
 };
+
+function canRenderImageElementToCanvasSafely(imgElement: HTMLImageElement): boolean {
+  const source = imgElement.currentSrc || imgElement.src || '';
+  if (!source) {
+    return false;
+  }
+
+  if (source.startsWith('blob:') || source.startsWith('data:')) {
+    return true;
+  }
+
+  try {
+    return new URL(source, window.location.href).origin === window.location.origin;
+  } catch {
+    return false;
+  }
+}
 
 function isCandidateImage(img: HTMLImageElement): boolean {
   if (!img.closest('generated-image,.generated-image-container')) return false;
@@ -262,19 +320,53 @@ function findGeminiImages(): HTMLImageElement[] {
   return [...images].filter(isCandidateImage);
 }
 
+function restoreProcessedImagePreview(imgElement: HTMLImageElement): void {
+  const originalSrc = imgElement.dataset[ORIGINAL_SRC_KEY] ?? '';
+  if (originalSrc) {
+    imgElement.src = originalSrc;
+  }
+
+  delete imgElement.dataset[PROCESSED_FLAG];
+  delete imgElement.dataset[PROCESSED_URL_KEY];
+}
+
+function restoreAllProcessedImagePreviews(): void {
+  const images = document.querySelectorAll<HTMLImageElement>(
+    'generated-image img, .generated-image-container img',
+  );
+
+  images.forEach((imgElement) => {
+    if (
+      imgElement.dataset[PROCESSED_FLAG] === 'true' ||
+      Boolean(imgElement.dataset[PROCESSED_URL_KEY])
+    ) {
+      restoreProcessedImagePreview(imgElement);
+    }
+  });
+}
+
 async function processSourceUrlToBlob(
   sourceUrl: string,
-  imgElement?: HTMLImageElement,
+  options: {
+    imgElement?: HTMLImageElement;
+    preferProcessedBlobUrl?: boolean;
+  } = {},
 ): Promise<Blob> {
   if (!engine) {
     throw new Error('Watermark engine is not initialized');
   }
 
+  const { imgElement, preferProcessedBlobUrl = false } = options;
+  const processedBlobUrl =
+    preferProcessedBlobUrl ? imgElement?.dataset[PROCESSED_URL_KEY] ?? '' : '';
   const normalSizeSrc = replaceWithNormalSize(sourceUrl);
+  const canUseRenderedImage =
+    imgElement instanceof HTMLImageElement && canRenderImageElementToCanvasSafely(imgElement);
   const fetchPlan = resolveWatermarkFetchPlan({
     sourceUrl: normalSizeSrc,
-    hasProcessedBlobUrl: false,
-    hasRenderableImageElement: imgElement instanceof HTMLImageElement,
+    hasProcessedBlobUrl: Boolean(processedBlobUrl),
+    hasRenderableImageElement: canUseRenderedImage,
+    preferProcessedBlobUrl,
   });
 
   let sourceRenderable: HTMLImageElement | HTMLCanvasElement | null = null;
@@ -282,6 +374,13 @@ async function processSourceUrlToBlob(
 
   for (const step of fetchPlan) {
     try {
+      if (step === 'processed-blob' && processedBlobUrl) {
+        const processedResponse = await fetch(processedBlobUrl);
+        if (!processedResponse.ok) {
+          throw new Error(`HTTP ${processedResponse.status}`);
+        }
+        return processedResponse.blob();
+      }
       if (step === 'background-runtime') {
         sourceRenderable = await fetchImageViaBackground(normalSizeSrc);
         break;
@@ -322,7 +421,8 @@ async function processImagePreview(imgElement: HTMLImageElement): Promise<void> 
     }
 
     const source = imgElement.dataset[ORIGINAL_SRC_KEY] || currentSrc;
-    const processedBlob = await processSourceUrlToBlob(source, imgElement);
+    const processedBlob = await processSourceUrlToBlob(source, { imgElement });
+    if (!running) return;
     const processedUrl = URL.createObjectURL(processedBlob);
     processedBlobUrls.add(processedUrl);
 
@@ -368,6 +468,49 @@ async function processImageRequest(
       requestId,
       error: error instanceof Error ? error.message : String(error),
     });
+  }
+}
+
+function reportDownloadStatus(type: 'SUCCESS' | 'ERROR', message = ''): void {
+  const bridge = getBridgeElement();
+  bridge.dataset.status = JSON.stringify({
+    type,
+    message,
+    timestamp: Date.now(),
+  });
+}
+
+async function triggerProcessedImageDownload(
+  imgElement: HTMLImageElement,
+  button: HTMLButtonElement,
+): Promise<void> {
+  if (!running || !engine || activeDownloadButtons.has(button)) {
+    return;
+  }
+
+  const container = imgElement.closest('generated-image,.generated-image-container');
+  const nativeDownloadButton = findNativeDownloadButtonInContainer(container);
+
+  if (!nativeDownloadButton) {
+    reportDownloadStatus('ERROR', '未找到 Gemini 原生下载按钮');
+    return;
+  }
+
+  activeDownloadButtons.add(button);
+  showImmediateDownloadToast(button);
+
+  try {
+    authorizeBananaDownload();
+    nativeDownloadButton.click();
+  } catch (error) {
+    clearDownloadAuthorization();
+    const message = error instanceof Error ? error.message : String(error);
+    debugService.log('watermark-remover', 'native-download-trigger-failed', { error: message });
+    reportDownloadStatus('ERROR', message);
+  } finally {
+    window.setTimeout(() => {
+      activeDownloadButtons.delete(button);
+    }, 1200);
   }
 }
 
@@ -450,21 +593,6 @@ function showImmediateDownloadToast(button: HTMLButtonElement): void {
     processingToastId: null,
     processingTimer,
   };
-}
-
-function setupDownloadButtonTracking(): void {
-  if (downloadTrackingReady) return;
-  downloadTrackingReady = true;
-
-  const captureAnchor = (event: Event): void => {
-    if (!running) return;
-    const button = findNativeDownloadButton(event.target);
-    if (!button) return;
-    showImmediateDownloadToast(button);
-  };
-
-  document.addEventListener('pointerdown', captureAnchor, true);
-  document.addEventListener('click', captureAnchor, true);
 }
 
 function setupStatusListener(): void {
@@ -592,22 +720,11 @@ function ensureContainerPosition(container: HTMLElement): void {
   }
 }
 
-function removeBananaButton(container: HTMLElement): void {
-  const button = container.querySelector(`.${BUTTON_CLASS}`);
-  if (button) {
-    button.remove();
-  }
-}
-
 function ensureBananaDownloadButton(imgElement: HTMLImageElement): void {
+  if (!running || !engine) return;
+
   const container = imgElement.closest('generated-image,.generated-image-container') as HTMLElement | null;
   if (!container) return;
-
-  const nativeDownloadButton = findNativeDownloadButtonInContainer(container);
-  if (!nativeDownloadButton) {
-    removeBananaButton(container);
-    return;
-  }
 
   ensureContainerPosition(container);
 
@@ -625,28 +742,15 @@ function ensureBananaDownloadButton(imgElement: HTMLImageElement): void {
   button.onclick = (event: MouseEvent) => {
     event.preventDefault();
     event.stopPropagation();
+    event.stopImmediatePropagation();
 
-    if (!running || !engine) {
-      return;
-    }
-
-    const nativeDownloadButton = findNativeDownloadButtonInContainer(container);
-    if (!nativeDownloadButton) {
-      const manager = getStatusToastManager();
-      manager.setAnchorElement(button);
-      manager.addToast(`${STATUS_TEXT.failPrefix}: ${STATUS_TEXT.missingNativeButton}`, 'error', {
-        autoDismissMs: 4200,
-      });
-      debugService.log('watermark-remover', 'native-download-button-missing');
-      return;
-    }
-
-    showImmediateDownloadToast(button);
-    nativeDownloadButton.click();
+    void triggerProcessedImageDownload(imgElement, button);
   };
 }
 
 function processAllImages(): void {
+  if (!running || !engine) return;
+
   const images = findGeminiImages();
 
   images.forEach((img) => {
@@ -666,9 +770,9 @@ function processAllImages(): void {
 function setupMutationObserver(): void {
   if (mutationObserver) return;
 
-  const debouncedProcess = debounce(processAllImages, 120);
+  debouncedProcessAllImages = debounce(processAllImages, 120);
   mutationObserver = new MutationObserver(() => {
-    debouncedProcess();
+    debouncedProcessAllImages?.();
   });
 
   mutationObserver.observe(document.body, {
@@ -686,7 +790,6 @@ export async function startWatermarkRemover(): Promise<void> {
   injectStyles();
   getBridgeElement();
   setupStatusListener();
-  setupDownloadButtonTracking();
 
   try {
     engine = await WatermarkEngine.create();
@@ -716,6 +819,11 @@ export function stopWatermarkRemover(): void {
   clearActiveSequenceTimers();
   activeSequence = null;
 
+  if (debouncedProcessAllImages) {
+    debouncedProcessAllImages.cancel();
+    debouncedProcessAllImages = null;
+  }
+
   if (mutationObserver) {
     mutationObserver.disconnect();
     mutationObserver = null;
@@ -740,6 +848,8 @@ export function stopWatermarkRemover(): void {
     statusToastManager = null;
   }
 
+  restoreAllProcessedImagePreviews();
+
   for (const url of processedBlobUrls) {
     URL.revokeObjectURL(url);
   }
@@ -747,6 +857,7 @@ export function stopWatermarkRemover(): void {
 
   const bridge = document.getElementById(BRIDGE_ID);
   if (bridge) {
+    clearDownloadAuthorization();
     bridge.removeAttribute('data-enabled');
     bridge.removeAttribute('data-request');
     bridge.removeAttribute('data-response');

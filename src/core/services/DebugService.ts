@@ -73,16 +73,11 @@ export class DebugService {
       const change = changes[StorageKeys.DEBUG_MODE];
       if (!change) return;
       this.enabled = change.newValue === true;
-      console.info('[GeminiMate][Debug] Debug mode changed', { enabled: this.enabled });
       if (this.enabled) {
         this.log('debug', 'mode-enabled', { context: this.context });
       }
     };
     chrome.storage.onChanged.addListener(this.storageListener);
-    console.info('[GeminiMate][Debug] Debug service initialized', {
-      context: this.context,
-      enabled: this.enabled,
-    });
   }
 
   isEnabled(): boolean {

@@ -8,12 +8,13 @@ export type WatermarkFetchPlanState = {
   sourceUrl: string;
   hasProcessedBlobUrl: boolean;
   hasRenderableImageElement: boolean;
+  preferProcessedBlobUrl: boolean;
 };
 
 export const resolveWatermarkFetchPlan = (
   state: WatermarkFetchPlanState,
 ): WatermarkFetchStep[] => {
-  if (state.hasProcessedBlobUrl) {
+  if (state.preferProcessedBlobUrl && state.hasProcessedBlobUrl) {
     return ['processed-blob'];
   }
 

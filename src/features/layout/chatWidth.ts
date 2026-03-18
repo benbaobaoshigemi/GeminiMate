@@ -19,10 +19,9 @@ const CHAT_WIDTH_LEGACY_DEFAULT = 70;
 const CHAT_WIDTH_LEGACY_MAX = 100;
 
 const traceWidth = (event: string, detail: Record<string, unknown> = {}): void => {
-    try {
-        console.info(WIDTH_DIAG_PREFIX, { event, detail, ts: new Date().toISOString() });
+  try {
         debugService.log('chat-width', event, detail);
-    } catch {
+  } catch {
         // ignore
     }
 };

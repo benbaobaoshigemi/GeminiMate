@@ -285,13 +285,15 @@ export class TimelineManager {
         });
       } else {
         // No extension storage available, try to load critical fallback from localStorage
-        const saved = localStorage.getItem('geminiTimelineScrollMode');
-        if (saved === 'flow' || saved === 'jump') res = { geminiTimelineScrollMode: saved };
+        const saved = localStorage.getItem(StorageKeys.TIMELINE_SCROLL_MODE);
+        if (saved === 'flow' || saved === 'jump') {
+          res = { [StorageKeys.TIMELINE_SCROLL_MODE]: saved };
+        }
       }
 
-      const m = res?.geminiTimelineScrollMode;
+      const m = res?.[StorageKeys.TIMELINE_SCROLL_MODE];
       if (m === 'flow' || m === 'jump') this.scrollMode = m;
-      this.hideContainer = !!res?.geminiTimelineHideContainer;
+      this.hideContainer = !!res?.[StorageKeys.TIMELINE_HIDE_CONTAINER];
       this.applyContainerVisibility();
       this.syncImmersiveCanvasState();
       this.timelineEnabled = !!(res?.geminimate_timeline_enabled ?? true);
@@ -354,12 +356,12 @@ export class TimelineManager {
         if (onChanged) {
           onChanged.addListener((changes: Record<string, { newValue: unknown }>, area: string) => {
             if (area !== 'local') return;
-            if (changes?.geminiTimelineScrollMode) {
-              const n = changes.geminiTimelineScrollMode.newValue;
+            if (changes?.[StorageKeys.TIMELINE_SCROLL_MODE]) {
+              const n = changes[StorageKeys.TIMELINE_SCROLL_MODE].newValue;
               if (n === 'flow' || n === 'jump') this.scrollMode = n;
             }
-            if (changes?.geminiTimelineHideContainer) {
-              this.hideContainer = !!changes.geminiTimelineHideContainer.newValue;
+            if (changes?.[StorageKeys.TIMELINE_HIDE_CONTAINER]) {
+              this.hideContainer = !!changes[StorageKeys.TIMELINE_HIDE_CONTAINER].newValue;
               this.applyContainerVisibility();
             }
             if (changes?.geminimate_timeline_enabled) {
