@@ -1,6 +1,7 @@
 import { StorageKeys } from '@/core/types/common';
 import {
   isAnyModelResponseStreaming,
+  isModelResponseComplete,
   isNodeInModelResponse,
   isNodeInThoughtTree,
 } from '@/core/utils/responseLifecycle';
@@ -192,9 +193,10 @@ function applyIndentAll(): void {
 
   const candidates = Array.from(document.querySelectorAll<HTMLElement>(CANDIDATE_SELECTOR))
     .filter((node) => !isNodeInThoughtTree(node));
-  const candidateSet = new Set<HTMLElement>(candidates);
+  const completedCandidates = candidates.filter((node) => isModelResponseComplete(node));
+  const candidateSet = new Set<HTMLElement>(completedCandidates);
 
-  candidates.forEach((node) => {
+  completedCandidates.forEach((node) => {
     normalizeMergedHeadingParagraph(node);
   });
 
@@ -204,7 +206,7 @@ function applyIndentAll(): void {
     removeIndentMark(node);
   });
 
-  candidates.forEach((node) => {
+  completedCandidates.forEach((node) => {
     if (!isParagraphLikeCandidate(node)) {
       removeIndentMark(node);
       return;

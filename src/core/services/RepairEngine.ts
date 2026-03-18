@@ -1,10 +1,16 @@
 ﻿import katex from 'katex';
 
 import { StorageKeys } from '../types/common';
-import { isNodeInModelResponse, isNodeInThoughtTree } from '../utils/responseLifecycle';
+import {
+  isAnyModelResponseStreaming,
+  isModelResponseComplete,
+  isNodeInModelResponse,
+  isNodeInThoughtTree,
+} from '../utils/responseLifecycle';
 import { debugService } from './DebugService';
 import { logger } from './LoggerService';
 import { findSplitMarkdownBoldRanges } from './markdownSplitBold';
+import { buildMarkdownRepairStyle, getMarkdownEmphasisStyle } from './repairPresentation';
 
 const RE_MATH = /(\$\$[\s\S]*?\$\$)|(\$((?:\\\$|[^$])+?)\$)/g;
 const INLINE_MATH_HTML_REGEX = /\$((?:\\\$|[^$])+?)\$/g;
@@ -59,6 +65,8 @@ export class RepairEngine {
   private renderedSnapshots = new WeakMap<HTMLElement, string>();
   private pendingFixTimer: ReturnType<typeof setTimeout> | null = null;
   private pendingRollbackTimer: ReturnType<typeof setTimeout> | null = null;
+  private streamCompletionTimer: ReturnType<typeof setTimeout> | null = null;
+  private pendingFixAfterStreaming = false;
   private forceMarkdownRefresh = false;
   private storageListener:
     | ((changes: Record<string, chrome.storage.StorageChange>, areaName: string) => void)
@@ -153,6 +161,10 @@ export class RepairEngine {
     chrome.storage.onChanged.addListener(this.storageListener);
 
     this.setupObserver();
+    if (isAnyModelResponseStreaming()) {
+      this.scheduleFixAfterStreamingCompletes('startup');
+      return;
+    }
     this.fixAll();
   }
 
@@ -173,6 +185,10 @@ export class RepairEngine {
         if (!this.hasRelevantMessageMutations(mutations)) return;
         debugService.log('repair', 'mutation-detected', { count: mutations.length });
         this.trace('mutation-detected', { count: mutations.length });
+        if (isAnyModelResponseStreaming()) {
+          this.scheduleFixAfterStreamingCompletes('mutation');
+          return;
+        }
         this.scheduleFixAll('mutation');
       });
 
@@ -198,6 +214,10 @@ export class RepairEngine {
   }
 
   private scheduleFixAll(reason: string): void {
+    if (isAnyModelResponseStreaming()) {
+      this.scheduleFixAfterStreamingCompletes(reason);
+      return;
+    }
     if (this.pendingRollbackTimer !== null) {
       clearTimeout(this.pendingRollbackTimer);
       this.pendingRollbackTimer = null;
@@ -209,6 +229,23 @@ export class RepairEngine {
       debugService.log('repair', 'fix-scheduled', { reason });
       this.fixAll();
     }, 120);
+  }
+
+  private scheduleFixAfterStreamingCompletes(reason: string): void {
+    this.pendingFixAfterStreaming = true;
+    if (this.streamCompletionTimer !== null) return;
+
+    this.trace('schedule-fix-after-streaming', { reason });
+    this.streamCompletionTimer = setTimeout(() => {
+      this.streamCompletionTimer = null;
+      if (!this.pendingFixAfterStreaming) return;
+      if (isAnyModelResponseStreaming()) {
+        this.scheduleFixAfterStreamingCompletes('streaming-wait');
+        return;
+      }
+      this.pendingFixAfterStreaming = false;
+      this.scheduleFixAll('streaming-complete');
+    }, 220);
   }
 
   private scheduleRollback(reason: string): void {
@@ -230,6 +267,7 @@ export class RepairEngine {
     const scopedContainers = containers.filter((container) => {
       if (container.closest(HARD_THOUGHT_ROOT_SELECTOR)) return false;
       if (isNodeInThoughtTree(container)) return false;
+      if (!isModelResponseComplete(container)) return false;
       return isNodeInModelResponse(container);
     });
 
@@ -275,6 +313,10 @@ export class RepairEngine {
   fixAll(): void {
     if (this.isMutatingSelf) {
       this.scheduleFixAll('locked-retry');
+      return;
+    }
+    if (isAnyModelResponseStreaming()) {
+      this.scheduleFixAfterStreamingCompletes('fix-while-streaming');
       return;
     }
     if (!this.config.latexEnabled && !this.config.markdownEnabled) return;
@@ -478,7 +520,7 @@ export class RepairEngine {
 
   private extractSourceFromPatchedHtml(html: string): string {
     const template = document.createElement('template');
-    template.innerHTML = html;
+    this.safeSetInnerHTML(template, html);
     const root = template.content;
 
     Array.from(root.querySelectorAll(`.math-inline.${DONE_CLASS}`)).forEach((element) => {
@@ -671,7 +713,7 @@ export class RepairEngine {
 
   private normalizeInlineMathSegment(segmentInnerHtml: string): string {
     const template = document.createElement('template');
-    template.innerHTML = segmentInnerHtml;
+    this.safeSetInnerHTML(template, segmentInnerHtml);
     const root = template.content;
 
     Array.from(root.querySelectorAll('[data-math]')).forEach((element) => {
@@ -784,31 +826,29 @@ export class RepairEngine {
   }
 
   private getMarkdownEmphasisStyle(): string {
-    // Bold mode: just bold weight, NO underline decoration.
-    // Underline mode: yellow dashed underline, normal weight.
-    return this.config.emphasisMode === 'underline'
-      ? 'border-bottom: 2px dashed #ffd400; font-weight: inherit !important;'
-      : 'font-weight: bold;';
+    return getMarkdownEmphasisStyle(this.config.emphasisMode);
   }
 
   private applyEmphasisToElement(el: HTMLElement, repaired: boolean, styleText: string): void {
-    el.setAttribute('style', styleText);
+    el.setAttribute('style', repaired ? buildMarkdownRepairStyle(this.config.emphasisMode) : styleText);
 
     if (this.config.emphasisMode === 'underline') {
       el.classList.add(MD_UNDERLINE_CLASS);
-      if (!repaired) {
+      if (repaired) {
         el.classList.add(MD_MARK_CLASS);
-        el.setAttribute('title', 'Markdown Emphasis Adjusted');
       }
       return;
     }
 
     el.classList.remove(MD_UNDERLINE_CLASS);
-    if (!repaired) {
-      el.classList.remove(MD_MARK_CLASS);
-      if (el.getAttribute('title') === 'Markdown Emphasis Adjusted') {
-        el.removeAttribute('title');
-      }
+    if (repaired) {
+      el.classList.add(MD_MARK_CLASS);
+      return;
+    }
+
+    el.classList.remove(MD_MARK_CLASS);
+    if (el.getAttribute('title') === 'Markdown Emphasis Adjusted') {
+      el.removeAttribute('title');
     }
   }
 
@@ -832,19 +872,6 @@ export class RepairEngine {
     repairedBolds.forEach((el) => {
       const b = el as HTMLElement;
       this.applyEmphasisToElement(b, true, boldStyle);
-    });
-
-    const bolds = container.querySelectorAll(`b:not(.${MD_FIX_CLASS}), strong:not(.${MD_FIX_CLASS})`);
-    bolds.forEach((el) => {
-      const b = el as HTMLElement;
-      if (b.closest('h1, h2, h3, h4, h5, h6')) return;
-      if (b.closest('pre, code, .code-block, code-block')) return;
-      const orig = b.textContent || '';
-      const trimmed = orig.trim();
-      if (trimmed !== orig) {
-        b.textContent = trimmed;
-      }
-      this.applyEmphasisToElement(b, false, boldStyle);
     });
   }
 
