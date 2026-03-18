@@ -59,7 +59,6 @@ const resolveEnabledValue = (value: unknown): boolean => value !== false;
 
 const traceThoughtTranslation = (event: string, detail?: Record<string, unknown>): void => {
   debugService.log('thought-translation', event, detail);
-  console.info('[GM-TRACE][ThoughtTranslation]', event, detail ?? {});
 };
 
 const snapshotWebStorage = (storage: Storage, maxEntries = 80): Record<string, string> => {
@@ -299,24 +298,8 @@ const extractCustomFontNames = (value: unknown): string[] => {
 };
 
 const traceCustomFontStorage = (event: 'initial' | 'changed', value: unknown): void => {
-  const fontNames = extractCustomFontNames(value);
-  console.error('[VIBE_DEBUG_TRACE][CUSTOM_FONT_STORAGE_PAGE_TRACE]', {
-    event,
-    fontNames,
-    fontCount: fontNames.length,
-  });
-  console.error(
-    '[VIBE_DEBUG_TRACE][CUSTOM_FONT_STORAGE_PAGE_TRACE_JSON]',
-    JSON.stringify(
-      {
-        event,
-        fontNames,
-        fontCount: fontNames.length,
-      },
-      null,
-      2,
-    ),
-  );
+  void event;
+  void value;
 };
 
 const handleStorageChanged = (
@@ -369,20 +352,6 @@ const handleStorageChanged = (
     syncYoutubeRecommendationBlockerState(enabled);
   }
 
-  const mermaidChange = changes[StorageKeys.MERMAID_RENDER_ENABLED];
-  if (mermaidChange) {
-    const enabled = resolveEnabledValue(mermaidChange.newValue);
-    debugService.log('storage', 'mermaid-enabled-changed', { enabled });
-    syncMermaidState(enabled);
-  }
-
-  const svgRenderChange = changes[StorageKeys.SVG_RENDER_ENABLED];
-  if (svgRenderChange) {
-    const enabled = resolveEnabledValue(svgRenderChange.newValue);
-    debugService.log('storage', 'svg-render-enabled-changed', { enabled });
-    syncSvgRenderState(enabled);
-  }
-
   const thoughtTranslationChange = changes[StorageKeys.THOUGHT_TRANSLATION_ENABLED];
   if (thoughtTranslationChange) {
     const enabled = resolveThoughtTranslationEnabled(thoughtTranslationChange.newValue);
@@ -418,8 +387,6 @@ const initExtension = async () => {
       StorageKeys.WATERMARK_REMOVER_ENABLED,
       StorageKeys.BOTTOM_CLEANUP_ENABLED,
       StorageKeys.YOUTUBE_RECOMMENDATION_BLOCKER_ENABLED,
-      StorageKeys.MERMAID_RENDER_ENABLED,
-      StorageKeys.SVG_RENDER_ENABLED,
       StorageKeys.THOUGHT_TRANSLATION_ENABLED,
       StorageKeys.DEBUG_MODE,
       StorageKeys.GEMINI_CUSTOM_FONTS,
@@ -431,8 +398,8 @@ const initExtension = async () => {
     syncYoutubeRecommendationBlockerState(
       resolveEnabledValue(settings[StorageKeys.YOUTUBE_RECOMMENDATION_BLOCKER_ENABLED]),
     );
-    syncMermaidState(resolveEnabledValue(settings[StorageKeys.MERMAID_RENDER_ENABLED]));
-    syncSvgRenderState(resolveEnabledValue(settings[StorageKeys.SVG_RENDER_ENABLED]));
+    syncMermaidState(true);
+    syncSvgRenderState(true);
     traceThoughtTranslation('initial-setting', {
       rawValue: settings[StorageKeys.THOUGHT_TRANSLATION_ENABLED],
       resolved: resolveThoughtTranslationEnabled(settings[StorageKeys.THOUGHT_TRANSLATION_ENABLED]),

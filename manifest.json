@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "GeminiMate",
   "description": "Premium Gemini assistant with LaTeX fixing and advanced features.",
-  "version": "2.3.1",
+  "version": "3.1.1",
   "action": {
     "default_popup": "src/pages/popup/index.html"
   },
@@ -13,9 +13,11 @@
     "downloads"
   ],
   "host_permissions": [
+    "file:///*",
     "https://gemini.google.com/*",
     "https://business.gemini.google/*",
     "https://*.googleusercontent.com/*",
+    "https://*.usercontent.goog/*",
     "https://*.ggpht.com/*",
     "https://translate.googleapis.com/*",
     "https://api.github.com/*",
@@ -28,6 +30,7 @@
   "content_scripts": [
     {
       "matches": [
+        "file:///*",
         "https://gemini.google.com/*",
         "https://business.gemini.google/*"
       ],

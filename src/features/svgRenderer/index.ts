@@ -1,15 +1,32 @@
-import { debugService } from '@/core/services/DebugService';
+﻿import { debugService } from '@/core/services/DebugService';
+import { findLikelyNativeDownloadButtons } from '@/features/codeActions/nativeDownloadButton';
+import {
+  ACTION_BUTTON_BUSY_CLASS,
+  setActionButtonBusy,
+} from '@/features/codeActions/actionBusyState';
+import { downloadSvgMarkupAsPng } from '@/features/codeActions/svgDownload';
+import { downloadSvgMarkupAsGif } from '@/features/codeActions/svgGifDownload';
+import { detectAnimatedSvgMarkup } from '@/features/codeActions/svgExportModel';
+import {
+  processNativeSvgCodeBlocks,
+  setNativeSvgCodeBlockDownloadEnabled,
+} from './nativeSvgCodeBlockDownload';
 
 const STYLE_ID = 'gm-svg-render-style';
 const DIAGRAM_CLASS = 'gm-svg-diagram';
-const TOGGLE_CLASS = 'gm-svg-toggle';
-const TOGGLE_BUTTON_CLASS = 'gm-svg-toggle-button';
+const DOWNLOAD_BUTTON_CLASS = 'gm-code-download-button';
+const SHARE_BUTTON_CLASS = 'gm-code-share-button';
+const ICON_BUTTON_CLASS = 'gm-code-action-button';
 const HOST_ATTR = 'data-gm-svg-host';
-const VIEW_ATTR = 'data-gm-svg-view';
 const CODE_ATTR = 'data-gm-svg-code';
 const PROCESSING_ATTR = 'data-gm-svg-processing';
 const MARKUP_ATTR = 'data-gm-svg-markup';
+const DOWNLOAD_BUTTON_ATTR = 'data-gm-svg-download';
+const SHARE_BUTTON_ATTR = 'data-gm-svg-share';
+const NATIVE_DOWNLOAD_PROXY_ATTR = 'data-gm-svg-native-download-proxy';
+const NATIVE_DOWNLOAD_HIDDEN_ATTR = 'data-gm-svg-native-download-hidden';
 const TRACE_ENABLED = false;
+const DIAG_PREFIX = '[GeminiMate][SVG-DIAG][renderer]';
 
 let started = false;
 let renderEnabled = true;
@@ -18,15 +35,43 @@ let debounceTimer: number | null = null;
 const startupTimerIds = new Set<number>();
 let fullscreenModal: HTMLElement | null = null;
 let fullscreenKeydownHandler: ((event: KeyboardEvent) => void) | null = null;
-const boundToggleButtons = new WeakSet<HTMLButtonElement>();
+const boundDownloadButtons = new WeakSet<HTMLButtonElement>();
+const boundShareButtons = new WeakSet<HTMLButtonElement>();
+const boundNativeDownloadButtons = new WeakSet<HTMLButtonElement>();
 const boundDiagramContainers = new WeakSet<HTMLElement>();
 
-type SvgView = 'diagram' | 'code';
+const DOWNLOAD_ICON = `
+  <svg viewBox="0 0 24 24" aria-hidden="true">
+    <path d="M5 5h14a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2Zm0 2v10h14V7H5Zm2 8 2.7-3.3a1 1 0 0 1 1.54 0L13 14l1.9-2.3a1 1 0 0 1 1.55.02L18 15H7Zm2-6.5a1.5 1.5 0 1 1 0 3 1.5 1.5 0 0 1 0-3Z" fill="currentColor"/>
+  </svg>
+`;
+const SHARE_ICON = `
+  <svg viewBox="0 0 24 24" aria-hidden="true">
+    <path d="M14 4h6v6h-2V7.41l-7.29 7.3-1.42-1.42L16.59 6H14V4Z" fill="currentColor"/>
+    <path d="M5 5h6v2H7v10h10v-4h2v6H5V5Z" fill="currentColor"/>
+  </svg>
+`;
 
 const logTrace = (event: string, detail?: Record<string, unknown>): void => {
   if (!TRACE_ENABLED) return;
   debugService.log('svg-renderer', event, detail);
-  console.info('[GM-TRACE][SvgRenderer]', event, detail ?? {});
+};
+
+const emitSvgRendererDiagnostic = (
+  level: 'info' | 'warn' | 'error',
+  event: string,
+  detail?: Record<string, unknown>,
+): void => {
+  const payload = detail ? { event, ...detail } : { event };
+  if (level === 'error') {
+    console.error(DIAG_PREFIX, payload);
+    return;
+  }
+  if (level === 'warn') {
+    console.warn(DIAG_PREFIX, payload);
+    return;
+  }
+  console.info(DIAG_PREFIX, payload);
 };
 
 const ensureStyles = (): void => {
@@ -35,33 +80,169 @@ const ensureStyles = (): void => {
   const style = document.createElement('style');
   style.id = STYLE_ID;
   style.textContent = `
-    .${TOGGLE_CLASS} {
+    .code-block-decoration .buttons {
+      display: inline-flex !important;
+      align-items: center !important;
+      justify-content: flex-end !important;
+      flex-wrap: nowrap !important;
+      gap: 6px !important;
+      margin-left: auto !important;
+      pointer-events: auto !important;
+      position: relative !important;
+      z-index: 2 !important;
+    }
+
+    .code-block-decoration .buttons > * {
+      pointer-events: auto !important;
+      position: relative;
+      z-index: 2;
+    }
+
+    .${SHARE_BUTTON_CLASS} {
+      order: 1;
+      flex: 0 0 auto;
+    }
+
+    .${DOWNLOAD_BUTTON_CLASS} {
+      order: 2;
+      flex: 0 0 auto;
+    }
+
+    .code-block-decoration .buttons > .copy-button,
+    .code-block-decoration .buttons > button.copy-button {
+      order: 3;
+      flex: 0 0 auto;
+    }
+
+    .${ICON_BUTTON_CLASS} {
+      width: 32px;
+      height: 32px;
+      border: none;
+      border-radius: 999px;
+      padding: 0;
+      background: transparent;
+      color: var(--gem-sys-color--on-surface-variant, #5f6368);
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      vertical-align: middle;
+      line-height: 1;
+      pointer-events: auto !important;
+      position: relative;
+      z-index: 2;
+      transition: background-color 160ms ease, color 160ms ease, opacity 160ms ease;
+    }
+
+    .${ICON_BUTTON_CLASS}:hover {
+      background: rgba(148, 163, 184, 0.14);
+      color: var(--gem-sys-color--on-surface, #111827);
+    }
+
+    .${ICON_BUTTON_CLASS}:disabled {
+      cursor: not-allowed;
+      opacity: 0.45;
+    }
+
+    .${ICON_BUTTON_CLASS}.${ACTION_BUTTON_BUSY_CLASS},
+    .gm-svg-native-toolbar-button.${ACTION_BUTTON_BUSY_CLASS} {
+      opacity: 0.88;
+    }
+
+    .${ICON_BUTTON_CLASS}.${ACTION_BUTTON_BUSY_CLASS}:disabled,
+    .gm-svg-native-toolbar-button.${ACTION_BUTTON_BUSY_CLASS}:disabled {
+      opacity: 0.88;
+    }
+
+    .${ICON_BUTTON_CLASS} svg {
+      width: 18px;
+      height: 18px;
+      display: block;
+      fill: currentColor;
+    }
+
+    .${ICON_BUTTON_CLASS}.${ACTION_BUTTON_BUSY_CLASS} svg,
+    .gm-svg-native-toolbar-button.${ACTION_BUTTON_BUSY_CLASS} svg {
+      opacity: 0.18;
+    }
+
+    .${ICON_BUTTON_CLASS}.${ACTION_BUTTON_BUSY_CLASS}::after,
+    .gm-svg-native-toolbar-button.${ACTION_BUTTON_BUSY_CLASS}::after {
+      content: '';
+      position: absolute;
+      width: 16px;
+      height: 16px;
+      border-radius: 999px;
+      border: 2px solid rgba(148, 163, 184, 0.32);
+      border-top-color: currentColor;
+      animation: gm-svg-action-spin 720ms linear infinite;
+    }
+
+    svg-code-block .svg-toolbar {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: nowrap;
+    }
+
+    svg-code-block .svg-label {
+      flex: 0 0 auto;
+      color: #475569;
+      font-weight: 500;
+    }
+
+    svg-code-block .svg-actions {
       display: inline-flex;
       align-items: center;
       gap: 4px;
-      padding: 2px;
-      margin-inline-end: 6px;
-      border-radius: 999px;
-      border: 1px solid rgba(148, 163, 184, 0.22);
-      background: rgba(248, 250, 252, 0.88);
+      margin-inline-start: auto;
     }
 
-    .${TOGGLE_BUTTON_CLASS} {
+    .gm-svg-native-toolbar-button {
+      width: 32px;
+      height: 32px;
       border: none;
-      background: transparent;
-      color: #475569;
       border-radius: 999px;
+      padding: 0;
+      background: transparent;
+      color: var(--gem-sys-color--on-surface-variant, #5f6368);
       cursor: pointer;
-      font-size: 12px;
-      font-weight: 600;
-      line-height: 1;
-      padding: 6px 10px;
-      transition: all 160ms ease;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      flex: 0 0 auto;
+      transition: background-color 160ms ease, color 160ms ease, opacity 160ms ease;
     }
 
-    .${TOGGLE_BUTTON_CLASS}.active {
-      background: rgba(59, 130, 246, 0.16);
-      color: #1d4ed8;
+    .gm-svg-native-toolbar-button:hover {
+      background: rgba(148, 163, 184, 0.14);
+      color: var(--gem-sys-color--on-surface, #111827);
+    }
+
+    .gm-svg-native-toolbar-button:disabled {
+      cursor: not-allowed;
+      opacity: 0.45;
+    }
+
+    .gm-svg-native-toolbar-button svg {
+      width: 18px;
+      height: 18px;
+      display: block;
+      fill: currentColor;
+    }
+
+    @keyframes gm-svg-action-spin {
+      from {
+        transform: rotate(0deg);
+      }
+
+      to {
+        transform: rotate(360deg);
+      }
+    }
+
+    svg-code-block .svg-preview {
+      border-top: 1px solid rgba(148, 163, 184, 0.16);
     }
 
     .${DIAGRAM_CLASS} {
@@ -183,6 +364,26 @@ const ensureStyles = (): void => {
       background: rgba(30, 41, 59, 0.88);
     }
 
+    .theme-host.dark-theme .${ICON_BUTTON_CLASS},
+    html.dark .${ICON_BUTTON_CLASS},
+    body.dark .${ICON_BUTTON_CLASS},
+    html[data-theme='dark'] .${ICON_BUTTON_CLASS},
+    body[data-theme='dark'] .${ICON_BUTTON_CLASS},
+    html[data-color-scheme='dark'] .${ICON_BUTTON_CLASS},
+    body[data-color-scheme='dark'] .${ICON_BUTTON_CLASS} {
+      color: rgba(226, 232, 240, 0.88);
+    }
+
+    .theme-host.dark-theme .gm-svg-native-toolbar-button,
+    html.dark .gm-svg-native-toolbar-button,
+    body.dark .gm-svg-native-toolbar-button,
+    html[data-theme='dark'] .gm-svg-native-toolbar-button,
+    body[data-theme='dark'] .gm-svg-native-toolbar-button,
+    html[data-color-scheme='dark'] .gm-svg-native-toolbar-button,
+    body[data-color-scheme='dark'] .gm-svg-native-toolbar-button {
+      color: rgba(226, 232, 240, 0.88);
+    }
+
     .theme-host.dark-theme .gm-svg-render-error,
     html.dark .gm-svg-render-error,
     body.dark .gm-svg-render-error,
@@ -228,7 +429,7 @@ const openFullscreen = (svgHtml: string): void => {
   const closeButton = document.createElement('button');
   closeButton.className = 'gm-svg-modal-close';
   closeButton.type = 'button';
-  closeButton.textContent = 'x';
+  closeButton.textContent = '×';
 
   const content = document.createElement('div');
   content.className = 'gm-svg-modal-content';
@@ -309,11 +510,118 @@ const getCodeContentContainer = (
 const getDiagramContainer = (codeBlockHost: HTMLElement): HTMLElement | null =>
   codeBlockHost.querySelector(`.${DIAGRAM_CLASS}`) as HTMLElement | null;
 
-const getToggleGroup = (codeBlockHost: HTMLElement): HTMLElement | null =>
-  codeBlockHost.querySelector(`.${TOGGLE_CLASS}`) as HTMLElement | null;
+const createTimestamp = (): string =>
+  new Date().toISOString().replace(/[:.]/g, '-').replace('T', '_').replace('Z', '');
 
-const getCurrentView = (codeBlockHost: HTMLElement): SvgView =>
-  codeBlockHost.getAttribute(VIEW_ATTR) === 'code' ? 'code' : 'diagram';
+const openShareHtml = (html: string, title: string): boolean => {
+  if (!html.trim()) {
+    return false;
+  }
+
+  try {
+    const runnerUrl = chrome.runtime.getURL('sandbox/runner.html');
+    const previewWindow = window.open(runnerUrl, '_blank');
+    if (!previewWindow) {
+      return false;
+    }
+
+    const handleMessage = (event: MessageEvent): void => {
+      if (event.source !== previewWindow || event.data?.type !== 'RUNNER_READY') {
+        return;
+      }
+
+      window.removeEventListener('message', handleMessage);
+      previewWindow.postMessage(
+        {
+          type: 'PREVIEW_HTML',
+          html,
+          title,
+        },
+        '*',
+      );
+    };
+
+    window.addEventListener('message', handleMessage);
+    return true;
+  } catch {
+    return false;
+  }
+};
+
+const wrapHtmlDocument = (body: string, title: string, bodyStyle: string): string => `<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <title>${title}</title>
+  </head>
+  <body style="${bodyStyle}">${body}</body>
+</html>`;
+
+const createIconButton = (
+  title: string,
+  icon: string,
+  attrName: string,
+  extraClassName: string,
+): HTMLButtonElement => {
+  const button = document.createElement('button');
+  button.type = 'button';
+  button.className = `${ICON_BUTTON_CLASS} ${extraClassName}`;
+  button.innerHTML = icon;
+  button.title = title;
+  button.setAttribute('aria-label', title);
+  button.setAttribute(attrName, '1');
+  return button;
+};
+
+const bindNativeDownloadButton = (button: HTMLButtonElement, codeBlockHost: HTMLElement): void => {
+  if (boundNativeDownloadButtons.has(button)) return;
+  button.addEventListener(
+    'click',
+    (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      event.stopImmediatePropagation();
+      void downloadCurrentContent(codeBlockHost);
+    },
+    true,
+  );
+  boundNativeDownloadButtons.add(button);
+};
+
+const syncNativeDownloadButtons = (codeBlockHost: HTMLElement): void => {
+  const buttonsContainer = getButtonsContainer(codeBlockHost);
+  if (!buttonsContainer) return;
+
+  const nativeButtons = findLikelyNativeDownloadButtons(buttonsContainer, [
+    `[${DOWNLOAD_BUTTON_ATTR}="1"]`,
+    `[${SHARE_BUTTON_ATTR}="1"]`,
+    '.copy-button',
+  ]);
+
+  nativeButtons.forEach((button) => {
+    bindNativeDownloadButton(button, codeBlockHost);
+    button.hidden = true;
+    button.setAttribute(NATIVE_DOWNLOAD_PROXY_ATTR, '1');
+    button.setAttribute(NATIVE_DOWNLOAD_HIDDEN_ATTR, '1');
+  });
+};
+
+const restoreNativeDownloadButtons = (codeBlockHost: HTMLElement): void => {
+  codeBlockHost
+    .querySelectorAll<HTMLButtonElement>(`button[${NATIVE_DOWNLOAD_PROXY_ATTR}="1"]`)
+    .forEach((button) => {
+      button.hidden = false;
+      button.removeAttribute(NATIVE_DOWNLOAD_PROXY_ATTR);
+      button.removeAttribute(NATIVE_DOWNLOAD_HIDDEN_ATTR);
+    });
+};
+
+const removeConflictingMermaidButtons = (codeBlockHost: HTMLElement): void => {
+  codeBlockHost.querySelector('[data-gm-code-share="1"]')?.remove();
+  codeBlockHost.querySelector('[data-gm-code-download="1"]')?.remove();
+  codeBlockHost.querySelector('.gm-mermaid-toggle')?.remove();
+};
 
 const getCodeBlockLanguage = (codeElement: Element): string | null => {
   const codeBlock = codeElement.closest('.code-block, code-block');
@@ -340,7 +648,6 @@ const setErrorDiagram = (diagramContainer: HTMLElement, error: string): void => 
     <div class="gm-svg-render-error">
       <strong>SVG 渲染失败</strong>
       <div>${shortError}</div>
-      <div style="margin-top:8px;font-size:12px;">你仍然可以切回代码视图查看源码。</div>
     </div>
   `;
 };
@@ -368,6 +675,19 @@ const getSvgAspectRatio = (svg: Element): string => {
   return '16 / 9';
 };
 
+const ensureSvgNamespaces = (svg: Element): void => {
+  if (!svg.getAttribute('xmlns')) {
+    svg.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
+  }
+
+  const usesXlinkHref =
+    svg.querySelector('[xlink\\:href]') !== null ||
+    Array.from(svg.attributes).some((attribute) => attribute.name === 'xlink:href');
+  if (usesXlinkHref && !svg.getAttribute('xmlns:xlink')) {
+    svg.setAttribute('xmlns:xlink', 'http://www.w3.org/1999/xlink');
+  }
+};
+
 const sanitizeSvgMarkup = (source: string): SanitizedSvgResult => {
   const parser = new DOMParser();
   const doc = parser.parseFromString(source, 'image/svg+xml');
@@ -390,9 +710,7 @@ const sanitizeSvgMarkup = (source: string): SanitizedSvgResult => {
     });
   });
 
-  if (!svg.getAttribute('xmlns')) {
-    svg.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
-  }
+  ensureSvgNamespaces(svg);
 
   return {
     markup: new XMLSerializer().serializeToString(svg),
@@ -436,6 +754,7 @@ const setDiagramMarkup = (
   svgMarkup: string,
   aspectRatio: string,
 ): void => {
+  codeBlockHost.setAttribute(MARKUP_ATTR, svgMarkup);
   const frame = document.createElement('iframe');
   frame.setAttribute('aria-label', 'SVG 预览');
   frame.sandbox.add('allow-same-origin');
@@ -456,38 +775,21 @@ const isResponseComplete = (codeBlockHost: HTMLElement): boolean => {
   return false;
 };
 
-const updateView = (codeBlockHost: HTMLElement, view: SvgView): void => {
+const showDiagramOnly = (codeBlockHost: HTMLElement): void => {
   const diagramContainer = getDiagramContainer(codeBlockHost);
   const codeContentContainer = getCodeContentContainer(
     codeBlockHost,
     getCodeElementFromHost(codeBlockHost) ?? undefined,
   );
 
-  const nextView: SvgView = view === 'diagram' && diagramContainer ? 'diagram' : 'code';
-  codeBlockHost.setAttribute(VIEW_ATTR, nextView);
-
   if (diagramContainer) {
-    diagramContainer.style.display = nextView === 'diagram' ? 'block' : 'none';
+    diagramContainer.style.display = 'block';
   }
 
   if (codeContentContainer) {
-    codeContentContainer.style.display = nextView === 'diagram' ? 'none' : '';
+    codeContentContainer.style.display = 'none';
   }
-
-  const buttons = codeBlockHost.querySelectorAll<HTMLButtonElement>(`.${TOGGLE_BUTTON_CLASS}`);
-  buttons.forEach((button) => {
-    button.classList.toggle('active', button.dataset.view === nextView);
-  });
-};
-
-const bindToggleButton = (button: HTMLButtonElement, codeBlockHost: HTMLElement, view: SvgView): void => {
-  if (boundToggleButtons.has(button)) return;
-  button.addEventListener('click', (event) => {
-    event.preventDefault();
-    event.stopPropagation();
-    updateView(codeBlockHost, view);
-  });
-  boundToggleButtons.add(button);
+  updateDownloadButtonState(codeBlockHost);
 };
 
 const bindDiagramContainer = (diagramContainer: HTMLElement): void => {
@@ -500,6 +802,207 @@ const bindDiagramContainer = (diagramContainer: HTMLElement): void => {
     }
   });
   boundDiagramContainers.add(diagramContainer);
+};
+
+const updateDownloadButtonState = (codeBlockHost: HTMLElement): void => {
+  const button = codeBlockHost.querySelector(
+    `[${DOWNLOAD_BUTTON_ATTR}="1"]`,
+  ) as HTMLButtonElement | null;
+  if (!button) return;
+
+  const isSvgHost = codeBlockHost.getAttribute(HOST_ATTR) === '1';
+  const svgMarkup = codeBlockHost.getAttribute(MARKUP_ATTR) ?? '';
+  const codeElement = getCodeElementFromHost(codeBlockHost);
+  const sourceCode = normalizeSvgSource(codeElement?.textContent || '');
+  const effectiveMarkup = svgMarkup || sourceCode;
+
+  if (isSvgHost && effectiveMarkup) {
+    button.disabled = false;
+    button.title = '下载图像 PNG/GIF';
+    button.setAttribute('aria-label', '下载图像 PNG/GIF');
+    return;
+  }
+
+  button.disabled = true;
+  button.title = '暂无可下载图形';
+  button.setAttribute('aria-label', '暂无可下载图形');
+};
+
+const runButtonAction = async (
+  button: HTMLButtonElement,
+  action: () => Promise<void>,
+): Promise<void> => {
+  setActionButtonBusy(button, true);
+  try {
+    await action();
+  } finally {
+    setActionButtonBusy(button, false);
+  }
+};
+
+const shareCurrentContent = async (codeBlockHost: HTMLElement): Promise<void> => {
+  const codeElement = getCodeElementFromHost(codeBlockHost);
+  const sourceCode = normalizeSvgSource(codeElement?.textContent || '');
+  const svgMarkup = codeBlockHost.getAttribute(MARKUP_ATTR) ?? '';
+  const effectiveMarkup = svgMarkup || sourceCode;
+  if (!effectiveMarkup.trim()) {
+    emitSvgRendererDiagnostic('warn', 'share-empty');
+    return;
+  }
+
+  const html = wrapHtmlDocument(
+    effectiveMarkup,
+    'SVG Share',
+    'margin:0;padding:24px;background:#f8fafc;display:flex;justify-content:center;align-items:flex-start;',
+  );
+  const opened = openShareHtml(html, 'SVG Share');
+  emitSvgRendererDiagnostic(opened ? 'info' : 'warn', 'share-open', {
+    opened,
+    markupLength: effectiveMarkup.length,
+  });
+};
+
+const bindShareButton = (button: HTMLButtonElement, codeBlockHost: HTMLElement): void => {
+  if (boundShareButtons.has(button)) return;
+  button.addEventListener('click', (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    emitSvgRendererDiagnostic('info', 'share-click');
+    void runButtonAction(button, () => shareCurrentContent(codeBlockHost)).catch((error: unknown) => {
+      emitSvgRendererDiagnostic('error', 'share-failed', {
+        error: error instanceof Error ? error.message : String(error),
+      });
+    });
+  });
+  boundShareButtons.add(button);
+};
+
+const updateShareButtonState = (codeBlockHost: HTMLElement): void => {
+  const button = codeBlockHost.querySelector(
+    `[${SHARE_BUTTON_ATTR}="1"]`,
+  ) as HTMLButtonElement | null;
+  if (!button) return;
+
+  const codeElement = getCodeElementFromHost(codeBlockHost);
+  const sourceCode = normalizeSvgSource(codeElement?.textContent || '');
+  const svgMarkup = codeBlockHost.getAttribute(MARKUP_ATTR) ?? '';
+  const canShare = !!(svgMarkup || sourceCode).trim();
+  button.disabled = !canShare;
+  button.title = canShare ? '分享到新窗口' : '当前图形暂不可分享';
+  button.setAttribute('aria-label', button.title);
+};
+
+const downloadCurrentContent = async (codeBlockHost: HTMLElement): Promise<void> => {
+  const codeElement = getCodeElementFromHost(codeBlockHost);
+  const sourceCode = normalizeSvgSource(codeElement?.textContent || '');
+  const svgMarkup = codeBlockHost.getAttribute(MARKUP_ATTR) ?? '';
+  const isSvgHost = codeBlockHost.getAttribute(HOST_ATTR) === '1';
+  const effectiveMarkup = svgMarkup || sourceCode;
+
+  emitSvgRendererDiagnostic('info', 'download-start', {
+    isSvgHost,
+    markupLength: effectiveMarkup.length,
+  });
+
+  if (isSvgHost && effectiveMarkup) {
+    const animated = detectAnimatedSvgMarkup(effectiveMarkup);
+    if (animated) {
+      const filename = `geminimate-svg-${createTimestamp()}.gif`;
+      await downloadSvgMarkupAsGif(effectiveMarkup, filename);
+      logTrace('download', {
+        filename,
+        kind: 'gif',
+      });
+      emitSvgRendererDiagnostic('info', 'download-gif', {
+        filename,
+      });
+      return;
+    }
+
+    const filename = `geminimate-svg-${createTimestamp()}`;
+    await downloadSvgMarkupAsPng(effectiveMarkup, filename);
+    logTrace('download', {
+      filename: `${filename}.png`,
+      kind: 'png',
+    });
+    emitSvgRendererDiagnostic('info', 'download-png', {
+      filename: `${filename}.png`,
+    });
+    return;
+  }
+
+  emitSvgRendererDiagnostic('warn', 'download-skipped-empty', {
+    isSvgHost,
+    markupLength: effectiveMarkup.length,
+  });
+};
+
+const ensureShareButton = (codeBlockHost: HTMLElement): void => {
+  const buttonsContainer = getButtonsContainer(codeBlockHost);
+  if (!buttonsContainer) return;
+
+  let button = buttonsContainer.querySelector(
+    `[${SHARE_BUTTON_ATTR}="1"]`,
+  ) as HTMLButtonElement | null;
+
+  if (!button) {
+    const copyButton = getCopyButton(codeBlockHost);
+    button = createIconButton('分享到新窗口', SHARE_ICON, SHARE_BUTTON_ATTR, SHARE_BUTTON_CLASS);
+    bindShareButton(button, codeBlockHost);
+
+    if (copyButton) {
+      buttonsContainer.insertBefore(button, copyButton);
+    } else {
+      buttonsContainer.appendChild(button);
+    }
+  } else {
+    bindShareButton(button, codeBlockHost);
+  }
+
+  syncNativeDownloadButtons(codeBlockHost);
+  updateShareButtonState(codeBlockHost);
+};
+
+const bindDownloadButton = (button: HTMLButtonElement, codeBlockHost: HTMLElement): void => {
+  if (boundDownloadButtons.has(button)) return;
+  button.addEventListener('click', (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    emitSvgRendererDiagnostic('info', 'download-click');
+    void runButtonAction(button, () => downloadCurrentContent(codeBlockHost)).catch((error: unknown) => {
+      emitSvgRendererDiagnostic('error', 'download-failed', {
+        error: error instanceof Error ? error.message : String(error),
+      });
+    });
+  });
+  boundDownloadButtons.add(button);
+};
+
+const ensureDownloadButton = (codeBlockHost: HTMLElement): void => {
+  const buttonsContainer = getButtonsContainer(codeBlockHost);
+  if (!buttonsContainer) return;
+
+  let button = buttonsContainer.querySelector(
+    `[${DOWNLOAD_BUTTON_ATTR}="1"]`,
+  ) as HTMLButtonElement | null;
+
+  if (!button) {
+    const copyButton = getCopyButton(codeBlockHost);
+    button = createIconButton('下载图像 PNG/GIF', DOWNLOAD_ICON, DOWNLOAD_BUTTON_ATTR, DOWNLOAD_BUTTON_CLASS);
+    bindDownloadButton(button, codeBlockHost);
+
+    if (copyButton) {
+      buttonsContainer.insertBefore(button, copyButton);
+    } else {
+      buttonsContainer.appendChild(button);
+    }
+  } else {
+    bindDownloadButton(button, codeBlockHost);
+  }
+
+  syncNativeDownloadButtons(codeBlockHost);
+  updateDownloadButtonState(codeBlockHost);
+  updateShareButtonState(codeBlockHost);
 };
 
 const ensureDiagramContainer = (
@@ -519,56 +1022,15 @@ const ensureDiagramContainer = (
   return diagramContainer;
 };
 
-const ensureToggleControls = (codeBlockHost: HTMLElement): void => {
-  const buttonsContainer = getButtonsContainer(codeBlockHost);
-  if (!buttonsContainer) return;
-
-  const existingGroup = getToggleGroup(codeBlockHost);
-  if (existingGroup) {
-    const diagramButton = existingGroup.querySelector<HTMLButtonElement>(`.${TOGGLE_BUTTON_CLASS}[data-view="diagram"]`);
-    const codeButton = existingGroup.querySelector<HTMLButtonElement>(`.${TOGGLE_BUTTON_CLASS}[data-view="code"]`);
-    if (diagramButton && codeButton) {
-      bindToggleButton(diagramButton, codeBlockHost, 'diagram');
-      bindToggleButton(codeButton, codeBlockHost, 'code');
-      return;
-    }
-    existingGroup.remove();
-  }
-
-  const group = document.createElement('div');
-  group.className = TOGGLE_CLASS;
-
-  const diagramButton = document.createElement('button');
-  diagramButton.type = 'button';
-  diagramButton.className = `${TOGGLE_BUTTON_CLASS} active`;
-  diagramButton.dataset.view = 'diagram';
-  diagramButton.textContent = '图形';
-
-  const codeButton = document.createElement('button');
-  codeButton.type = 'button';
-  codeButton.className = TOGGLE_BUTTON_CLASS;
-  codeButton.dataset.view = 'code';
-  codeButton.textContent = '代码';
-
-  bindToggleButton(diagramButton, codeBlockHost, 'diagram');
-  bindToggleButton(codeButton, codeBlockHost, 'code');
-
-  group.append(diagramButton, codeButton);
-
-  const copyButton = getCopyButton(codeBlockHost);
-  if (copyButton) {
-    buttonsContainer.insertBefore(group, copyButton);
-  } else {
-    buttonsContainer.appendChild(group);
-  }
-};
-
 const teardownSvgHost = (codeBlockHost: HTMLElement): void => {
+  restoreNativeDownloadButtons(codeBlockHost);
+
   const diagramContainer = getDiagramContainer(codeBlockHost);
   diagramContainer?.remove();
 
-  const toggleGroup = getToggleGroup(codeBlockHost);
-  toggleGroup?.remove();
+  codeBlockHost.querySelector('.gm-svg-toggle')?.remove();
+  codeBlockHost.querySelector(`[${SHARE_BUTTON_ATTR}="1"]`)?.remove();
+  codeBlockHost.querySelector(`[${DOWNLOAD_BUTTON_ATTR}="1"]`)?.remove();
 
   const codeContentContainer = getCodeContentContainer(
     codeBlockHost,
@@ -579,7 +1041,6 @@ const teardownSvgHost = (codeBlockHost: HTMLElement): void => {
   }
 
   codeBlockHost.removeAttribute(HOST_ATTR);
-  codeBlockHost.removeAttribute(VIEW_ATTR);
   codeBlockHost.removeAttribute(CODE_ATTR);
   codeBlockHost.removeAttribute(PROCESSING_ATTR);
   codeBlockHost.removeAttribute(MARKUP_ATTR);
@@ -590,13 +1051,19 @@ const renderSvg = (codeElement: HTMLElement, sourceCode: string): void => {
   const codeBlockHost = getCodeBlockHost(codeElement);
   if (!codeBlockHost) return;
 
+  removeConflictingMermaidButtons(codeBlockHost);
+
   const existingDiagram = getDiagramContainer(codeBlockHost);
-  const hasRenderableDiagram = existingDiagram?.querySelector('iframe') instanceof HTMLIFrameElement;
+  const hasRenderableDiagram =
+    existingDiagram?.querySelector('iframe') instanceof HTMLIFrameElement ||
+    existingDiagram?.querySelector('svg') instanceof SVGElement;
   if (codeBlockHost.getAttribute(CODE_ATTR) === normalizedCode && hasRenderableDiagram) {
-    ensureToggleControls(codeBlockHost);
+    ensureShareButton(codeBlockHost);
+    ensureDownloadButton(codeBlockHost);
     if (existingDiagram) {
       bindDiagramContainer(existingDiagram);
     }
+    showDiagramOnly(codeBlockHost);
     return;
   }
 
@@ -609,7 +1076,8 @@ const renderSvg = (codeElement: HTMLElement, sourceCode: string): void => {
 
   try {
     const diagramContainer = ensureDiagramContainer(codeBlockHost, codeContentContainer);
-    ensureToggleControls(codeBlockHost);
+    ensureShareButton(codeBlockHost);
+    ensureDownloadButton(codeBlockHost);
     codeBlockHost.setAttribute(HOST_ATTR, '1');
 
     try {
@@ -622,8 +1090,7 @@ const renderSvg = (codeElement: HTMLElement, sourceCode: string): void => {
     }
 
     codeBlockHost.setAttribute(CODE_ATTR, normalizedCode);
-    const currentView = codeBlockHost.getAttribute(VIEW_ATTR);
-    updateView(codeBlockHost, currentView === 'code' ? 'code' : 'diagram');
+    showDiagramOnly(codeBlockHost);
   } finally {
     codeBlockHost.removeAttribute(PROCESSING_ATTR);
   }
@@ -631,6 +1098,8 @@ const renderSvg = (codeElement: HTMLElement, sourceCode: string): void => {
 
 const processCodeBlocks = (): void => {
   if (!started) return;
+
+  processNativeSvgCodeBlocks();
 
   const codeElements = document.querySelectorAll<HTMLElement>(
     'code[data-test-id="code-content"], .formatted-code-block-internal-container code, .code-block pre code, code.code-container',
@@ -669,6 +1138,18 @@ const processCodeBlocks = (): void => {
       teardownSvgHost(codeBlockHost);
     }
   });
+
+  codeElements.forEach((codeElement) => {
+    const codeBlockHost = getCodeBlockHost(codeElement);
+    if (!codeBlockHost) return;
+    if (codeBlockHost.getAttribute(HOST_ATTR) !== '1') {
+      codeBlockHost.querySelector(`[${SHARE_BUTTON_ATTR}="1"]`)?.remove();
+      codeBlockHost.querySelector(`[${DOWNLOAD_BUTTON_ATTR}="1"]`)?.remove();
+      return;
+    }
+    updateShareButtonState(codeBlockHost);
+    updateDownloadButtonState(codeBlockHost);
+  });
 };
 
 const scheduleProcess = (): void => {
@@ -698,7 +1179,7 @@ const setupObserver = (): void => {
   observer = new MutationObserver((mutations) => {
     const hasCodeMutation = mutations.some((mutation) => {
       const target = mutation.target instanceof Element ? mutation.target : mutation.target.parentElement;
-      if (target?.closest(`.${DIAGRAM_CLASS}, .${TOGGLE_CLASS}`)) {
+      if (target?.closest(`.${DIAGRAM_CLASS}`)) {
         return false;
       }
       if (target?.closest('.code-block, code-block, model-response')) {
@@ -725,12 +1206,14 @@ const setupObserver = (): void => {
 
 export async function startSvgRenderer(): Promise<void> {
   if (started) {
+    setNativeSvgCodeBlockDownloadEnabled(renderEnabled);
     scheduleProcess();
     scheduleWarmupPasses();
     return;
   }
 
   started = true;
+  setNativeSvgCodeBlockDownloadEnabled(renderEnabled);
   ensureStyles();
   setupObserver();
   processCodeBlocks();
@@ -753,12 +1236,14 @@ export function stopSvgRenderer(): void {
   document.querySelectorAll<HTMLElement>(`[${HOST_ATTR}="1"]`).forEach((host) => teardownSvgHost(host));
   closeFullscreen();
   document.getElementById(STYLE_ID)?.remove();
+  setNativeSvgCodeBlockDownloadEnabled(false);
   started = false;
   logTrace('stop');
 }
 
 export function setSvgRenderEnabled(enabled: boolean): void {
   renderEnabled = enabled;
+  setNativeSvgCodeBlockDownloadEnabled(enabled);
   scheduleProcess();
 }
 

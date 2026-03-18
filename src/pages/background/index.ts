@@ -28,6 +28,7 @@ type StarredMessageRequest =
   | { type: 'gv.starred.remove'; payload?: unknown };
 
 type FetchImageRequest = { type: 'gv.fetchImage'; url?: unknown };
+type FetchTextRequest = { type: 'gm.fetchText'; url?: unknown };
 type ThoughtTranslationRequest = {
   type: 'gm.translateThought';
   text?: unknown;
@@ -112,6 +113,8 @@ const isStarredMessageRequest = (message: unknown): message is StarredMessageReq
 
 const isFetchImageRequest = (message: unknown): message is FetchImageRequest =>
   isRecord(message) && message.type === 'gv.fetchImage';
+const isFetchTextRequest = (message: unknown): message is FetchTextRequest =>
+  isRecord(message) && message.type === 'gm.fetchText';
 
 const isThoughtTranslationRequest = (message: unknown): message is ThoughtTranslationRequest =>
   isRecord(message) && message.type === 'gm.translateThought';
@@ -530,6 +533,14 @@ async function fetchImageWithFallback(url: string): Promise<Response> {
   return fetch(url, { credentials: 'omit', redirect: 'follow' });
 }
 
+async function fetchTextWithFallback(url: string): Promise<Response> {
+  if (/^file:\/\//i.test(url)) {
+    return fetch(url, { redirect: 'follow' });
+  }
+
+  return fetchImageWithFallback(url);
+}
+
 async function blobToBase64(blob: Blob): Promise<string> {
   if (typeof FileReader !== 'undefined') {
     return new Promise((resolve, reject) => {
@@ -673,7 +684,7 @@ const captureClientCacheSnapshot = async (
   scheduleDebugFileFlush();
 };
 
-chrome.runtime.onMessage.addListener((message: unknown, _sender, sendResponse) => {
+chrome.runtime.onMessage.addListener((message: unknown, sender, sendResponse) => {
   if (isDebugMessageRequest(message)) {
     if (isDebugIngestRequest(message)) {
       const entry = normalizeDebugEntry(message.entry);
@@ -738,6 +749,28 @@ chrome.runtime.onMessage.addListener((message: unknown, _sender, sendResponse) =
           base64,
           data: `data:${contentType};base64,${base64}`,
         });
+      })
+      .catch((error: unknown) => {
+        sendResponse({ ok: false, error: getErrorMessage(error) });
+      });
+
+    return true;
+  }
+
+  if (isFetchTextRequest(message)) {
+    const url = typeof message.url === 'string' ? message.url : '';
+    if (!/^(https?:\/\/|file:\/\/)/i.test(url)) {
+      sendResponse({ ok: false, error: 'invalid_url' });
+      return;
+    }
+
+    fetchTextWithFallback(url)
+      .then(async (response) => {
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}`);
+        }
+        const text = await response.text();
+        sendResponse({ ok: true, text });
       })
       .catch((error: unknown) => {
         sendResponse({ ok: false, error: getErrorMessage(error) });

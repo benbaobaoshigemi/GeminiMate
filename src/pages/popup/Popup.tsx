@@ -3,6 +3,7 @@ import { Settings, PenTool, Layout, Zap, Clock, Type, ChevronLeft, Upload, Trash
 
 import { StorageKeys } from '@/core/types/common';
 import { EXTENSION_DISPLAY_VERSION } from '@/core/utils/version';
+import { resolveGraphExportQuality } from '@/features/codeActions/graphExportQuality';
 import type { CustomFont } from '@/features/layout/customFont';
 import {
   clampLayoutScale,
@@ -27,6 +28,14 @@ import {
   normalizeDualThresholdRange,
   resolveDualThresholdPercents,
 } from './thresholdRange';
+import {
+  createDefaultLocalSettings,
+  createDefaultSyncSettings,
+  createSettingsExportFileName,
+  createSettingsExportPayload,
+  normalizeImportedSettingsPayload,
+  POPUP_LOCAL_SETTINGS_KEYS,
+} from './settingsConfig';
 
 type FormulaCopyFormat = 'latex' | 'unicodemath' | 'no-dollar';
 type WordResponseExportMode = 'default' | 'academic';
@@ -537,11 +546,11 @@ export default function Popup() {
   const [pendingFontData, setPendingFontData] = useState('');
   const [fontFileLabel, setFontFileLabel] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const configImportInputRef = useRef<HTMLInputElement>(null);
 
   const [latexEnabled, setLatexEnabled] = useState(true);
   const [markdownEnabled, setMarkdownEnabled] = useState(true);
-  const [mermaidEnabled, setMermaidEnabled] = useState(true);
-  const [svgRenderEnabled, setSvgRenderEnabled] = useState(true);
+  const [graphExportQuality, setGraphExportQuality] = useState(3);
   const [thoughtTranslationEnabled, setThoughtTranslationEnabled] = useState(false);
   const [thoughtTranslationMode, setThoughtTranslationMode] =
     useState<ThoughtTranslationMode>('compare');
@@ -582,6 +591,7 @@ export default function Popup() {
   const [debugFileLogEnabled, setDebugFileLogEnabled] = useState(true);
   const [debugCacheCaptureEnabled, setDebugCacheCaptureEnabled] = useState(true);
   const [debugActionStatus, setDebugActionStatus] = useState('');
+  const [configActionStatus, setConfigActionStatus] = useState('');
   const [wordResponseExportEnabled, setWordResponseExportEnabled] = useState(true);
   const [wordResponseExportMode, setWordResponseExportMode] =
     useState<WordResponseExportMode>('default');
@@ -590,57 +600,18 @@ export default function Popup() {
   const [updateInfo, setUpdateInfo] = useState<UpdateInfo | null>(null);
 
   useEffect(() => {
-    const keys = [
-      StorageKeys.LATEX_FIXER_ENABLED,
-      StorageKeys.MARKDOWN_REPAIR_ENABLED,
-      StorageKeys.MERMAID_RENDER_ENABLED,
-      StorageKeys.SVG_RENDER_ENABLED,
-      StorageKeys.THOUGHT_TRANSLATION_ENABLED,
-      StorageKeys.THOUGHT_TRANSLATION_MODE,
-      StorageKeys.FORMULA_COPY_ENABLED,
-      StorageKeys.FORMULA_COPY_FORMAT,
-      StorageKeys.NETWORK_QUALITY_ENABLED,
-      StorageKeys.NETWORK_QUALITY_THRESHOLDS,
-      StorageKeys.WATERMARK_REMOVER_ENABLED,
-      StorageKeys.QUOTE_REPLY_ENABLED,
-      StorageKeys.BOTTOM_CLEANUP_ENABLED,
-      StorageKeys.TIMELINE_ENABLED,
-      'geminiTimelineScrollMode',
-      'geminiTimelineHideContainer',
-      StorageKeys.TIMELINE_WIDTH,
-      StorageKeys.TIMELINE_AUTO_HIDE,
-      StorageKeys.GEMINI_CHAT_WIDTH,
-      StorageKeys.GEMINI_EDIT_INPUT_WIDTH,
-      StorageKeys.GEMINI_SIDEBAR_WIDTH,
-      StorageKeys.GEMINI_SIDEBAR_AUTO_HIDE,
-      StorageKeys.GEMINI_FONT_SIZE_SCALE,
-      StorageKeys.GEMINI_FONT_WEIGHT,
-      StorageKeys.GEMINI_FONT_FAMILY,
-      StorageKeys.GEMINI_SANS_PRESET,
-      StorageKeys.GEMINI_SERIF_PRESET,
-      StorageKeys.GEMINI_CUSTOM_FONTS,
-      StorageKeys.GEMINI_LETTER_SPACING,
-      StorageKeys.GEMINI_LINE_HEIGHT,
-      StorageKeys.GEMINI_PARAGRAPH_INDENT_ENABLED,
-      StorageKeys.GEMINI_EMPHASIS_MODE,
-      StorageKeys.DEBUG_MODE,
-      StorageKeys.DEBUG_FILE_LOG_ENABLED,
-      StorageKeys.DEBUG_CACHE_CAPTURE_ENABLED,
-      StorageKeys.WORD_RESPONSE_EXPORT_ENABLED,
-      StorageKeys.WORD_RESPONSE_EXPORT_MODE,
-    ];
+    const keys = POPUP_LOCAL_SETTINGS_KEYS;
 
     const applyResult = (result: Record<string, unknown>): void => {
       setLatexEnabled(resolveToggleValue(result[StorageKeys.LATEX_FIXER_ENABLED]));
       setMarkdownEnabled(resolveToggleValue(result[StorageKeys.MARKDOWN_REPAIR_ENABLED]));
-      setMermaidEnabled(resolveToggleValue(result[StorageKeys.MERMAID_RENDER_ENABLED]));
-      setSvgRenderEnabled(resolveToggleValue(result[StorageKeys.SVG_RENDER_ENABLED]));
+      setGraphExportQuality(resolveGraphExportQuality(result[StorageKeys.GRAPH_EXPORT_QUALITY]));
       setThoughtTranslationEnabled(
         resolveThoughtTranslationEnabled(result[StorageKeys.THOUGHT_TRANSLATION_ENABLED]),
       );
       setThoughtTranslationMode(resolveThoughtTranslationMode(result[StorageKeys.THOUGHT_TRANSLATION_MODE]));
 
-      setFormulaCopyEnabled(result[StorageKeys.FORMULA_COPY_ENABLED] ?? true);
+      setFormulaCopyEnabled(resolveToggleValue(result[StorageKeys.FORMULA_COPY_ENABLED], true));
       const rawFormat = result[StorageKeys.FORMULA_COPY_FORMAT];
       setFormulaCopyFormat(
         rawFormat === 'unicodemath' || rawFormat === 'no-dollar' ? rawFormat as FormulaCopyFormat : 'latex',
@@ -654,10 +625,14 @@ export default function Popup() {
       setQuoteReplyEnabled(resolveToggleValue(result[StorageKeys.QUOTE_REPLY_ENABLED]));
       setBottomCleanupEnabled(resolveToggleValue(result[StorageKeys.BOTTOM_CLEANUP_ENABLED], false));
 
-      setTimelineEnabled(resolveToggleValue(result[StorageKeys.TIMELINE_ENABLED]));
+      setTimelineEnabled(resolveToggleValue(result[StorageKeys.TIMELINE_ENABLED], true));
       setTimelineWidth(Number(result[StorageKeys.TIMELINE_WIDTH]) || 24);
-      setTimelineScrollMode((result as Record<string, unknown>)['geminiTimelineScrollMode'] as string ?? 'flow');
-      setTimelineHideContainer(resolveToggleValue((result as Record<string, unknown>)['geminiTimelineHideContainer'], false));
+      setTimelineScrollMode(
+        result[StorageKeys.TIMELINE_SCROLL_MODE] === 'jump' ? 'jump' : 'flow',
+      );
+      setTimelineHideContainer(
+        resolveToggleValue(result[StorageKeys.TIMELINE_HIDE_CONTAINER], false),
+      );
       setTimelineAutoHide(resolveToggleValue(result[StorageKeys.TIMELINE_AUTO_HIDE], false));
 
       setChatWidth(
@@ -706,11 +681,10 @@ export default function Popup() {
       if (changes[StorageKeys.MARKDOWN_REPAIR_ENABLED]) {
         setMarkdownEnabled(resolveToggleValue(changes[StorageKeys.MARKDOWN_REPAIR_ENABLED].newValue));
       }
-      if (changes[StorageKeys.MERMAID_RENDER_ENABLED]) {
-        setMermaidEnabled(resolveToggleValue(changes[StorageKeys.MERMAID_RENDER_ENABLED].newValue));
-      }
-      if (changes[StorageKeys.SVG_RENDER_ENABLED]) {
-        setSvgRenderEnabled(resolveToggleValue(changes[StorageKeys.SVG_RENDER_ENABLED].newValue));
+      if (changes[StorageKeys.GRAPH_EXPORT_QUALITY]) {
+        setGraphExportQuality(
+          resolveGraphExportQuality(changes[StorageKeys.GRAPH_EXPORT_QUALITY].newValue),
+        );
       }
       if (changes[StorageKeys.THOUGHT_TRANSLATION_ENABLED]) {
         setThoughtTranslationEnabled(
@@ -723,7 +697,9 @@ export default function Popup() {
         );
       }
       if (changes[StorageKeys.FORMULA_COPY_ENABLED]) {
-        setFormulaCopyEnabled(changes[StorageKeys.FORMULA_COPY_ENABLED].newValue ?? true);
+        setFormulaCopyEnabled(
+          resolveToggleValue(changes[StorageKeys.FORMULA_COPY_ENABLED].newValue, true),
+        );
       }
       if (changes[StorageKeys.FORMULA_COPY_FORMAT]) {
         const next = changes[StorageKeys.FORMULA_COPY_FORMAT].newValue;
@@ -751,19 +727,27 @@ export default function Popup() {
         setBottomCleanupEnabled(resolveToggleValue(changes[StorageKeys.BOTTOM_CLEANUP_ENABLED].newValue, false));
       }
       if (changes[StorageKeys.TIMELINE_ENABLED]) {
-        setTimelineEnabled(changes[StorageKeys.TIMELINE_ENABLED].newValue ?? true);
+        setTimelineEnabled(
+          resolveToggleValue(changes[StorageKeys.TIMELINE_ENABLED].newValue, true),
+        );
       }
-      if (changes.geminiTimelineScrollMode) {
-        setTimelineScrollMode(changes.geminiTimelineScrollMode.newValue ?? 'flow');
+      if (changes[StorageKeys.TIMELINE_SCROLL_MODE]) {
+        setTimelineScrollMode(
+          changes[StorageKeys.TIMELINE_SCROLL_MODE].newValue === 'jump' ? 'jump' : 'flow',
+        );
       }
-      if (changes.geminiTimelineHideContainer) {
-        setTimelineHideContainer(changes.geminiTimelineHideContainer.newValue ?? false);
+      if (changes[StorageKeys.TIMELINE_HIDE_CONTAINER]) {
+        setTimelineHideContainer(
+          resolveToggleValue(changes[StorageKeys.TIMELINE_HIDE_CONTAINER].newValue, false),
+        );
       }
       if (changes[StorageKeys.TIMELINE_WIDTH]) {
         setTimelineWidth(Number(changes[StorageKeys.TIMELINE_WIDTH].newValue) || 24);
       }
       if (changes[StorageKeys.TIMELINE_AUTO_HIDE]) {
-        setTimelineAutoHide(changes[StorageKeys.TIMELINE_AUTO_HIDE].newValue ?? false);
+        setTimelineAutoHide(
+          resolveToggleValue(changes[StorageKeys.TIMELINE_AUTO_HIDE].newValue, false),
+        );
       }
       if (changes[StorageKeys.GEMINI_CHAT_WIDTH]) {
         setChatWidth(
@@ -789,7 +773,9 @@ export default function Popup() {
         setSidebarWidth(Number(changes[StorageKeys.GEMINI_SIDEBAR_WIDTH].newValue) || SIDEBAR_EXPANDED_BASELINE_PX);
       }
       if (changes[StorageKeys.GEMINI_SIDEBAR_AUTO_HIDE]) {
-        setSidebarAutoHide(changes[StorageKeys.GEMINI_SIDEBAR_AUTO_HIDE].newValue ?? false);
+        setSidebarAutoHide(
+          resolveToggleValue(changes[StorageKeys.GEMINI_SIDEBAR_AUTO_HIDE].newValue, false),
+        );
       }
       if (changes[StorageKeys.GEMINI_FONT_SIZE_SCALE]) {
         setFontSizeScale(Number(changes[StorageKeys.GEMINI_FONT_SIZE_SCALE].newValue) || 100);
@@ -1021,6 +1007,77 @@ export default function Popup() {
     }
   };
 
+  const exportSettingsConfig = async (): Promise<void> => {
+    setConfigActionStatus('正在导出配置...');
+
+    try {
+      const [localSettings, syncSettings] = await Promise.all([
+        chrome.storage.local.get(createDefaultLocalSettings()),
+        chrome.storage.sync.get(createDefaultSyncSettings()),
+      ]);
+
+      const payload = createSettingsExportPayload(
+        localSettings as Record<string, unknown>,
+        syncSettings as Record<string, unknown>,
+      );
+      const fileName = createSettingsExportFileName();
+      const blob = new Blob([JSON.stringify(payload, null, 2)], {
+        type: 'application/json;charset=utf-8',
+      });
+      const blobUrl = URL.createObjectURL(blob);
+      const anchor = document.createElement('a');
+      anchor.href = blobUrl;
+      anchor.download = fileName;
+      anchor.click();
+      window.setTimeout(() => URL.revokeObjectURL(blobUrl), 1000);
+
+      setConfigActionStatus('配置已导出');
+    } catch (error) {
+      setConfigActionStatus(`导出失败: ${error instanceof Error ? error.message : 'unknown_error'}`);
+    }
+  };
+
+  const importSettingsConfig = async (file: File): Promise<void> => {
+    setConfigActionStatus('正在导入配置...');
+
+    try {
+      const rawText = await file.text();
+      const parsed = JSON.parse(rawText) as unknown;
+      const normalized = normalizeImportedSettingsPayload(parsed);
+      const localEntries = Object.entries(normalized.local);
+      const syncEntries = Object.entries(normalized.sync);
+
+      if (localEntries.length === 0 && syncEntries.length === 0) {
+        setConfigActionStatus('未发现可导入的设置项');
+        return;
+      }
+
+      await Promise.all([
+        localEntries.length > 0 ? chrome.storage.local.set(normalized.local) : Promise.resolve(),
+        syncEntries.length > 0 ? chrome.storage.sync.set(normalized.sync) : Promise.resolve(),
+      ]);
+
+      const importedCount = localEntries.length + syncEntries.length;
+      const ignoredCount = normalized.ignoredKeys.length;
+      setConfigActionStatus(
+        ignoredCount > 0
+          ? `已导入 ${importedCount} 项设置，忽略 ${ignoredCount} 项无效字段`
+          : `已导入 ${importedCount} 项设置`,
+      );
+    } catch (error) {
+      setConfigActionStatus(`导入失败: ${error instanceof Error ? error.message : 'unknown_error'}`);
+    }
+  };
+
+  const handleConfigFileChange = async (
+    event: React.ChangeEvent<HTMLInputElement>,
+  ): Promise<void> => {
+    const file = event.target.files?.[0];
+    event.target.value = '';
+    if (!file) return;
+    await importSettingsConfig(file);
+  };
+
   // ── Settings View ────────────────────────────────────────────────────────────
 
   if (view === 'settings') {
@@ -1161,21 +1218,64 @@ export default function Popup() {
           </div>
 
           <div className="bg-white dark:bg-[#151b28] border border-slate-200 dark:border-slate-700 rounded-2xl p-4 mt-4 shadow-[0_10px_24px_rgba(15,23,42,0.06)] dark:shadow-[0_10px_24px_rgba(2,6,23,0.18)]">
+            <SectionHeader icon={Settings} title="配置管理" />
+            <p className="text-xs text-slate-500 dark:text-white/50 px-1">
+              导出或导入完整配置文件。包含 popup 与页面内可配置项，不包含对话、收藏、日志等数据。
+            </p>
+            <input
+              ref={configImportInputRef}
+              type="file"
+              accept="application/json,.json"
+              className="hidden"
+              onChange={(event) => {
+                void handleConfigFileChange(event);
+              }}
+            />
+            <div className="mt-4 grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  void exportSettingsConfig();
+                }}
+                className="flex items-center justify-center gap-2 rounded-xl border border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-white/5 px-3 py-2.5 text-sm font-medium text-slate-700 dark:text-white/80 transition-all hover:bg-slate-100 dark:hover:bg-white/10"
+              >
+                <Download size={16} />
+                导出配置
+              </button>
+              <button
+                type="button"
+                onClick={() => configImportInputRef.current?.click()}
+                className="flex items-center justify-center gap-2 rounded-xl border border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-white/5 px-3 py-2.5 text-sm font-medium text-slate-700 dark:text-white/80 transition-all hover:bg-slate-100 dark:hover:bg-white/10"
+              >
+                <Upload size={16} />
+                导入配置
+              </button>
+            </div>
+            {configActionStatus ? (
+              <p className="mt-3 px-1 text-xs text-slate-500 dark:text-white/50">
+                {configActionStatus}
+              </p>
+            ) : null}
+          </div>
+
+          <div className="bg-white dark:bg-[#151b28] border border-slate-200 dark:border-slate-700 rounded-2xl p-4 mt-4 shadow-[0_10px_24px_rgba(15,23,42,0.06)] dark:shadow-[0_10px_24px_rgba(2,6,23,0.18)]">
             <SectionHeader icon={PenTool} title="图表与图形显示" />
-            <div className="space-y-2">
-              <SettingRow
-                icon={PenTool}
-                title="Mermaid 图表渲染"
-                description="将 Mermaid 代码块渲染为图表（页面内可随时切回代码）"
-                checked={mermaidEnabled}
-                onChange={(v) => updateSetting(StorageKeys.MERMAID_RENDER_ENABLED, v, setMermaidEnabled)}
-              />
-              <SettingRow
-                icon={PenTool}
-                title="SVG 图形渲染"
-                description="将 SVG 源码渲染为预览图（页面内可切回源码）"
-                checked={svgRenderEnabled}
-                onChange={(v) => updateSetting(StorageKeys.SVG_RENDER_ENABLED, v, setSvgRenderEnabled)}
+            <div className="space-y-4">
+              <Slider
+                icon={Download}
+                title="导出图像质量"
+                description="用于 Mermaid 与 SVG 的 PNG/GIF 导出；3 档为默认中质量，可向下压缩或向上提高清晰度"
+                value={graphExportQuality}
+                min={1}
+                max={5}
+                step={1}
+                unit="档"
+                defaultValue={3}
+                onChange={(value) => {
+                  const next = resolveGraphExportQuality(value);
+                  setGraphExportQuality(next);
+                  chrome.storage.local.set({ [StorageKeys.GRAPH_EXPORT_QUALITY]: next });
+                }}
               />
             </div>
           </div>
@@ -1883,7 +1983,7 @@ export default function Popup() {
                   onChange={(v) => {
                     const mode = v ? 'flow' : 'jump';
                     setTimelineScrollMode(mode);
-                    chrome.storage.local.set({ geminiTimelineScrollMode: mode });
+                    chrome.storage.local.set({ [StorageKeys.TIMELINE_SCROLL_MODE]: mode });
                   }}
                 />
                 <SettingRow
@@ -1892,7 +1992,13 @@ export default function Popup() {
                   description="减少滚动闪跳，长对话更稳定"
                   checked={timelineHideContainer}
                   disabled={!timelineEnabled}
-                  onChange={(v) => updateSetting('geminiTimelineHideContainer', v, setTimelineHideContainer)}
+                  onChange={(v) =>
+                    updateSetting(
+                      StorageKeys.TIMELINE_HIDE_CONTAINER,
+                      v,
+                      setTimelineHideContainer,
+                    )
+                  }
                 />
                 <SettingRow
                   icon={Layout}
@@ -1926,7 +2032,7 @@ export default function Popup() {
 
         <div className="mt-4 text-center">
           <p className="text-[10px] text-slate-400 dark:text-white/30 font-medium tracking-wider font-mono">
-            GEMINIMATE_V3.0.0_BETA
+            {`GEMINIMATE_V${EXTENSION_DISPLAY_VERSION}`}
           </p>
         </div>
       </div>

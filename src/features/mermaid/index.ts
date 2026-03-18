@@ -1,4 +1,12 @@
 import { debugService } from '@/core/services/DebugService';
+import {
+  ACTION_BUTTON_BUSY_CLASS,
+  setActionButtonBusy,
+} from '@/features/codeActions/actionBusyState';
+import { findLikelyNativeDownloadButtons } from '@/features/codeActions/nativeDownloadButton';
+import { downloadSvgMarkupAsGif } from '@/features/codeActions/svgGifDownload';
+import { downloadSvgMarkupAsPng } from '@/features/codeActions/svgDownload';
+import { detectAnimatedSvgMarkup } from '@/features/codeActions/svgExportModel';
 
 const STYLE_ID = 'gm-mermaid-style';
 const DIAGRAM_CLASS = 'gm-mermaid-diagram';
@@ -14,6 +22,7 @@ const VIEW_ATTR = 'data-gm-mermaid-view';
 const CODE_ATTR = 'data-gm-mermaid-code';
 const PROCESSING_ATTR = 'data-gm-mermaid-processing';
 const FONT_ATTR = 'data-gm-mermaid-font';
+const NATIVE_DOWNLOAD_PROXY_ATTR = 'data-gm-mermaid-native-download-proxy';
 
 type MermaidModule = Awaited<typeof import('mermaid')>['default'];
 type MermaidView = 'diagram' | 'code';
@@ -35,6 +44,7 @@ const STABLE_MERMAID_FONT_FAMILY =
 let resolvedMermaidFontFamily = STABLE_MERMAID_FONT_FAMILY;
 const boundDownloadButtons = new WeakSet<HTMLButtonElement>();
 const boundShareButtons = new WeakSet<HTMLButtonElement>();
+const boundNativeDownloadButtons = new WeakSet<HTMLButtonElement>();
 const boundToggleButtons = new WeakSet<HTMLButtonElement>();
 const boundDiagramContainers = new WeakSet<HTMLElement>();
 
@@ -143,6 +153,11 @@ const DOWNLOAD_ICON = `
     <path d="M12 3a1 1 0 0 1 1 1v8.59l2.3-2.29a1 1 0 1 1 1.4 1.41l-4 4a1 1 0 0 1-1.4 0l-4-4a1 1 0 0 1 1.4-1.41L11 12.59V4a1 1 0 0 1 1-1Zm-7 14a1 1 0 0 1 1 1v1h12v-1a1 1 0 1 1 2 0v2a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1v-2a1 1 0 0 1 1-1Z" fill="currentColor"/>
   </svg>
 `;
+const IMAGE_DOWNLOAD_ICON = `
+  <svg viewBox="0 0 24 24" aria-hidden="true">
+    <path d="M5 5h14a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2Zm0 2v10h14V7H5Zm2 8 2.7-3.3a1 1 0 0 1 1.54 0L13 14l1.9-2.3a1 1 0 0 1 1.55.02L18 15H7Zm2-6.5a1.5 1.5 0 1 1 0 3 1.5 1.5 0 0 1 0-3Z" fill="currentColor"/>
+  </svg>
+`;
 const SHARE_ICON = `
   <svg viewBox="0 0 24 24" aria-hidden="true">
     <path d="M14 4h6v6h-2V7.41l-7.29 7.3-1.42-1.42L16.59 6H14V4Z" fill="currentColor"/>
@@ -153,7 +168,6 @@ const SHARE_ICON = `
 const logTrace = (event: string, detail?: Record<string, unknown>): void => {
   if (!TRACE_ENABLED) return;
   debugService.log('mermaid', event, detail);
-  console.info('[GM-TRACE][Mermaid]', event, detail ?? {});
 };
 
 export const _resetMermaidLoader = (): void => {
@@ -315,11 +329,44 @@ const ensureStyles = (): void => {
       opacity: 0.45;
     }
 
+    .${ICON_BUTTON_CLASS}.${ACTION_BUTTON_BUSY_CLASS} {
+      opacity: 0.88;
+    }
+
+    .${ICON_BUTTON_CLASS}.${ACTION_BUTTON_BUSY_CLASS}:disabled {
+      opacity: 0.88;
+    }
+
     .${ICON_BUTTON_CLASS} svg {
       width: 18px;
       height: 18px;
       display: block;
       fill: currentColor;
+    }
+
+    .${ICON_BUTTON_CLASS}.${ACTION_BUTTON_BUSY_CLASS} svg {
+      opacity: 0.18;
+    }
+
+    .${ICON_BUTTON_CLASS}.${ACTION_BUTTON_BUSY_CLASS}::after {
+      content: '';
+      position: absolute;
+      width: 16px;
+      height: 16px;
+      border-radius: 999px;
+      border: 2px solid rgba(148, 163, 184, 0.32);
+      border-top-color: currentColor;
+      animation: gm-code-action-spin 720ms linear infinite;
+    }
+
+    @keyframes gm-code-action-spin {
+      from {
+        transform: rotate(0deg);
+      }
+
+      to {
+        transform: rotate(360deg);
+      }
     }
 
     .${DIAGRAM_CLASS} {
@@ -745,7 +792,11 @@ const bindDownloadButton = (button: HTMLButtonElement, codeBlockHost: HTMLElemen
   button.addEventListener('click', (event) => {
     event.preventDefault();
     event.stopPropagation();
-    downloadCurrentContent(codeBlockHost);
+    void runButtonAction(button, () => downloadCurrentContent(codeBlockHost)).catch((error: unknown) => {
+      logTrace('download-failed', {
+        error: error instanceof Error ? error.message : String(error),
+      });
+    });
   });
   boundDownloadButtons.add(button);
 };
@@ -797,8 +848,47 @@ const triggerDownload = (parts: BlobPart[], filename: string, contentType: strin
   window.setTimeout(() => URL.revokeObjectURL(objectUrl), 1000);
 };
 
+const downloadSourceCode = (
+  sourceCode: string,
+  extension: string,
+  filenamePrefix = 'geminimate-code',
+): string => {
+  const filename = `${filenamePrefix}-${createTimestamp()}.${extension}`;
+  const contentType =
+    extension === 'json'
+      ? 'application/json;charset=utf-8'
+      : extension === 'svg'
+        ? 'image/svg+xml;charset=utf-8'
+        : 'text/plain;charset=utf-8';
+
+  triggerDownload([sourceCode], filename, contentType);
+  return filename;
+};
+
 const getCurrentView = (codeBlockHost: HTMLElement): MermaidView =>
   codeBlockHost.getAttribute(VIEW_ATTR) === 'code' ? 'code' : 'diagram';
+
+const setDownloadButtonAppearance = (
+  button: HTMLButtonElement,
+  mode: 'code' | 'image',
+  title: string,
+): void => {
+  button.innerHTML = mode === 'image' ? IMAGE_DOWNLOAD_ICON : DOWNLOAD_ICON;
+  button.title = title;
+  button.setAttribute('aria-label', title);
+};
+
+const runButtonAction = async (
+  button: HTMLButtonElement,
+  action: () => Promise<void>,
+): Promise<void> => {
+  setActionButtonBusy(button, true);
+  try {
+    await action();
+  } finally {
+    setActionButtonBusy(button, false);
+  }
+};
 
 const updateDownloadButtonState = (codeBlockHost: HTMLElement): void => {
   const button = codeBlockHost.querySelector(
@@ -810,13 +900,18 @@ const updateDownloadButtonState = (codeBlockHost: HTMLElement): void => {
   const sourceCode = normalizeCodeSource(codeElement?.textContent || '');
   const language = getCodeBlockLanguage(codeElement ?? codeBlockHost);
   const isMermaidHost = codeBlockHost.getAttribute(MERMAID_HOST_ATTR) === '1';
-  const isDiagramView = isMermaidHost && getCurrentView(codeBlockHost) === 'diagram';
   const svgElement = getDiagramContainer(codeBlockHost)?.querySelector('svg');
+  const isSvgSource = language === 'svg' || looksLikeSvgSource(sourceCode);
 
-  if (isDiagramView && svgElement instanceof SVGElement) {
+  if (isMermaidHost && svgElement instanceof SVGElement) {
     button.disabled = false;
-    button.title = '下载 Mermaid 图像';
-    button.setAttribute('aria-label', '下载 Mermaid 图像');
+    setDownloadButtonAppearance(button, 'image', '下载图片 PNG');
+    return;
+  }
+
+  if (isSvgSource && sourceCode.trim()) {
+    button.disabled = false;
+    setDownloadButtonAppearance(button, 'image', '下载图像 PNG/GIF');
     return;
   }
 
@@ -824,23 +919,41 @@ const updateDownloadButtonState = (codeBlockHost: HTMLElement): void => {
   // downloadCurrentContent already handles empty source gracefully.
   button.disabled = false;
   const extension = resolveExtension(language);
-  button.title = `下载代码 (.${extension})`;
-  button.setAttribute('aria-label', `下载代码 (.${extension})`);
+  setDownloadButtonAppearance(button, 'code', `下载代码 (.${extension})`);
 };
 
-const downloadCurrentContent = (codeBlockHost: HTMLElement): void => {
+const downloadCurrentContent = async (codeBlockHost: HTMLElement): Promise<void> => {
   const codeElement = getCodeElementFromHost(codeBlockHost);
   const sourceCode = normalizeCodeSource(codeElement?.textContent || '');
   const language = getCodeBlockLanguage(codeElement ?? codeBlockHost);
   const isMermaidHost = codeBlockHost.getAttribute(MERMAID_HOST_ATTR) === '1';
-  const isDiagramView = isMermaidHost && getCurrentView(codeBlockHost) === 'diagram';
   const svgElement = getDiagramContainer(codeBlockHost)?.querySelector('svg');
+  const isSvgSource = language === 'svg' || looksLikeSvgSource(sourceCode);
 
-  if (isDiagramView && svgElement instanceof SVGElement) {
+  if (isMermaidHost && svgElement instanceof SVGElement) {
     const svgText = serializeSvg(svgElement);
-    const filename = `geminimate-mermaid-${createTimestamp()}.svg`;
-    triggerDownload([svgText], filename, 'image/svg+xml;charset=utf-8');
-    logTrace('download-diagram', { filename, view: 'diagram' });
+    const filename = `geminimate-mermaid-${createTimestamp()}`;
+    await downloadSvgMarkupAsPng(svgText, filename);
+    logTrace('download-diagram', {
+      filename: `${filename}.png`,
+      kind: 'png',
+      view: getCurrentView(codeBlockHost),
+    });
+    return;
+  }
+
+  if (isSvgSource && sourceCode.trim()) {
+    const animated = detectAnimatedSvgMarkup(sourceCode);
+    if (animated) {
+      const filename = `geminimate-svg-${createTimestamp()}.gif`;
+      await downloadSvgMarkupAsGif(sourceCode, filename);
+      logTrace('download-svg-source', { filename, kind: 'gif' });
+      return;
+    }
+
+    const filename = `geminimate-svg-${createTimestamp()}`;
+    await downloadSvgMarkupAsPng(sourceCode, filename);
+    logTrace('download-svg-source', { filename: `${filename}.png`, kind: 'png' });
     return;
   }
 
@@ -853,15 +966,7 @@ const downloadCurrentContent = (codeBlockHost: HTMLElement): void => {
   }
 
   const extension = resolveExtension(language);
-  const filename = `geminimate-code-${createTimestamp()}.${extension}`;
-  const contentType =
-    extension === 'json'
-      ? 'application/json;charset=utf-8'
-      : extension === 'svg'
-        ? 'image/svg+xml;charset=utf-8'
-        : 'text/plain;charset=utf-8';
-
-  triggerDownload([sourceCode], filename, contentType);
+  const filename = downloadSourceCode(sourceCode, extension);
   logTrace('download-code', {
     filename,
     language,
@@ -995,12 +1100,66 @@ const createIconButton = (
   return button;
 };
 
+const bindNativeDownloadButton = (button: HTMLButtonElement, codeBlockHost: HTMLElement): void => {
+  if (boundNativeDownloadButtons.has(button)) return;
+  button.addEventListener(
+    'click',
+    (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      event.stopImmediatePropagation();
+      void downloadCurrentContent(codeBlockHost);
+    },
+    true,
+  );
+  boundNativeDownloadButtons.add(button);
+};
+
+const syncNativeDownloadButtons = (codeBlockHost: HTMLElement): void => {
+  const buttonsContainer = getButtonsContainer(codeBlockHost);
+  if (!buttonsContainer) return;
+
+  const nativeButtons = findLikelyNativeDownloadButtons(buttonsContainer, [
+    `[${DOWNLOAD_BUTTON_ATTR}="1"]`,
+    `[${SHARE_BUTTON_ATTR}="1"]`,
+    '.copy-button',
+    `.${TOGGLE_BUTTON_CLASS}`,
+  ]);
+
+  nativeButtons.forEach((button) => {
+    bindNativeDownloadButton(button, codeBlockHost);
+    button.hidden = true;
+    button.setAttribute(NATIVE_DOWNLOAD_PROXY_ATTR, '1');
+  });
+};
+
+const restoreNativeDownloadButtons = (codeBlockHost: HTMLElement): void => {
+  codeBlockHost
+    .querySelectorAll<HTMLButtonElement>(`button[${NATIVE_DOWNLOAD_PROXY_ATTR}="1"]`)
+    .forEach((button) => {
+      button.hidden = false;
+      button.removeAttribute(NATIVE_DOWNLOAD_PROXY_ATTR);
+    });
+};
+
+const removeGenericCodeActionButtons = (codeBlockHost: HTMLElement): void => {
+  restoreNativeDownloadButtons(codeBlockHost);
+  codeBlockHost.querySelector(`[${SHARE_BUTTON_ATTR}="1"]`)?.remove();
+  codeBlockHost.querySelector(`[${DOWNLOAD_BUTTON_ATTR}="1"]`)?.remove();
+};
+
 const bindShareButton = (button: HTMLButtonElement, codeBlockHost: HTMLElement): void => {
   if (boundShareButtons.has(button)) return;
   button.addEventListener('click', (event) => {
     event.preventDefault();
     event.stopPropagation();
-    shareCurrentContent(codeBlockHost);
+    void runButtonAction(button, async () => {
+      shareCurrentContent(codeBlockHost);
+    }).catch((error: unknown) => {
+      logTrace('share-failed', {
+        error: error instanceof Error ? error.message : String(error),
+      });
+    });
   });
   boundShareButtons.add(button);
 };
@@ -1050,6 +1209,7 @@ const ensureShareButton = (codeBlockHost: HTMLElement): void => {
     bindShareButton(button, codeBlockHost);
   }
 
+  syncNativeDownloadButtons(codeBlockHost);
   updateShareButtonState(codeBlockHost);
 };
 
@@ -1075,6 +1235,7 @@ const ensureDownloadButton = (codeBlockHost: HTMLElement): void => {
     bindDownloadButton(button, codeBlockHost);
   }
 
+  syncNativeDownloadButtons(codeBlockHost);
   updateDownloadButtonState(codeBlockHost);
   updateShareButtonState(codeBlockHost);
 };
@@ -1193,6 +1354,8 @@ const setErrorDiagram = (diagramContainer: HTMLElement, error: string): void => 
 };
 
 const teardownMermaidHost = (codeBlockHost: HTMLElement, removeDownloadButton: boolean): void => {
+  restoreNativeDownloadButtons(codeBlockHost);
+
   const diagramContainer = getDiagramContainer(codeBlockHost);
   diagramContainer?.remove();
 
@@ -1356,11 +1519,19 @@ const processCodeBlocks = (): void => {
     }
 
     activeHosts.add(codeBlockHost);
-    ensureShareButton(codeBlockHost);
-    ensureDownloadButton(codeBlockHost);
 
     const code = normalizeCodeSource(codeElement.textContent || '');
     const language = getCodeBlockLanguage(codeElement);
+    const isSvgSourceBlock = language === 'svg' || looksLikeSvgSource(code);
+
+    if (isSvgSourceBlock && codeBlockHost.getAttribute(MERMAID_HOST_ATTR) !== '1') {
+      removeGenericCodeActionButtons(codeBlockHost);
+      return;
+    }
+
+    ensureShareButton(codeBlockHost);
+    ensureDownloadButton(codeBlockHost);
+
     // Only render Mermaid after the response is complete (message-actions present).
     // This prevents parsing errors on incomplete/mid-stream Mermaid syntax.
     const responseEl = codeBlockHost.closest('model-response, .model-response, [data-message-author-role="model"]');
