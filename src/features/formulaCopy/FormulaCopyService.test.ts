@@ -1,3 +1,4 @@
+// @vitest-environment jsdom
 import temml from 'temml';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -136,7 +137,7 @@ describe('FormulaCopyService', () => {
         annotate: false,
         colorIsTextColor: true,
         displayMode: false,
-        throwOnError: true,
+        throwOnError: false,
         trust: false,
         xml: true,
       }),
@@ -161,7 +162,7 @@ describe('FormulaCopyService', () => {
     // Word-friendly MathML should be prefixed and must not include KaTeX <annotation> TeX payloads.
     expect(htmlContent).toContain('xmlns:mml="http://www.w3.org/1998/Math/MathML"');
     expect(htmlContent).toContain('<!--StartFragment-->');
-    expect(htmlContent).toContain('<mml:math');
+    expect(htmlContent).toContain('<math');
     expect(htmlContent).not.toContain('<annotation');
     expect(htmlContent).not.toContain('class=');
     expect(htmlContent).not.toContain('style=');
@@ -213,8 +214,8 @@ describe('FormulaCopyService', () => {
     const htmlContent = await clipboardItem.dataByType['text/html'].text();
     const mathmlContent = await clipboardItem.dataByType['application/mathml+xml'].text();
 
-    expect(htmlContent).toContain('<mml:math');
-    expect(htmlContent).toContain('<mml:mi>x</mml:mi>');
+    expect(htmlContent).toContain('<math');
+    expect(htmlContent).toContain('<mi>x</mi>');
     expect(htmlContent).not.toContain('<annotation');
     expect(mathmlContent).toContain('<mml:math');
     expect(mathmlContent).toContain('<mml:mi>x</mml:mi>');

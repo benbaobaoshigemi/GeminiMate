@@ -650,7 +650,8 @@ export class FormulaCopyService {
 
     const maxEdge = Math.max(1, Math.max(rect.width, rect.height));
     const byEdgeLimit = FormulaCopyService.PNG_MAX_OUTPUT_EDGE_PX / maxEdge;
-    return Math.max(1, Math.min(4, ratio, byEdgeLimit));
+    const boundedRatio = Math.min(4, Math.max(0.1, ratio));
+    return Math.min(boundedRatio, byEdgeLimit);
   }
 
   private async renderPngBlob(target: HTMLElement): Promise<Blob | null> {
@@ -810,7 +811,15 @@ export class FormulaCopyService {
     const normalizedWidth = Math.round(rect.width * 10) / 10;
     const normalizedHeight = Math.round(rect.height * 10) / 10;
     const dpr = Math.round((window.devicePixelRatio || 1) * 100) / 100;
-    return `${textFallback}::${normalizedWidth}x${normalizedHeight}::${dpr}`;
+    const computedStyle = window.getComputedStyle(target);
+    const styleSignature = [
+      computedStyle.color,
+      computedStyle.fontSize,
+      computedStyle.fontWeight,
+      computedStyle.fontFamily,
+      computedStyle.letterSpacing,
+    ].join('|');
+    return `${textFallback}::${normalizedWidth}x${normalizedHeight}::${dpr}::${styleSignature}`;
   }
 
   private getCachedPngBlob(cacheKey: string): Blob | null {

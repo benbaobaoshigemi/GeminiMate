@@ -1,21 +1,25 @@
-﻿import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
-import { resolve } from 'node:path';
+﻿import { readFileSync } from 'node:fs';
+import { resolve, dirname } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { describe, it, expect } from 'vitest';
 
-const sourcePath = resolve(
-  'C:/Users/zhang/Desktop/GeminiHelper/GeminiMate/src/features/layout/chatWidth.ts',
-);
-const source = readFileSync(sourcePath, 'utf8');
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
+const sourcePath = resolve(__dirname, '../src/features/layout/chatWidth.ts');
 
-[
-  "'.table-block-component > response-element'",
-  "'.table-block-component response-element'",
-  "'.table-block-component table-block'",
-  'display: block !important;',
-  'min-width: 0 !important;',
-  'document.head.appendChild(style);',
-].forEach((snippet) => {
-  assert.match(source, new RegExp(snippet.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
+describe('table injection selector regression', () => {
+  it('keeps selector and css injection safeguards', () => {
+    const source = readFileSync(sourcePath, 'utf8');
+
+    [
+      "'.table-block-component > response-element'",
+      "'.table-block-component response-element'",
+      "'.table-block-component table-block'",
+      'display: block !important;',
+      'min-width: 0 !important;',
+      'document.head.appendChild(style);',
+    ].forEach((snippet) => {
+      expect(source).toMatch(new RegExp(snippet.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
+    });
+  });
 });
-
-console.log('table injection selector regression passed');

@@ -1,29 +1,29 @@
-﻿import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
-import { resolve } from 'node:path';
+﻿import { readFileSync } from 'node:fs';
+import { resolve, dirname } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { describe, it, expect } from 'vitest';
 
-const popupPath = resolve(
-  'C:/Users/zhang/Desktop/GeminiHelper/GeminiMate/src/pages/popup/Popup.tsx',
-);
-const popupSource = readFileSync(popupPath, 'utf8');
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
+const popupPath = resolve(__dirname, '../src/pages/popup/Popup.tsx');
 
-const expectedSnippets = [
-  'Word 导出排版',
-  '调整单条回复导出为 Word 时的文档风格',
-  "label: '默认'",
-  "label: '学术'",
-  'title="纯正文导出"',
-  'title="字体大小"',
-  'title="行间距"',
-  'title="字间距"',
-];
+describe('popup word export copy regression', () => {
+  it('keeps expected localized copy in popup source', () => {
+    const popupSource = readFileSync(popupPath, 'utf8');
+    const expectedSnippets = [
+      '单条回复 Word 导出',
+      '在每条助手回复下显示“导出为 Word”按钮',
+      'Word 样式模式',
+      "label: '默认模式'",
+      "label: '学术模式'",
+    ];
 
-expectedSnippets.forEach((snippet) => {
-  assert.match(popupSource, new RegExp(snippet.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
+    expectedSnippets.forEach((snippet) => {
+      expect(popupSource).toMatch(new RegExp(snippet.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
+    });
+
+    expect(popupSource).not.toMatch(/Word \?{4}/);
+    expect(popupSource).not.toMatch(/title="\?{3,}"/);
+    expect(popupSource).not.toMatch(/description=".*\?{4,}.*"/);
+  });
 });
-
-assert.doesNotMatch(popupSource, /Word \?{4}/);
-assert.doesNotMatch(popupSource, /title="\?{3,}"/);
-assert.doesNotMatch(popupSource, /description=".*\?{4,}.*"/);
-
-console.log('popup word export copy regression passed');

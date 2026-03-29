@@ -84,8 +84,12 @@ function renderIndentStyle(): void {
     }
 
     .${GAP_CLASS} {
+      margin-block-start: 0 !important;
+      margin-block-end: 0 !important;
+    }
+
+    .${GAP_CLASS} + .${GAP_CLASS} {
       margin-block-start: ${paragraphGap} !important;
-      margin-block-end: ${paragraphGap} !important;
     }
   `;
 }
