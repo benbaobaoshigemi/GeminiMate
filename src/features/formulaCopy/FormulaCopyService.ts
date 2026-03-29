@@ -5,6 +5,7 @@
  */
 import temml from 'temml';
 import browser from 'webextension-polyfill';
+import { toCanvas } from 'html-to-image';
 
 import { debugService } from '@/core/services/DebugService';
 import { logger } from '@/core/services/LoggerService';
@@ -14,7 +15,7 @@ import type { ILogger } from '@/core/types/common';
 /**
  * Formula copy format options
  */
-export type FormulaCopyFormat = 'latex' | 'unicodemath' | 'no-dollar';
+export type FormulaCopyFormat = 'latex' | 'unicodemath' | 'no-dollar' | 'png';
 
 /**
  * Configuration for the formula copy service
@@ -33,9 +34,14 @@ export interface FormulaCopyConfig {
 export class FormulaCopyService {
   private static instance: FormulaCopyService | null = null;
   private static readonly MATHML_NS = 'http://www.w3.org/1998/Math/MathML';
+  private static readonly PNG_CACHE_MAX_ENTRIES = 40;
+  private static readonly PNG_ALPHA_CROP_THRESHOLD = 14;
+  private static readonly PNG_CROP_PADDING_PX = 1;
+  private static readonly PNG_MAX_OUTPUT_EDGE_PX = 2400;
   private readonly logger: ILogger;
   private readonly config: Required<Omit<FormulaCopyConfig, 'format'>>;
   private currentFormat: FormulaCopyFormat = 'latex';
+  private pngClipboardCache = new Map<string, Blob>();
 
   // Storage change listener, extracted so it can be removed on destroy
   private readonly handleStorageChange: Parameters<
@@ -51,7 +57,12 @@ export class FormulaCopyService {
 
     if (changes[StorageKeys.FORMULA_COPY_FORMAT]) {
       const newFormat = changes[StorageKeys.FORMULA_COPY_FORMAT].newValue as FormulaCopyFormat;
-      if (newFormat === 'latex' || newFormat === 'unicodemath' || newFormat === 'no-dollar') {
+      if (
+        newFormat === 'latex' ||
+        newFormat === 'unicodemath' ||
+        newFormat === 'no-dollar' ||
+        newFormat === 'png'
+      ) {
         this.currentFormat = newFormat;
         this.logger.debug('Formula format changed', { format: newFormat });
         debugService.log('formula-copy', 'format-changed', { format: newFormat });
@@ -114,14 +125,24 @@ export class FormulaCopyService {
     try {
       const localResult = await browser.storage.local.get(StorageKeys.FORMULA_COPY_FORMAT);
       const localFormat = localResult[StorageKeys.FORMULA_COPY_FORMAT] as FormulaCopyFormat | undefined;
-      if (localFormat === 'latex' || localFormat === 'unicodemath' || localFormat === 'no-dollar') {
+      if (
+        localFormat === 'latex' ||
+        localFormat === 'unicodemath' ||
+        localFormat === 'no-dollar' ||
+        localFormat === 'png'
+      ) {
         this.currentFormat = localFormat;
         this.logger.debug('Loaded formula format preference (local)', { format: localFormat });
       } else {
         // Backward-compatible fallback for old sync-based installs.
         const syncResult = await browser.storage.sync.get(StorageKeys.FORMULA_COPY_FORMAT);
         const syncFormat = syncResult[StorageKeys.FORMULA_COPY_FORMAT] as FormulaCopyFormat | undefined;
-        if (syncFormat === 'latex' || syncFormat === 'unicodemath' || syncFormat === 'no-dollar') {
+        if (
+          syncFormat === 'latex' ||
+          syncFormat === 'unicodemath' ||
+          syncFormat === 'no-dollar' ||
+          syncFormat === 'png'
+        ) {
           this.currentFormat = syncFormat;
           this.logger.debug('Loaded formula format preference (sync fallback)', {
             format: syncFormat,
@@ -325,7 +346,7 @@ export class FormulaCopyService {
         textLength: text.length,
         textPreview: text.slice(0, 120),
       });
-      const success = await this.copyToClipboard(text, html);
+      const success = await this.copyToClipboard(text, html, mathElement);
 
       if (success) {
         this.showInlineSuccess(mathElement);
@@ -358,7 +379,15 @@ export class FormulaCopyService {
   /**
    * Copy text to clipboard using modern API with fallback
    */
-  private async copyToClipboard(text: string, html?: string): Promise<boolean> {
+  private async copyToClipboard(
+    text: string,
+    html: string | undefined,
+    mathElement: HTMLElement,
+  ): Promise<boolean> {
+    if (this.currentFormat === 'png') {
+      return this.copyPngToClipboard(mathElement, text);
+    }
+
     // Try modern Clipboard API first (supports MIME types)
     if (navigator.clipboard?.write) {
       const isWordMathMLMode = this.currentFormat === 'unicodemath' && Boolean(html);
@@ -554,6 +583,288 @@ export class FormulaCopyService {
 
     // Fallback to execCommand for older browsers (text only)
     return this.copyToClipboardLegacy(text);
+  }
+
+  private async copyPngToClipboard(mathElement: HTMLElement, textFallback: string): Promise<boolean> {
+    const target = this.resolvePngCaptureTarget(mathElement);
+    try {
+      const cacheKey = this.buildPngCacheKey(target, textFallback);
+      const cachedBlob = this.getCachedPngBlob(cacheKey);
+      if (cachedBlob) {
+        this.trace('clipboard-png-cache-hit', {
+          key: cacheKey,
+          size: cachedBlob.size,
+        });
+        debugService.log('formula-copy', 'clipboard-png-cache-hit', {
+          key: cacheKey,
+          size: cachedBlob.size,
+        });
+        return this.writePngBlobToClipboard(cachedBlob, textFallback);
+      }
+
+      const blob = await this.renderPngBlob(target);
+
+      if (!blob) {
+        this.trace('clipboard-png-blob-empty');
+        debugService.log('formula-copy', 'clipboard-png-blob-empty');
+        return this.copyToClipboardLegacy(textFallback);
+      }
+
+      this.setCachedPngBlob(cacheKey, blob);
+      return this.writePngBlobToClipboard(blob, textFallback);
+    } catch (error) {
+      this.logger.warn('PNG clipboard write failed, fallback to text copy', { error });
+      this.trace('clipboard-png-write-error', {
+        name: this.getErrorName(error),
+        message: this.getErrorMessage(error),
+      });
+      debugService.log('formula-copy', 'clipboard-png-write-error', {
+        name: this.getErrorName(error),
+        message: this.getErrorMessage(error),
+      });
+      if (navigator.clipboard?.writeText) {
+        try {
+          await navigator.clipboard.writeText(textFallback);
+          return true;
+        } catch (writeTextError) {
+          this.trace('clipboard-png-fallback-writeText-error', {
+            name: this.getErrorName(writeTextError),
+            message: this.getErrorMessage(writeTextError),
+          });
+        }
+      }
+      return this.copyToClipboardLegacy(textFallback);
+    }
+  }
+
+  private resolvePngPixelRatio(target: HTMLElement): number {
+    const dpr = Math.max(1, window.devicePixelRatio || 1);
+    const rect = target.getBoundingClientRect();
+    const area = rect.width * rect.height;
+    let ratio = dpr * 2.2;
+    if (area <= 22000) {
+      ratio = dpr * 2.8;
+    } else if (area > 90000) {
+      ratio = dpr * 1.85;
+    }
+
+    const maxEdge = Math.max(1, Math.max(rect.width, rect.height));
+    const byEdgeLimit = FormulaCopyService.PNG_MAX_OUTPUT_EDGE_PX / maxEdge;
+    return Math.max(1, Math.min(4, ratio, byEdgeLimit));
+  }
+
+  private async renderPngBlob(target: HTMLElement): Promise<Blob | null> {
+    const sandboxHost = document.createElement('div');
+    sandboxHost.style.position = 'fixed';
+    sandboxHost.style.left = '-99999px';
+    sandboxHost.style.top = '0';
+    sandboxHost.style.pointerEvents = 'none';
+    sandboxHost.style.opacity = '0';
+    sandboxHost.style.margin = '0';
+    sandboxHost.style.padding = '0';
+    sandboxHost.style.display = 'inline-block';
+    sandboxHost.style.width = 'fit-content';
+    sandboxHost.style.height = 'fit-content';
+    sandboxHost.style.background = 'transparent';
+
+    const normalizeStyle = document.createElement('style');
+    normalizeStyle.textContent = `
+      .gm-formula-copy-png-root,
+      .gm-formula-copy-png-root * {
+        box-sizing: border-box;
+      }
+      .gm-formula-copy-png-root {
+        margin: 0 !important;
+        padding: 0 !important;
+        display: inline-block !important;
+        width: fit-content !important;
+        height: fit-content !important;
+        background: transparent !important;
+      }
+      .gm-formula-copy-png-root .katex-display {
+        margin: 0 !important;
+        text-align: left !important;
+      }
+      .gm-formula-copy-png-root.katex-display > .katex,
+      .gm-formula-copy-png-root .katex-display > .katex {
+        display: inline-block !important;
+        margin: 0 !important;
+        text-align: left !important;
+      }
+      .gm-formula-copy-png-root .katex {
+        margin: 0 !important;
+      }
+      .gm-formula-copy-png-root .katex-mathml {
+        display: none !important;
+      }
+    `;
+
+    const clone = target.cloneNode(true) as HTMLElement;
+    clone.classList.add('gm-formula-copy-png-root');
+    sandboxHost.appendChild(normalizeStyle);
+    sandboxHost.appendChild(clone);
+    document.body.appendChild(sandboxHost);
+
+    try {
+      if (document.fonts?.ready) {
+        await document.fonts.ready;
+      }
+      const canvas = await toCanvas(clone, {
+        cacheBust: false,
+        pixelRatio: this.resolvePngPixelRatio(target),
+        backgroundColor: 'rgba(0,0,0,0)',
+      });
+      const cropped = this.cropCanvasByAlpha(
+        canvas,
+        FormulaCopyService.PNG_ALPHA_CROP_THRESHOLD,
+        FormulaCopyService.PNG_CROP_PADDING_PX,
+      );
+      return await new Promise<Blob | null>((resolve) => {
+        cropped.toBlob((blob) => resolve(blob), 'image/png');
+      });
+    } finally {
+      sandboxHost.remove();
+    }
+  }
+
+  private cropCanvasByAlpha(
+    source: HTMLCanvasElement,
+    alphaThreshold: number,
+    padding: number,
+  ): HTMLCanvasElement {
+    const context = source.getContext('2d');
+    if (!context) return source;
+
+    const width = source.width;
+    const height = source.height;
+    if (width <= 0 || height <= 0) return source;
+
+    const alphaData = context.getImageData(0, 0, width, height).data;
+    const hasVisiblePixelInColumn = (x: number, minY: number, maxY: number): boolean => {
+      for (let y = minY; y <= maxY; y += 1) {
+        const alpha = alphaData[(y * width + x) * 4 + 3];
+        if (alpha > alphaThreshold) return true;
+      }
+      return false;
+    };
+    const hasVisiblePixelInRow = (y: number, minX: number, maxX: number): boolean => {
+      const rowOffset = y * width * 4;
+      for (let x = minX; x <= maxX; x += 1) {
+        const alpha = alphaData[rowOffset + x * 4 + 3];
+        if (alpha > alphaThreshold) return true;
+      }
+      return false;
+    };
+
+    let left = 0;
+    let right = width - 1;
+    let top = 0;
+    let bottom = height - 1;
+
+    while (left <= right && !hasVisiblePixelInColumn(left, 0, height - 1)) {
+      left += 1;
+    }
+    while (right >= left && !hasVisiblePixelInColumn(right, 0, height - 1)) {
+      right -= 1;
+    }
+    while (top <= bottom && !hasVisiblePixelInRow(top, left, right)) {
+      top += 1;
+    }
+    while (bottom >= top && !hasVisiblePixelInRow(bottom, left, right)) {
+      bottom -= 1;
+    }
+
+    if (right < left || bottom < top) return source;
+
+    left = Math.max(0, left - padding);
+    top = Math.max(0, top - padding);
+    right = Math.min(width - 1, right + padding);
+    bottom = Math.min(height - 1, bottom + padding);
+
+    const croppedWidth = right - left + 1;
+    const croppedHeight = bottom - top + 1;
+    if (croppedWidth <= 0 || croppedHeight <= 0) return source;
+
+    const cropped = document.createElement('canvas');
+    cropped.width = croppedWidth;
+    cropped.height = croppedHeight;
+    const croppedContext = cropped.getContext('2d');
+    if (!croppedContext) return source;
+
+    croppedContext.drawImage(
+      source,
+      left,
+      top,
+      croppedWidth,
+      croppedHeight,
+      0,
+      0,
+      croppedWidth,
+      croppedHeight,
+    );
+    return cropped;
+  }
+
+  private buildPngCacheKey(target: HTMLElement, textFallback: string): string {
+    const rect = target.getBoundingClientRect();
+    const normalizedWidth = Math.round(rect.width * 10) / 10;
+    const normalizedHeight = Math.round(rect.height * 10) / 10;
+    const dpr = Math.round((window.devicePixelRatio || 1) * 100) / 100;
+    return `${textFallback}::${normalizedWidth}x${normalizedHeight}::${dpr}`;
+  }
+
+  private getCachedPngBlob(cacheKey: string): Blob | null {
+    const cached = this.pngClipboardCache.get(cacheKey);
+    if (!cached) return null;
+    this.pngClipboardCache.delete(cacheKey);
+    this.pngClipboardCache.set(cacheKey, cached);
+    return cached;
+  }
+
+  private setCachedPngBlob(cacheKey: string, blob: Blob): void {
+    if (this.pngClipboardCache.has(cacheKey)) {
+      this.pngClipboardCache.delete(cacheKey);
+    }
+    this.pngClipboardCache.set(cacheKey, blob);
+    if (this.pngClipboardCache.size <= FormulaCopyService.PNG_CACHE_MAX_ENTRIES) return;
+    const oldestKey = this.pngClipboardCache.keys().next().value;
+    if (!oldestKey) return;
+    this.pngClipboardCache.delete(oldestKey);
+  }
+
+  private async writePngBlobToClipboard(blob: Blob, textFallback: string): Promise<boolean> {
+    if (navigator.clipboard?.write && typeof ClipboardItem !== 'undefined') {
+      await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })]);
+      this.trace('clipboard-png-write-success', {
+        size: blob.size,
+        type: blob.type,
+      });
+      debugService.log('formula-copy', 'clipboard-png-write-success', {
+        size: blob.size,
+        type: blob.type,
+      });
+      return true;
+    }
+
+    this.trace('clipboard-png-write-unsupported-fallback-text');
+    debugService.log('formula-copy', 'clipboard-png-write-unsupported-fallback-text');
+    if (navigator.clipboard?.writeText) {
+      await navigator.clipboard.writeText(textFallback);
+      return true;
+    }
+    return this.copyToClipboardLegacy(textFallback);
+  }
+
+  private resolvePngCaptureTarget(mathElement: HTMLElement): HTMLElement {
+    const richMathNode =
+      mathElement.closest<HTMLElement>('.katex') ??
+      mathElement.querySelector<HTMLElement>('.katex-display > .katex') ??
+      mathElement.querySelector<HTMLElement>('.katex') ??
+      mathElement.querySelector<HTMLElement>('.katex-display');
+    if (richMathNode) return richMathNode;
+
+    const preferred = mathElement.closest<HTMLElement>('.math-inline, .math-block, [data-math], ms-katex');
+    return preferred ?? mathElement;
   }
 
   private copyToClipboardLegacyHtml(html: string, textFallback: string): boolean {
@@ -871,6 +1182,10 @@ export class FormulaCopyService {
     }
 
     if (this.currentFormat === 'no-dollar') {
+      return { text: formula };
+    }
+
+    if (this.currentFormat === 'png') {
       return { text: formula };
     }
 

@@ -57,6 +57,7 @@ export const StorageKeys = {
     GEMINI_LETTER_SPACING: 'geminimate_letter_spacing',
     GEMINI_LINE_HEIGHT: 'geminimate_line_height',
     GEMINI_PARAGRAPH_INDENT_ENABLED: 'geminimate_paragraph_indent_enabled',
+    GEMINI_PARAGRAPH_BLOCK_GAP_EM: 'geminimate_paragraph_block_gap_em',
     GEMINI_EMPHASIS_MODE: 'geminimate_emphasis_mode',
     WORD_RESPONSE_EXPORT_ENABLED: 'geminimate_word_response_export_enabled',
     WORD_RESPONSE_EXPORT_MODE: 'geminimate_word_response_export_mode',

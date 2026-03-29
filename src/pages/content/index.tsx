@@ -55,7 +55,18 @@ let debugCacheCaptureTimer: ReturnType<typeof setInterval> | null = null;
 
 const DEBUG_CACHE_CAPTURE_INTERVAL_MS = 30000;
 
-const resolveEnabledValue = (value: unknown): boolean => value !== false;
+const resolveEnabledValue = (value: unknown, fallback = true): boolean => {
+  if (value === undefined) return fallback;
+  if (typeof value === 'string') {
+    const normalized = value.trim().toLowerCase();
+    if (normalized === 'true' || normalized === '1') return true;
+    if (normalized === 'false' || normalized === '0') return false;
+  }
+  if (typeof value === 'number') {
+    return value !== 0;
+  }
+  return value !== false;
+};
 
 const traceThoughtTranslation = (event: string, detail?: Record<string, unknown>): void => {
   debugService.log('thought-translation', event, detail);
@@ -290,13 +301,6 @@ const attachClickLoggerOnce = (): void => {
   );
 };
 
-const extractCustomFontNames = (value: unknown): string[] => {
-  if (!Array.isArray(value)) return [];
-  return value
-    .map((item) => (item && typeof item === 'object' && 'name' in item ? String(item.name || '') : ''))
-    .filter((name) => name.length > 0);
-};
-
 const traceCustomFontStorage = (event: 'initial' | 'changed', value: unknown): void => {
   void event;
   void value;
@@ -336,7 +340,7 @@ const handleStorageChanged = (
 
   const bottomCleanupChange = changes[StorageKeys.BOTTOM_CLEANUP_ENABLED];
   if (bottomCleanupChange) {
-    const enabled = resolveEnabledValue(bottomCleanupChange.newValue);
+    const enabled = resolveEnabledValue(bottomCleanupChange.newValue, false);
     debugService.log('storage', 'bottom-cleanup-enabled-changed', {
       enabled,
     });
@@ -394,7 +398,7 @@ const initExtension = async () => {
     syncFormulaCopyState(resolveEnabledValue(settings[StorageKeys.FORMULA_COPY_ENABLED]));
     syncQuoteReplyState(resolveEnabledValue(settings[StorageKeys.QUOTE_REPLY_ENABLED]));
     syncWatermarkRemoverState(resolveEnabledValue(settings[StorageKeys.WATERMARK_REMOVER_ENABLED]));
-    syncBottomCleanupState(resolveEnabledValue(settings[StorageKeys.BOTTOM_CLEANUP_ENABLED]));
+    syncBottomCleanupState(resolveEnabledValue(settings[StorageKeys.BOTTOM_CLEANUP_ENABLED], false));
     syncYoutubeRecommendationBlockerState(
       resolveEnabledValue(settings[StorageKeys.YOUTUBE_RECOMMENDATION_BLOCKER_ENABLED]),
     );

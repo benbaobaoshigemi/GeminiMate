@@ -762,10 +762,6 @@ export class WordResponseExportService {
     });
   }
 
-  private static resolveBaseRunBold(input: WordResponseExportInput): boolean {
-    return false;
-  }
-
   private static resolveCharacterSpacingTwips(
     input: WordResponseExportInput,
     runHalfPoints: number,

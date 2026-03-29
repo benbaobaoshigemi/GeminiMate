@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "GeminiMate",
   "description": "Premium Gemini assistant with LaTeX fixing and advanced features.",
-  "version": "4.1.0",
+  "version": "4.2.0",
   "action": {
     "default_popup": "src/pages/popup/index.html"
   },

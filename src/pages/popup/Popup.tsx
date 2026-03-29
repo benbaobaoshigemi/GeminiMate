@@ -37,7 +37,7 @@ import {
   POPUP_LOCAL_SETTINGS_KEYS,
 } from './settingsConfig';
 
-type FormulaCopyFormat = 'latex' | 'unicodemath' | 'no-dollar';
+type FormulaCopyFormat = 'latex' | 'unicodemath' | 'no-dollar' | 'png';
 type WordResponseExportMode = 'default' | 'academic';
 type UpdateStatus = 'idle' | 'checking' | 'available' | 'latest' | 'error';
 
@@ -157,6 +157,13 @@ const MIN_FONT_WEIGHT = 200;
 const MAX_FONT_WEIGHT = 900;
 const clampFontWeight = (value: number): number =>
   Math.max(MIN_FONT_WEIGHT, Math.min(MAX_FONT_WEIGHT, Math.round(value)));
+const MIN_PARAGRAPH_BLOCK_GAP_EM = 0;
+const MAX_PARAGRAPH_BLOCK_GAP_EM = 1.2;
+const normalizeParagraphBlockGap = (value: number): number => {
+  if (!Number.isFinite(value)) return 0;
+  const clamped = Math.max(MIN_PARAGRAPH_BLOCK_GAP_EM, Math.min(MAX_PARAGRAPH_BLOCK_GAP_EM, value));
+  return Math.round(clamped * 100) / 100;
+};
 const CHAT_WIDTH_LEGACY_MIN = 30;
 const CHAT_WIDTH_LEGACY_DEFAULT = 70;
 const CHAT_WIDTH_LEGACY_MAX = 100;
@@ -178,6 +185,9 @@ const resolveToggleValue = (value: unknown, fallback = true): boolean => {
   }
   return value !== false;
 };
+
+const resolveFormulaCopyFormat = (value: unknown): FormulaCopyFormat =>
+  value === 'unicodemath' || value === 'no-dollar' || value === 'png' ? value : 'latex';
 
 const Toggle = ({
   checked,
@@ -586,6 +596,7 @@ export default function Popup() {
   const [letterSpacing, setLetterSpacing] = useState(0);
   const [lineHeight, setLineHeight] = useState(0);
   const [paragraphIndentEnabled, setParagraphIndentEnabled] = useState(false);
+  const [paragraphBlockGapEm, setParagraphBlockGapEm] = useState(0);
   const [emphasisMode, setEmphasisMode] = useState<'bold' | 'underline'>('bold');
   const [debugModeEnabled, setDebugModeEnabled] = useState(false);
   const [debugFileLogEnabled, setDebugFileLogEnabled] = useState(true);
@@ -613,9 +624,7 @@ export default function Popup() {
 
       setFormulaCopyEnabled(resolveToggleValue(result[StorageKeys.FORMULA_COPY_ENABLED], true));
       const rawFormat = result[StorageKeys.FORMULA_COPY_FORMAT];
-      setFormulaCopyFormat(
-        rawFormat === 'unicodemath' || rawFormat === 'no-dollar' ? rawFormat as FormulaCopyFormat : 'latex',
-      );
+      setFormulaCopyFormat(resolveFormulaCopyFormat(rawFormat));
       setNetworkQualityEnabled(resolveToggleValue(result[StorageKeys.NETWORK_QUALITY_ENABLED], true));
       setNetworkQualityThresholds(
         normalizeNetworkQualityThresholds(result[StorageKeys.NETWORK_QUALITY_THRESHOLDS]),
@@ -664,6 +673,7 @@ export default function Popup() {
       setLetterSpacing(Number(result[StorageKeys.GEMINI_LETTER_SPACING]) || 0);
       setLineHeight(Number(result[StorageKeys.GEMINI_LINE_HEIGHT]) || 0);
       setParagraphIndentEnabled(resolveToggleValue(result[StorageKeys.GEMINI_PARAGRAPH_INDENT_ENABLED], false));
+      setParagraphBlockGapEm(normalizeParagraphBlockGap(Number(result[StorageKeys.GEMINI_PARAGRAPH_BLOCK_GAP_EM]) || 0));
       setEmphasisMode(result[StorageKeys.GEMINI_EMPHASIS_MODE] === 'underline' ? 'underline' : 'bold');
       setDebugModeEnabled(result[StorageKeys.DEBUG_MODE] === true);
       setDebugFileLogEnabled(resolveToggleValue(result[StorageKeys.DEBUG_FILE_LOG_ENABLED], true));
@@ -703,7 +713,7 @@ export default function Popup() {
       }
       if (changes[StorageKeys.FORMULA_COPY_FORMAT]) {
         const next = changes[StorageKeys.FORMULA_COPY_FORMAT].newValue;
-        setFormulaCopyFormat(next === 'unicodemath' || next === 'no-dollar' ? next : 'latex');
+        setFormulaCopyFormat(resolveFormulaCopyFormat(next));
       }
       if (changes[StorageKeys.NETWORK_QUALITY_ENABLED]) {
         setNetworkQualityEnabled(
@@ -808,6 +818,11 @@ export default function Popup() {
       }
       if (changes[StorageKeys.GEMINI_PARAGRAPH_INDENT_ENABLED]) {
         setParagraphIndentEnabled(changes[StorageKeys.GEMINI_PARAGRAPH_INDENT_ENABLED].newValue === true);
+      }
+      if (changes[StorageKeys.GEMINI_PARAGRAPH_BLOCK_GAP_EM]) {
+        setParagraphBlockGapEm(
+          normalizeParagraphBlockGap(Number(changes[StorageKeys.GEMINI_PARAGRAPH_BLOCK_GAP_EM].newValue) || 0),
+        );
       }
       if (changes[StorageKeys.GEMINI_EMPHASIS_MODE]) {
         setEmphasisMode(changes[StorageKeys.GEMINI_EMPHASIS_MODE].newValue === 'underline' ? 'underline' : 'bold');
@@ -1855,6 +1870,22 @@ export default function Popup() {
                 )
               }
             />
+            <Slider
+              icon={Type}
+              title="段间距"
+              description="0 为紧凑排版；支持 0.01em 连续调节段与段之间距离"
+              value={paragraphBlockGapEm}
+              min={0}
+              max={1.2}
+              step={0.01}
+              unit="em"
+              defaultValue={0}
+              onChange={(v) => {
+                const next = normalizeParagraphBlockGap(v);
+                setParagraphBlockGapEm(next);
+                chrome.storage.local.set({ [StorageKeys.GEMINI_PARAGRAPH_BLOCK_GAP_EM]: next });
+              }}
+            />
             <div className="p-3 rounded-xl bg-slate-50 dark:bg-[#1b2332] border border-slate-200 dark:border-slate-700 shadow-[0_4px_12px_rgba(15,23,42,0.04)] dark:shadow-[0_6px_16px_rgba(2,6,23,0.16)]">
               <div className="flex items-center gap-3 mb-3">
                 <div className="p-2 rounded-lg bg-blue-500/20 text-blue-400 shrink-0">
@@ -1918,6 +1949,7 @@ export default function Popup() {
                     { value: 'latex' as const, title: 'LaTeX', desc: '自动按行内/块级补全 $ 符号' },
                     { value: 'unicodemath' as const, title: 'MathML (Word)', desc: '适合 Word 粘贴，保留公式结构' },
                     { value: 'no-dollar' as const, title: '纯文本 LaTeX', desc: '仅复制公式文本，不加定界符' },
+                    { value: 'png' as const, title: 'PNG 图片', desc: '复制为位图，便于粘贴到文档与设计工具' },
                   ].map((option) => {
                     const active = formulaCopyFormat === option.value;
                     return (

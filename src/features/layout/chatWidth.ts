@@ -12,7 +12,6 @@ import {
 } from './layoutScale';
 
 const STYLE_ID = 'geminimate-chat-width';
-const WIDTH_DIAG_PREFIX = '[GM-ChatWidth]';
 
 const CHAT_WIDTH_LEGACY_MIN = 30;
 const CHAT_WIDTH_LEGACY_DEFAULT = 70;

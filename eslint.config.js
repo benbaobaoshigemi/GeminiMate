@@ -4,7 +4,19 @@ import tseslint from 'typescript-eslint';
 
 export default tseslint.config(
   {
-    ignores: ['dist/**', 'node_modules/**'],
+    ignores: [
+      'dist/**',
+      'node_modules/**',
+      '_verification_scripts/**',
+      'extension/**',
+      'extension_legacy_backup_20260305/**',
+      'release/**',
+      'sandbox/**',
+      'public/sandbox/**',
+      'public/share-viewer.js',
+      'src/lib/katex/**',
+      'src/popup.js',
+    ],
   },
   js.configs.recommended,
   ...tseslint.configs.recommended,

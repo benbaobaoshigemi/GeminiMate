@@ -51,12 +51,14 @@ const MIN_LETTER_SPACING = 0;
 const MAX_LETTER_SPACING = 15;
 const MIN_LINE_HEIGHT = 0;
 const MAX_LINE_HEIGHT = 8;
+const MIN_PARAGRAPH_BLOCK_GAP_EM = 0;
+const MAX_PARAGRAPH_BLOCK_GAP_EM = 1.2;
 const MIN_EXPORT_SCALE = 50;
 const MAX_EXPORT_SCALE = 200;
 const MIN_FOLDER_TREE_INDENT = -8;
 const MAX_FOLDER_TREE_INDENT = 32;
 const THOUGHT_TRANSLATION_MODES: ThoughtTranslationMode[] = ['compare', 'replace'];
-const FORMULA_COPY_FORMATS = ['latex', 'unicodemath', 'no-dollar'] as const;
+const FORMULA_COPY_FORMATS = ['latex', 'unicodemath', 'no-dollar', 'png'] as const;
 const TIMELINE_SCROLL_MODES = ['flow', 'jump'] as const;
 const EMPHASIS_MODES = ['bold', 'underline'] as const;
 const WORD_RESPONSE_EXPORT_MODES = ['default', 'academic'] as const;
@@ -386,6 +388,13 @@ const settingsDescriptors: SettingDescriptor[] = [
     key: StorageKeys.GEMINI_PARAGRAPH_INDENT_ENABLED,
     defaultValue: false,
     normalize: resolveBoolean,
+  },
+  {
+    area: 'local',
+    key: StorageKeys.GEMINI_PARAGRAPH_BLOCK_GAP_EM,
+    defaultValue: 0,
+    normalize: (value) =>
+      resolveRoundedNumber(value, MIN_PARAGRAPH_BLOCK_GAP_EM, MAX_PARAGRAPH_BLOCK_GAP_EM, 0.01),
   },
   {
     area: 'local',
